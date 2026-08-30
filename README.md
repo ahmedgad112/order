@@ -1,58 +1,97 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# نظام إدارة الأدوار (Num System)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+نظام طوابير يومي بالعربية (RTL) مبني على Laravel + Vue 3، يشمل:
 
-## About Laravel
+- كiosk لإصدار التذاكر
+- شاشة عرض عامة مع تنبيه صوتي عند النداء
+- متابعة التذكرة بالرقم القومي أو رقم الطلب
+- لوحة موظف (نداء / إكمال / إلغاء / إعادة نداء)
+- لوحة إدارة (فتح/إغلاق، تصفير اليوم، تقارير، مستخدمين، سجل التسجيلات)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## المتطلبات
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- PHP 8.3+
+- Composer
+- Node.js 20+
+- SQLite (افتراضي) أو MySQL
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## التثبيت السريع
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+copy .env.example .env   # Windows
+php artisan key:generate
+php artisan migrate --seed
+npm install
+npm run build
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+للتشغيل أثناء التطوير (سيرفر + Vite + Reverb):
 
-## Contributing
+```bash
+composer run dev
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+أو يدوياً في نوافذ منفصلة:
 
-## Code of Conduct
+```bash
+php artisan serve
+php artisan reverb:start
+npm run dev
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+افتح: `http://127.0.0.1:8000`
 
-## Security Vulnerabilities
+## حسابات التجربة (بعد seed)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| الدور | البريد | كلمة المرور |
+|------|--------|-------------|
+| مدير | `admin@queue.local` | `password` |
+| موظف 1 | `teller1@queue.local` | `password` |
+| موظف 2 | `teller2@queue.local` | `password` |
 
-## License
+## المسارات
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| المسار | الوصف |
+|--------|--------|
+| `/` | إصدار تذكرة (كiosk) |
+| `/display` | شاشة العرض |
+| `/track` | متابعة التذكرة |
+| `/login` | تسجيل الدخول |
+| `/teller` | لوحة الموظف |
+| `/admin` | لوحة الإدارة |
+| `/admin/registrations` | سجل التسجيلات وتسجيل الدخول |
+
+## الريل تايم (Reverb)
+
+تأكد من ضبط المتغيرات في `.env`:
+
+```env
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=...
+REVERB_APP_KEY=...
+REVERB_APP_SECRET=...
+REVERB_HOST=localhost
+REVERB_PORT=8080
+REVERB_SCHEME=http
+
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST="${REVERB_HOST}"
+VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_SCHEME="${REVERB_SCHEME}"
+```
+
+القناة العامة: `queue-channel`  
+الأحداث: `TicketIssued`, `TicketCalled`, `TicketCompleted`, `QueueSystemUpdated`, `QueueDayReset`
+
+## الاختبارات
+
+```bash
+php artisan test
+```
+
+## ملاحظات تشغيل
+
+- التذاكر يومية؛ **تصفير اليوم** يحذف تذاكر اليوم الحالي.
+- إغلاق النظام يمنع إصدار تذاكر جديدة ونداء التالي، مع السماح بإكمال التذكرة الحالية.
+- واجهات إصدار/تتبع التذاكر محمية بحد معدل الطلبات (throttle).

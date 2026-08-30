@@ -97,21 +97,21 @@ watch(search, () => {
     searchTimer = setTimeout(() => loadTickets(), 400);
 });
 
+let unsubscribeEcho = null;
+
 onMounted(async () => {
-    queueStore.bindEcho();
     await loadTickets();
 
-    if (window.Echo) {
-        window.Echo.channel('queue-channel')
-            .listen('.TicketIssued', onQueueUpdate)
-            .listen('.TicketCalled', onQueueUpdate)
-            .listen('.TicketCompleted', onQueueUpdate)
-            .listen('.QueueDayReset', onQueueUpdate);
-    }
+    unsubscribeEcho = queueStore.subscribeEcho({
+        TicketIssued: onQueueUpdate,
+        TicketCalled: onQueueUpdate,
+        TicketCompleted: onQueueUpdate,
+        QueueDayReset: onQueueUpdate,
+    });
 });
 
 onUnmounted(() => {
-    queueStore.unbindEcho();
+    unsubscribeEcho?.();
     clearTimeout(searchTimer);
 });
 </script>
@@ -119,13 +119,20 @@ onUnmounted(() => {
 <template>
     <div class="min-h-screen bg-slate-100">
         <header class="border-b border-slate-200 bg-white">
-            <div class="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 class="flex items-center gap-2 text-2xl font-bold text-slate-900">
-                        <ClipboardList class="h-7 w-7 text-indigo-600" />
-                        سجل التسجيلات
-                    </h1>
-                    <p class="text-sm text-slate-500">كل الأشخاص المسجلين اليوم — وتسجيل الدخول أمامهم</p>
+            <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div class="flex items-center gap-3">
+                    <img
+                        :src="'/logo.webp'"
+                        alt="جامعة برج العرب التكنولوجية"
+                        class="h-12 w-auto object-contain"
+                    />
+                    <div>
+                        <h1 class="flex items-center gap-2 text-2xl font-bold text-slate-900">
+                            <ClipboardList class="h-7 w-7 text-indigo-600" />
+                            سجل التسجيلات
+                        </h1>
+                        <p class="text-sm text-slate-500">كل الأشخاص المسجلين اليوم — وتسجيل الدخول أمامهم</p>
+                    </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <RouterLink
@@ -146,7 +153,7 @@ onUnmounted(() => {
             </div>
         </header>
 
-        <main class="mx-auto max-w-7xl space-y-5 px-6 py-6">
+        <main class="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
             <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div class="rounded-2xl bg-white p-4 shadow-sm">
                     <p class="text-xs text-slate-500">الإجمالي</p>
@@ -210,8 +217,75 @@ onUnmounted(() => {
 
                 <p class="mb-3 text-sm text-slate-500">عرض {{ filteredCount }} تسجيل</p>
 
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[900px] text-right text-sm">
+                <!-- Mobile cards -->
+                <div class="space-y-3 md:hidden">
+                    <article
+                        v-for="ticket in queueStore.registrations"
+                        :key="ticket.id"
+                        class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4"
+                        :class="{ 'border-green-200 bg-green-50/40': ticket.status === 'completed' }"
+                    >
+                        <div class="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-2xl font-black text-indigo-600">{{ ticket.ticket_number }}</p>
+                                <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
+                            </div>
+                            <span
+                                class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold"
+                                :class="statusBadgeClass[ticket.status]"
+                            >
+                                {{ ticket.status_label }}
+                            </span>
+                        </div>
+                        <dl class="space-y-2 text-sm">
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">الرقم القومي</dt>
+                                <dd class="font-mono text-slate-700">{{ ticket.national_id }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">رقم الطلب</dt>
+                                <dd class="text-slate-700">{{ ticket.order_number }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">الشباك</dt>
+                                <dd class="text-slate-700">{{ ticket.counter_name ?? '—' }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">وقت التسجيل</dt>
+                                <dd class="text-slate-700">{{ formatTime(ticket.created_at) }}</dd>
+                            </div>
+                        </dl>
+                        <div class="mt-4 border-t border-slate-200/80 pt-3">
+                            <button
+                                v-if="canMarkEntered(ticket)"
+                                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                                :disabled="actionId === ticket.id"
+                                @click="handleMarkEntered(ticket)"
+                            >
+                                <UserCheck class="h-4 w-4" />
+                                {{ actionId === ticket.id ? 'جاري...' : 'دخل' }}
+                            </button>
+                            <p
+                                v-else-if="ticket.status === 'completed'"
+                                class="flex items-center justify-center gap-1 text-xs font-semibold text-green-700"
+                            >
+                                <CheckCircle2 class="h-4 w-4" />
+                                تم
+                            </p>
+                            <p v-else class="text-center text-xs text-slate-400">—</p>
+                        </div>
+                    </article>
+                    <p
+                        v-if="!queueStore.registrations.length"
+                        class="py-12 text-center text-slate-400"
+                    >
+                        لا توجد تسجيلات مطابقة
+                    </p>
+                </div>
+
+                <!-- Desktop table -->
+                <div class="hidden overflow-x-auto md:block">
+                    <table class="w-full text-right text-sm">
                         <thead>
                             <tr class="border-b border-slate-100 text-slate-500">
                                 <th class="px-3 py-3">#</th>

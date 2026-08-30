@@ -6,6 +6,7 @@ use App\Enums\TicketStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Hidden(['national_id', 'order_number'])]
 class QueueTicket extends Model
 {
+    /** @use HasFactory<\Database\Factories\QueueTicketFactory> */
+    use HasFactory;
     protected function casts(): array
     {
         return [

@@ -23,7 +23,7 @@ const actionError = ref('');
 const statusLabel = computed(() => ({
     waiting: 'في الانتظار',
     serving: 'قيد الخدمة',
-    completed: 'مكتمل',
+    completed: 'تمت الخدمة',
     cancelled: 'ملغى',
 }));
 
@@ -107,30 +107,39 @@ async function logout() {
     await router.push('/login');
 }
 
+let unsubscribeEcho = null;
+
 onMounted(async () => {
-    queueStore.bindEcho();
+    unsubscribeEcho = queueStore.subscribeEcho();
     await refresh();
     window.addEventListener('keydown', onKeydown);
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', onKeydown);
-    queueStore.unbindEcho();
+    unsubscribeEcho?.();
 });
 </script>
 
 <template>
     <div class="min-h-screen bg-slate-100">
         <header class="border-b border-slate-200 bg-white">
-            <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-900">لوحة الموظف</h1>
-                    <p class="text-sm text-slate-500">
-                        {{ authStore.user?.name }} — {{ authStore.user?.counter_name ?? 'بدون شباك' }}
-                    </p>
+            <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div class="flex items-center gap-3">
+                    <img
+                        :src="'/logo.webp'"
+                        alt="جامعة برج العرب التكنولوجية"
+                        class="h-12 w-auto object-contain"
+                    />
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-900">لوحة الموظف</h1>
+                        <p class="text-sm text-slate-500">
+                            {{ authStore.user?.name }} — {{ authStore.user?.counter_name ?? 'بدون شباك' }}
+                        </p>
+                    </div>
                 </div>
                 <button
-                    class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
+                    class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
                     @click="logout"
                 >
                     <LogOut class="h-4 w-4" />
@@ -139,7 +148,7 @@ onUnmounted(() => {
             </div>
         </header>
 
-        <main class="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-3">
+        <main class="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-3">
             <div
                 v-if="!queueStore.isSystemOpen"
                 class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 lg:col-span-3"
@@ -152,24 +161,24 @@ onUnmounted(() => {
 
             <section class="space-y-4 lg:col-span-2">
                 <div class="rounded-3xl bg-white p-6 shadow-sm">
-                    <div class="mb-4 flex items-center justify-between">
+                    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <h2 class="text-lg font-bold text-slate-800">التذكرة الحالية</h2>
-                        <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                        <span class="w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
                             مسافة: نداء | Enter: إكمال | Esc: إلغاء
                         </span>
                     </div>
 
-                    <div v-if="queueStore.currentTicket" class="rounded-2xl border border-blue-100 bg-blue-50 p-6">
-                        <div class="flex items-start justify-between">
+                    <div v-if="queueStore.currentTicket" class="rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:p-6">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <p class="text-sm text-blue-600">رقم التذكرة</p>
-                                <p class="text-6xl font-black text-blue-700">{{ queueStore.currentTicket.ticket_number }}</p>
+                                <p class="text-5xl font-black text-blue-700 sm:text-6xl">{{ queueStore.currentTicket.ticket_number }}</p>
                             </div>
-                            <span class="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">
+                            <span class="w-fit rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">
                                 {{ statusLabel[queueStore.currentTicket.status] ?? queueStore.currentTicket.status }}
                             </span>
                         </div>
-                        <p class="mt-4 text-2xl font-bold text-slate-800">{{ queueStore.currentTicket.full_name }}</p>
+                        <p class="mt-4 text-xl font-bold text-slate-800 sm:text-2xl">{{ queueStore.currentTicket.full_name }}</p>
                         <p class="mt-2 text-sm text-slate-500">رقم الطلب: {{ queueStore.currentTicket.order_number }}</p>
                     </div>
                     <div v-else class="rounded-2xl border border-dashed border-slate-200 py-16 text-center text-slate-500">

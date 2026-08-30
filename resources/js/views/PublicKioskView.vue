@@ -100,25 +100,34 @@ async function saveAsImage() {
     }
 }
 
+let unsubscribeEcho = null;
+
 onMounted(async () => {
-    queueStore.bindEcho();
+    unsubscribeEcho = queueStore.subscribeEcho();
     await queueStore.fetchPublicStatus();
 });
 
 onUnmounted(() => {
-    queueStore.unbindEcho();
+    unsubscribeEcho?.();
 });
 </script>
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
         <header class="border-b border-blue-100 bg-white/80 backdrop-blur">
-            <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-900">نظام إدارة الطوابير</h1>
-                    <p class="text-sm text-slate-500">إصدار تذكرة جديدة</p>
-                </div>
+            <div class="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div class="flex items-center gap-3">
+                    <img
+                        :src="'/logo.webp'"
+                        alt="جامعة برج العرب التكنولوجية"
+                        class="h-14 w-auto object-contain"
+                    />
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-900">نظام إدارة الأدوار</h1>
+                        <p class="text-sm text-slate-500">إصدار تذكرة جديدة</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                     <RouterLink
                         to="/track"
                         class="flex items-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
@@ -127,11 +136,11 @@ onUnmounted(() => {
                         متابعة التذكرة
                     </RouterLink>
                     <div class="flex items-center gap-3 rounded-2xl bg-blue-600 px-5 py-3 text-white shadow-lg">
-                    <Ticket class="h-6 w-6" />
-                    <div class="text-left">
-                        <p class="text-xs opacity-80">في الانتظار</p>
-                        <p class="text-2xl font-bold leading-none">{{ queueStore.stats.waiting }}</p>
-                    </div>
+                        <Ticket class="h-6 w-6" />
+                        <div class="text-left">
+                            <p class="text-xs opacity-80">في الانتظار</p>
+                            <p class="text-2xl font-bold leading-none">{{ queueStore.stats.waiting }}</p>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -11,11 +11,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('public')->group(function (): void {
     Route::get('/queue-status', [PublicQueueController::class, 'queueStatus']);
-    Route::post('/tickets', [PublicQueueController::class, 'issueTicket']);
-    Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket']);
+    Route::post('/tickets', [PublicQueueController::class, 'issueTicket'])
+        ->middleware('throttle:20,1');
+    Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket'])
+        ->middleware('throttle:60,1');
 });
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])
+    ->middleware('throttle:10,1');
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout']);

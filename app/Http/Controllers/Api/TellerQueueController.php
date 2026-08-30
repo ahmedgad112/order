@@ -8,12 +8,16 @@ use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\TicketResource;
 use App\Models\QueueTicket;
 use App\Services\QueueService;
+use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TellerQueueController extends Controller
 {
-    public function __construct(private readonly QueueService $queueService) {}
+    public function __construct(
+        private readonly QueueService $queueService,
+        private readonly QueueSystemService $systemService,
+    ) {}
 
     public function queueStatus(): JsonResponse
     {
@@ -23,6 +27,7 @@ class TellerQueueController extends Controller
             'serving' => PublicTicketResource::collection($status['serving']),
             'waiting' => PublicTicketResource::collection($status['waiting']),
             'stats' => $status['stats'],
+            'system' => $this->systemService->getStatus(),
         ]);
     }
 

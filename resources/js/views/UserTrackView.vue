@@ -114,23 +114,23 @@ function onQueueEvent() {
     }
 }
 
+let unsubscribeEcho = null;
+
 onMounted(async () => {
-    queueStore.bindEcho();
     await queueStore.fetchPublicStatus();
 
-    if (window.Echo) {
-        window.Echo.channel('queue-channel')
-            .listen('.TicketCalled', onQueueEvent)
-            .listen('.TicketCompleted', onQueueEvent)
-            .listen('.QueueDayReset', () => {
-                trackedTicket.value = null;
-                fieldError.value = 'تم تصفير اليوم. يرجى التحقق من تذكرتك مرة أخرى.';
-            });
-    }
+    unsubscribeEcho = queueStore.subscribeEcho({
+        TicketCalled: onQueueEvent,
+        TicketCompleted: onQueueEvent,
+        QueueDayReset: () => {
+            trackedTicket.value = null;
+            fieldError.value = 'تم تصفير اليوم. يرجى التحقق من تذكرتك مرة أخرى.';
+        },
+    });
 });
 
 onUnmounted(() => {
-    queueStore.unbindEcho();
+    unsubscribeEcho?.();
 });
 
 watch(searchType, () => {
@@ -142,14 +142,21 @@ watch(searchType, () => {
 <template>
     <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
         <header class="border-b border-indigo-100 bg-white/80 backdrop-blur">
-            <div class="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-900">متابعة التذكرة</h1>
-                    <p class="text-sm text-slate-500">اعرف مكانك في الطابور</p>
+            <div class="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div class="flex items-center gap-3">
+                    <img
+                        :src="'/logo.webp'"
+                        alt="جامعة برج العرب التكنولوجية"
+                        class="h-14 w-auto object-contain"
+                    />
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-900">متابعة التذكرة</h1>
+                        <p class="text-sm text-slate-500">اعرف مكانك في الطابور</p>
+                    </div>
                 </div>
                 <RouterLink
                     to="/"
-                    class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                     إصدار تذكرة
                     <ArrowRight class="h-4 w-4" />
@@ -157,8 +164,8 @@ watch(searchType, () => {
             </div>
         </header>
 
-        <main class="mx-auto max-w-3xl space-y-6 px-6 py-10">
-            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+        <main class="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+            <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
                 <h2 class="mb-6 text-center text-2xl font-bold text-slate-800">ابحث عن تذكرتك</h2>
 
                 <div class="mb-6 flex rounded-2xl bg-slate-100 p-1">

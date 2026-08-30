@@ -16,7 +16,16 @@ export const useQueueStore = defineStore('queue', () => {
     const system = ref({ is_open: true, closed_message: null });
     const loading = ref(false);
     const error = ref(null);
-    const echoBound = ref(false);
+
+    let echoBound = false;
+    let echoSubscribers = 0;
+    const extraHandlers = {
+        TicketIssued: new Set(),
+        TicketCalled: new Set(),
+        TicketCompleted: new Set(),
+        QueueSystemUpdated: new Set(),
+        QueueDayReset: new Set(),
+    };
 
     const hasWaiting = computed(() => stats.value.waiting > 0);
     const hasCurrentTicket = computed(() => Boolean(currentTicket.value));
@@ -217,7 +226,9 @@ export const useQueueStore = defineStore('queue', () => {
     }
 
     function handleSystemUpdated(event) {
-        system.value = event.system;
+        if (event.system) {
+            system.value = event.system;
+        }
     }
 
     function handleDayReset() {
@@ -243,7 +254,9 @@ export const useQueueStore = defineStore('queue', () => {
 
     function handleTicketIssued(event) {
         const ticket = event.ticket;
-        waiting.value = [...waiting.value, ticket].sort((a, b) => a.ticket_number - b.ticket_number).slice(0, 10);
+        waiting.value = [...waiting.value, ticket]
+            .sort((a, b) => a.ticket_number - b.ticket_number)
+            .slice(0, 10);
         stats.value.waiting += 1;
     }
 
@@ -258,34 +271,114 @@ export const useQueueStore = defineStore('queue', () => {
     function handleTicketCompleted(event) {
         const ticket = event.ticket;
         serving.value = serving.value.filter((item) => item.id !== ticket.id);
+        removeFromWaiting(ticket.id);
         stats.value.serving = serving.value.length;
         if (ticket.status === 'completed') {
             stats.value.completed += 1;
         }
+        if (currentTicket.value?.id === ticket.id) {
+            currentTicket.value = null;
+        }
     }
 
-    function bindEcho() {
-        if (echoBound.value || !window.Echo) {
+    function runExtras(eventName, payload) {
+        extraHandlers[eventName].forEach((handler) => {
+            try {
+                handler(payload);
+            } catch {
+                // ignore listener errors
+            }
+        });
+    }
+
+    function attachEchoListeners() {
+        if (echoBound || !window.Echo) {
             return;
         }
 
         window.Echo.channel('queue-channel')
-            .listen('.TicketIssued', handleTicketIssued)
-            .listen('.TicketCalled', handleTicketCalled)
-            .listen('.TicketCompleted', handleTicketCompleted)
-            .listen('.QueueSystemUpdated', handleSystemUpdated)
-            .listen('.QueueDayReset', handleDayReset);
+            .listen('.TicketIssued', (event) => {
+                handleTicketIssued(event);
+                runExtras('TicketIssued', event);
+            })
+            .listen('.TicketCalled', (event) => {
+                handleTicketCalled(event);
+                runExtras('TicketCalled', event);
+            })
+            .listen('.TicketCompleted', (event) => {
+                handleTicketCompleted(event);
+                runExtras('TicketCompleted', event);
+            })
+            .listen('.QueueSystemUpdated', (event) => {
+                handleSystemUpdated(event);
+                runExtras('QueueSystemUpdated', event);
+            })
+            .listen('.QueueDayReset', (event) => {
+                handleDayReset(event);
+                runExtras('QueueDayReset', event);
+            });
 
-        echoBound.value = true;
+        echoBound = true;
     }
 
-    function unbindEcho() {
-        if (!echoBound.value || !window.Echo) {
+    function detachEchoListeners() {
+        if (!echoBound || !window.Echo) {
             return;
         }
 
         window.Echo.leave('queue-channel');
-        echoBound.value = false;
+        echoBound = false;
+    }
+
+    /**
+     * Subscribe to the shared queue channel. Returns an unsubscribe function.
+     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'QueueSystemUpdated'|'QueueDayReset', Function>>} handlers
+     */
+    function subscribeEcho(handlers = {}) {
+        Object.entries(handlers).forEach(([eventName, handler]) => {
+            if (handler && extraHandlers[eventName]) {
+                extraHandlers[eventName].add(handler);
+            }
+        });
+
+        echoSubscribers += 1;
+        attachEchoListeners();
+
+        let active = true;
+
+        return () => {
+            if (!active) {
+                return;
+            }
+            active = false;
+
+            Object.entries(handlers).forEach(([eventName, handler]) => {
+                if (handler && extraHandlers[eventName]) {
+                    extraHandlers[eventName].delete(handler);
+                }
+            });
+
+            echoSubscribers = Math.max(0, echoSubscribers - 1);
+            if (echoSubscribers === 0) {
+                detachEchoListeners();
+            }
+        };
+    }
+
+    let legacyUnsub = null;
+
+    /** Prefer subscribeEcho() when you need custom handlers. */
+    function bindEcho() {
+        if (!legacyUnsub) {
+            legacyUnsub = subscribeEcho();
+        }
+    }
+
+    function unbindEcho() {
+        if (legacyUnsub) {
+            legacyUnsub();
+            legacyUnsub = null;
+        }
     }
 
     return {
@@ -329,6 +422,10 @@ export const useQueueStore = defineStore('queue', () => {
         resetDay,
         handleSystemUpdated,
         handleDayReset,
+        handleTicketIssued,
+        handleTicketCalled,
+        handleTicketCompleted,
+        subscribeEcho,
         bindEcho,
         unbindEcho,
     };

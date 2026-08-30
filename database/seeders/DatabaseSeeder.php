@@ -12,10 +12,10 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         User::query()->updateOrCreate(
-            ['email' => 'admin@queue.local'],
+            ['email' => 'gad@gmail.com'],
             [
                 'name' => 'مدير النظام',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('Ahmedgad@2011'),
                 'role' => UserRole::Admin,
                 'counter_name' => null,
                 'is_active' => true,

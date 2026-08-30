@@ -59,8 +59,8 @@ router.beforeEach(async (to) => {
     }
 
     document.title = to.meta.title
-        ? `${to.meta.title} | نظام الطوابير`
-        : 'نظام إدارة الطوابير والأدوار';
+        ? `${to.meta.title} | نظام إدارة الأدوار`
+        : 'نظام إدارة الأدوار';
 
     if (to.meta.requiresAuth && !authStore.isAuthenticated) {
         return { name: 'login', query: { redirect: to.fullPath } };

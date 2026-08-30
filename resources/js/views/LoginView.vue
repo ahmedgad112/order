@@ -1,7 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { LogIn } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 
 const authStore = useAuthStore();
@@ -27,7 +26,7 @@ async function submit() {
 }
 
 onMounted(() => {
-    document.title = 'تسجيل الدخول | نظام الطوابير';
+    document.title = 'تسجيل الدخول | نظام إدارة الأدوار';
 });
 </script>
 
@@ -35,9 +34,11 @@ onMounted(() => {
     <div class="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
             <div class="mb-8 text-center">
-                <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white">
-                    <LogIn class="h-8 w-8" />
-                </div>
+                <img
+                    :src="'/logo.webp'"
+                    alt="جامعة برج العرب التكنولوجية"
+                    class="mx-auto mb-4 h-24 w-auto object-contain"
+                />
                 <h1 class="text-2xl font-bold text-slate-900">تسجيل الدخول</h1>
                 <p class="text-sm text-slate-500">لوحة الموظفين والإدارة</p>
             </div>
@@ -75,9 +76,6 @@ onMounted(() => {
                 </button>
             </form>
 
-            <p class="mt-6 text-center text-xs text-slate-400">
-                تجريبي: teller1@queue.local / password
-            </p>
         </div>
     </div>
 </template>

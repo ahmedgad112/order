@@ -116,9 +116,9 @@ class QueueService
     {
         $this->assertTicketOwnedByTeller($ticket, $teller);
 
-        if (! in_array($ticket->status, [TicketStatus::Waiting, TicketStatus::Serving], true)) {
+        if ($ticket->status !== TicketStatus::Serving) {
             throw ValidationException::withMessages([
-                'ticket' => 'لا يمكن إلغاء هذه التذكرة.',
+                'ticket' => 'يمكن إلغاء التذاكر قيد الخدمة فقط.',
             ]);
         }
 
