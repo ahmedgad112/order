@@ -43,6 +43,7 @@ class AdminTicketController extends Controller
             'serving' => QueueTicket::query()->today()->serving()->count(),
             'completed' => QueueTicket::query()->today()->where('status', TicketStatus::Completed)->count(),
             'cancelled' => QueueTicket::query()->today()->where('status', TicketStatus::Cancelled)->count(),
+            'absent' => QueueTicket::query()->today()->where('status', TicketStatus::Absent)->count(),
         ];
 
         return response()->json([

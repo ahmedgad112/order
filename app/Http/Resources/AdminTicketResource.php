@@ -37,6 +37,7 @@ class AdminTicketResource extends JsonResource
             TicketStatus::Serving => 'قيد الخدمة',
             TicketStatus::Completed => 'دخل',
             TicketStatus::Cancelled => 'ملغى',
+            TicketStatus::Absent => 'مش موجود',
         };
     }
 }

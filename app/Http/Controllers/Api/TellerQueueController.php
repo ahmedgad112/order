@@ -84,4 +84,33 @@ class TellerQueueController extends Controller
             'ticket' => new TicketResource($ticket),
         ]);
     }
+
+    public function absentTickets(): JsonResponse
+    {
+        $tickets = $this->queueService->getAbsentTickets();
+
+        return response()->json([
+            'tickets' => TicketResource::collection($tickets),
+        ]);
+    }
+
+    public function markAbsent(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markAbsent($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل التذكرة كـ "مش موجود".',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function restoreTicket(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->restoreTicket($ticket);
+
+        return response()->json([
+            'message' => 'تم إرجاع التذكرة لقائمة الانتظار.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
 }

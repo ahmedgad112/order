@@ -31,6 +31,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/complete', [TellerQueueController::class, 'completeTicket']);
         Route::post('/tickets/{ticket}/cancel', [TellerQueueController::class, 'cancelTicket']);
         Route::post('/tickets/{ticket}/recall', [TellerQueueController::class, 'recallTicket']);
+        Route::get('/absent-tickets', [TellerQueueController::class, 'absentTickets']);
+        Route::post('/tickets/{ticket}/mark-absent', [TellerQueueController::class, 'markAbsent']);
+        Route::post('/tickets/{ticket}/restore', [TellerQueueController::class, 'restoreTicket']);
     });
 
     Route::prefix('admin')->middleware('role:admin')->group(function (): void {

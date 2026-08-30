@@ -45,6 +45,7 @@ class UserTicketResource extends JsonResource
             TicketStatus::Serving => 'يتم خدمتك الآن',
             TicketStatus::Completed => 'تمت الخدمة',
             TicketStatus::Cancelled => 'ملغاة',
+            TicketStatus::Absent => 'لم يحضر — راجع الموظف',
         };
     }
 }

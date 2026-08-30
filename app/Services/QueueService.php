@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\TicketStatus;
+use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketCompletedEvent;
 use App\Events\TicketIssuedEvent;
+use App\Events\TicketRestoredEvent;
 use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -151,6 +153,61 @@ class QueueService
         $this->broadcastSafely(new TicketCalledEvent($ticket));
 
         return $ticket;
+    }
+
+    public function markAbsent(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertTicketOwnedByTeller($ticket, $teller);
+
+        if ($ticket->status !== TicketStatus::Serving) {
+            throw ValidationException::withMessages([
+                'ticket' => 'يمكن تسجيل "مش موجود" للتذاكر قيد الخدمة فقط.',
+            ]);
+        }
+
+        $ticket->update([
+            'status' => TicketStatus::Absent,
+            'completed_at' => now(),
+        ]);
+
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketAbsentEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
+    public function restoreTicket(QueueTicket $ticket): QueueTicket
+    {
+        if ($ticket->status !== TicketStatus::Absent) {
+            throw ValidationException::withMessages([
+                'ticket' => 'يمكن إرجاع التذاكر المسجلة كـ "مش موجود" فقط.',
+            ]);
+        }
+
+        $ticket->update([
+            'status' => TicketStatus::Waiting,
+            'user_id' => null,
+            'called_at' => null,
+            'completed_at' => null,
+        ]);
+
+        $this->broadcastSafely(new TicketRestoredEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, QueueTicket>
+     */
+    public function getAbsentTickets()
+    {
+        return QueueTicket::query()
+            ->today()
+            ->absent()
+            ->with('teller')
+            ->orderByDesc('completed_at')
+            ->get();
     }
 
     public function adminMarkEntered(QueueTicket $ticket): QueueTicket

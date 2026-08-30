@@ -7,22 +7,26 @@ export const useQueueStore = defineStore('queue', () => {
     const waiting = ref([]);
     const stats = ref({ waiting: 0, serving: 0, completed: 0 });
     const currentTicket = ref(null);
+    const absentTickets = ref([]);
     const metrics = ref(null);
     const tellerPerformance = ref([]);
     const tellers = ref([]);
     const users = ref([]);
     const registrations = ref([]);
-    const registrationStats = ref({ total: 0, waiting: 0, serving: 0, completed: 0, cancelled: 0 });
+    const registrationStats = ref({ total: 0, waiting: 0, serving: 0, completed: 0, cancelled: 0, absent: 0 });
     const system = ref({ is_open: true, closed_message: null });
     const loading = ref(false);
     const error = ref(null);
 
     let echoBound = false;
     let echoSubscribers = 0;
+    let refreshDebounceTimer = null;
     const extraHandlers = {
         TicketIssued: new Set(),
         TicketCalled: new Set(),
         TicketCompleted: new Set(),
+        TicketAbsent: new Set(),
+        TicketRestored: new Set(),
         QueueSystemUpdated: new Set(),
         QueueDayReset: new Set(),
     };
@@ -132,6 +136,25 @@ export const useQueueStore = defineStore('queue', () => {
         return data.ticket;
     }
 
+    async function fetchAbsentTickets() {
+        const { data } = await axios.get('/teller/absent-tickets');
+        absentTickets.value = data.tickets;
+        return data.tickets;
+    }
+
+    async function markAbsent(ticketId) {
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/mark-absent`);
+        currentTicket.value = null;
+        await Promise.all([fetchTellerStatus(), fetchAbsentTickets()]);
+        return data;
+    }
+
+    async function restoreTicket(ticketId) {
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/restore`);
+        await Promise.all([fetchTellerStatus(), fetchAbsentTickets()]);
+        return data;
+    }
+
     async function fetchDailyMetrics() {
         const { data } = await axios.get('/admin/reports/daily');
         metrics.value = data.metrics;
@@ -222,7 +245,36 @@ export const useQueueStore = defineStore('queue', () => {
         waiting.value = [];
         stats.value = { waiting: 0, serving: 0, completed: 0 };
         currentTicket.value = null;
+        absentTickets.value = [];
         return data;
+    }
+
+    function scheduleDataRefresh() {
+        clearTimeout(refreshDebounceTimer);
+        refreshDebounceTimer = setTimeout(async () => {
+            const { useAuthStore } = await import('./authStore');
+            const auth = useAuthStore();
+
+            const tasks = [];
+
+            if (auth.isAdmin) {
+                tasks.push(
+                    fetchDailyMetrics().catch(() => {}),
+                    fetchTellerPerformance().catch(() => {}),
+                );
+            }
+
+            if (auth.isTeller) {
+                tasks.push(
+                    fetchCurrentTicket().catch(() => {}),
+                    fetchAbsentTickets().catch(() => {}),
+                );
+            }
+
+            if (tasks.length) {
+                await Promise.all(tasks);
+            }
+        }, 400);
     }
 
     function handleSystemUpdated(event) {
@@ -236,6 +288,47 @@ export const useQueueStore = defineStore('queue', () => {
         waiting.value = [];
         stats.value = { waiting: 0, serving: 0, completed: 0 };
         currentTicket.value = null;
+        absentTickets.value = [];
+        scheduleDataRefresh();
+    }
+
+    function upsertAbsentTicket(ticket) {
+        const detail = ticket.ticket_detail ?? ticket;
+        if (!detail?.id) {
+            return;
+        }
+
+        const index = absentTickets.value.findIndex((item) => item.id === detail.id);
+        if (index >= 0) {
+            absentTickets.value[index] = detail;
+        } else {
+            absentTickets.value = [detail, ...absentTickets.value];
+        }
+    }
+
+    function removeAbsentTicket(ticketId) {
+        absentTickets.value = absentTickets.value.filter((item) => item.id !== ticketId);
+    }
+
+    function handleTicketAbsent(event) {
+        const ticket = event.ticket;
+        serving.value = serving.value.filter((item) => item.id !== ticket.id);
+        stats.value.serving = serving.value.length;
+        if (currentTicket.value?.id === ticket.id) {
+            currentTicket.value = null;
+        }
+        upsertAbsentTicket(event);
+        scheduleDataRefresh();
+    }
+
+    function handleTicketRestored(event) {
+        const ticket = event.ticket;
+        removeAbsentTicket(ticket.id);
+        waiting.value = [...waiting.value, ticket]
+            .sort((a, b) => a.ticket_number - b.ticket_number)
+            .slice(0, 10);
+        stats.value.waiting += 1;
+        scheduleDataRefresh();
     }
 
     function upsertServingTicket(ticket) {
@@ -258,6 +351,7 @@ export const useQueueStore = defineStore('queue', () => {
             .sort((a, b) => a.ticket_number - b.ticket_number)
             .slice(0, 10);
         stats.value.waiting += 1;
+        scheduleDataRefresh();
     }
 
     function handleTicketCalled(event) {
@@ -266,6 +360,7 @@ export const useQueueStore = defineStore('queue', () => {
         upsertServingTicket(ticket);
         stats.value.waiting = Math.max(0, stats.value.waiting - 1);
         stats.value.serving = serving.value.length;
+        scheduleDataRefresh();
     }
 
     function handleTicketCompleted(event) {
@@ -279,6 +374,7 @@ export const useQueueStore = defineStore('queue', () => {
         if (currentTicket.value?.id === ticket.id) {
             currentTicket.value = null;
         }
+        scheduleDataRefresh();
     }
 
     function runExtras(eventName, payload) {
@@ -308,6 +404,14 @@ export const useQueueStore = defineStore('queue', () => {
             .listen('.TicketCompleted', (event) => {
                 handleTicketCompleted(event);
                 runExtras('TicketCompleted', event);
+            })
+            .listen('.TicketAbsent', (event) => {
+                handleTicketAbsent(event);
+                runExtras('TicketAbsent', event);
+            })
+            .listen('.TicketRestored', (event) => {
+                handleTicketRestored(event);
+                runExtras('TicketRestored', event);
             })
             .listen('.QueueSystemUpdated', (event) => {
                 handleSystemUpdated(event);
@@ -386,6 +490,7 @@ export const useQueueStore = defineStore('queue', () => {
         waiting,
         stats,
         currentTicket,
+        absentTickets,
         metrics,
         tellerPerformance,
         tellers,
@@ -407,6 +512,9 @@ export const useQueueStore = defineStore('queue', () => {
         completeTicket,
         cancelTicket,
         recallTicket,
+        fetchAbsentTickets,
+        markAbsent,
+        restoreTicket,
         fetchDailyMetrics,
         fetchTellerPerformance,
         fetchTellers,
@@ -425,6 +533,8 @@ export const useQueueStore = defineStore('queue', () => {
         handleTicketIssued,
         handleTicketCalled,
         handleTicketCompleted,
+        handleTicketAbsent,
+        handleTicketRestored,
         subscribeEcho,
         bindEcho,
         unbindEcho,

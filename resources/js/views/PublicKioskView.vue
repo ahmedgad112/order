@@ -1,7 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import html2canvas from 'html2canvas';
 import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 
@@ -17,7 +16,81 @@ const showModal = ref(false);
 const issuedTicket = ref(null);
 const fieldErrors = ref({});
 const savingImage = ref(false);
+const imageSaveError = ref('');
 const ticketCaptureRef = ref(null);
+
+const ticketFontFamily = '"Segoe UI", Tahoma, Arial, sans-serif';
+
+function renderTicketToCanvas(ticket) {
+    const width = 400;
+    const height = 420;
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#dcfce7';
+    ctx.beginPath();
+    ctx.arc(width / 2, 56, 40, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#16a34a';
+    ctx.font = `bold 32px ${ticketFontFamily}`;
+    ctx.fillText('✓', width / 2, 58);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = `14px ${ticketFontFamily}`;
+    ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 125);
+
+    ctx.fillStyle = '#2563eb';
+    ctx.font = `bold 72px ${ticketFontFamily}`;
+    ctx.fillText(String(ticket.ticket_number), width / 2, 205);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.font = `bold 18px ${ticketFontFamily}`;
+    ctx.fillText(ticket.masked_name, width / 2, 260);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = `14px ${ticketFontFamily}`;
+    ctx.fillText('يرجى الانتظار حتى يتم نداؤك', width / 2, 300);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `12px ${ticketFontFamily}`;
+    ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 335);
+
+    return canvas;
+}
+
+function downloadCanvas(canvas, filename) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Failed to create image blob'));
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = url;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+            resolve();
+        }, 'image/png');
+    });
+}
 
 const nationalIdDisplay = computed({
     get: () => form.value.national_id,
@@ -69,6 +142,7 @@ async function submitForm() {
 function closeModal() {
     showModal.value = false;
     issuedTicket.value = null;
+    imageSaveError.value = '';
 }
 
 function printTicket() {
@@ -76,39 +150,35 @@ function printTicket() {
 }
 
 async function saveAsImage() {
-    if (!ticketCaptureRef.value || !issuedTicket.value) {
+    if (!issuedTicket.value) {
         return;
     }
 
     savingImage.value = true;
+    imageSaveError.value = '';
 
     try {
-        const canvas = await html2canvas(ticketCaptureRef.value, {
-            backgroundColor: '#ffffff',
-            scale: 2,
-            useCORS: true,
-        });
+        const canvas = renderTicketToCanvas(issuedTicket.value);
+        const filename = `ticket-${issuedTicket.value.ticket_number}.png`;
 
-        const link = document.createElement('a');
-        link.download = `ticket-${issuedTicket.value.ticket_number}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIos) {
+            const tab = window.open(canvas.toDataURL('image/png'), '_blank');
+            if (!tab) {
+                throw new Error('Popup blocked');
+            }
+        } else {
+            await downloadCanvas(canvas, filename);
+        }
     } catch {
-        fieldErrors.value.general = 'تعذر حفظ الصورة. حاول مرة أخرى.';
+        imageSaveError.value = 'تعذر حفظ الصورة. حاول مرة أخرى.';
     } finally {
         savingImage.value = false;
     }
 }
 
-let unsubscribeEcho = null;
-
 onMounted(async () => {
-    unsubscribeEcho = queueStore.subscribeEcho();
     await queueStore.fetchPublicStatus();
-});
-
-onUnmounted(() => {
-    unsubscribeEcho?.();
 });
 </script>
 
@@ -237,6 +307,10 @@ onUnmounted(() => {
                     <p class="mt-2 text-sm text-slate-500">يرجى الانتظار حتى يتم نداؤك</p>
                     <p class="mt-4 text-xs text-slate-400">{{ new Date().toLocaleString('ar-EG') }}</p>
                 </div>
+
+                <p v-if="imageSaveError" class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ imageSaveError }}
+                </p>
 
                 <div class="mt-8 grid grid-cols-2 gap-3">
                     <button

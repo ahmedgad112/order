@@ -7,8 +7,10 @@ import {
     Lock,
     LogOut,
     PhoneCall,
+    RotateCcw,
     SkipForward,
     Ticket,
+    UserX,
     XCircle,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
@@ -19,18 +21,21 @@ const queueStore = useQueueStore();
 const router = useRouter();
 const actionMessage = ref('');
 const actionError = ref('');
+const restoringId = ref(null);
 
 const statusLabel = computed(() => ({
     waiting: 'في الانتظار',
     serving: 'قيد الخدمة',
     completed: 'تمت الخدمة',
     cancelled: 'ملغى',
+    absent: 'مش موجود',
 }));
 
 async function refresh() {
     await Promise.all([
         queueStore.fetchTellerStatus(),
         queueStore.fetchCurrentTicket(),
+        queueStore.fetchAbsentTickets(),
     ]);
 }
 
@@ -85,6 +90,48 @@ async function handleRecall() {
     }
 }
 
+async function handleMarkAbsent() {
+    if (!queueStore.currentTicket) {
+        return;
+    }
+
+    if (!confirm(`تسجيل التذكرة ${queueStore.currentTicket.ticket_number} كـ "مش موجود"؟`)) {
+        return;
+    }
+
+    actionError.value = '';
+    try {
+        const result = await queueStore.markAbsent(queueStore.currentTicket.id);
+        actionMessage.value = result.message;
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر تسجيل "مش موجود".';
+    }
+}
+
+async function handleRestore(ticket) {
+    restoringId.value = ticket.id;
+    actionError.value = '';
+    try {
+        const result = await queueStore.restoreTicket(ticket.id);
+        actionMessage.value = result.message;
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر إرجاع التذكرة.';
+    } finally {
+        restoringId.value = null;
+    }
+}
+
+function formatTime(iso) {
+    if (!iso) {
+        return '—';
+    }
+    return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+}
+
 function onKeydown(event) {
     if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
         return;
@@ -107,17 +154,13 @@ async function logout() {
     await router.push('/login');
 }
 
-let unsubscribeEcho = null;
-
 onMounted(async () => {
-    unsubscribeEcho = queueStore.subscribeEcho();
     await refresh();
     window.addEventListener('keydown', onKeydown);
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', onKeydown);
-    unsubscribeEcho?.();
 });
 </script>
 
@@ -188,7 +231,7 @@ onUnmounted(() => {
                     <p v-if="actionMessage" class="mt-4 text-sm text-green-600">{{ actionMessage }}</p>
                     <p v-if="actionError" class="mt-4 text-sm text-red-600">{{ actionError }}</p>
 
-                    <div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                         <button
                             class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-4 font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                             :disabled="!queueStore.isSystemOpen"
@@ -215,12 +258,72 @@ onUnmounted(() => {
                         </button>
                         <button
                             :disabled="!queueStore.hasCurrentTicket"
+                            class="flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 py-4 font-bold text-white hover:bg-orange-700 disabled:opacity-50"
+                            @click="handleMarkAbsent"
+                        >
+                            <UserX class="h-5 w-5" />
+                            مش موجود
+                        </button>
+                        <button
+                            :disabled="!queueStore.hasCurrentTicket"
                             class="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-4 font-bold text-white hover:bg-red-700 disabled:opacity-50"
                             @click="handleCancel"
                         >
                             <XCircle class="h-5 w-5" />
                             إلغاء
                         </button>
+                    </div>
+                </div>
+
+                <div class="rounded-3xl bg-white p-6 shadow-sm">
+                    <div class="mb-4 flex items-center gap-2">
+                        <UserX class="h-5 w-5 text-orange-600" />
+                        <h2 class="text-lg font-bold text-slate-800">تم نداؤهم ولم يحضروا</h2>
+                        <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                            {{ queueStore.absentTickets.length }}
+                        </span>
+                    </div>
+
+                    <div v-if="!queueStore.absentTickets.length" class="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
+                        لا يوجد أحد مسجّل كـ "مش موجود"
+                    </div>
+
+                    <div v-else class="overflow-x-auto">
+                        <table class="w-full min-w-[640px] text-right text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-slate-500">
+                                    <th class="px-3 py-2">رقم التذكرة</th>
+                                    <th class="px-3 py-2">الاسم</th>
+                                    <th class="px-3 py-2">رقم الطلب</th>
+                                    <th class="px-3 py-2">وقت النداء</th>
+                                    <th class="px-3 py-2">الشباك</th>
+                                    <th class="px-3 py-2">إجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="ticket in queueStore.absentTickets"
+                                    :key="ticket.id"
+                                    class="border-b border-slate-50"
+                                >
+                                    <td class="px-3 py-3 text-lg font-bold text-orange-600">{{ ticket.ticket_number }}</td>
+                                    <td class="px-3 py-3 font-semibold text-slate-800">{{ ticket.full_name }}</td>
+                                    <td class="px-3 py-3 text-slate-600">{{ ticket.order_number }}</td>
+                                    <td class="px-3 py-3 text-slate-600">{{ formatTime(ticket.called_at) }}</td>
+                                    <td class="px-3 py-3 text-slate-600">{{ ticket.counter_name ?? '—' }}</td>
+                                    <td class="px-3 py-3">
+                                        <button
+                                            class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                            :disabled="restoringId === ticket.id"
+                                            @click="handleRestore(ticket)"
+                                        >
+                                            <RotateCcw class="h-4 w-4" />
+                                            {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>

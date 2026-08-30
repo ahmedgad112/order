@@ -69,6 +69,12 @@ const statusConfig = computed(() => {
             title: 'تم إلغاء التذكرة',
             hint: 'يرجى مراجعة الموظف',
         },
+        absent: {
+            color: 'orange',
+            icon: XCircle,
+            title: 'تم نداؤك ولم تحضر',
+            hint: 'توجّه للموظف لإرجاعك للطابور',
+        },
     };
 
     return map[trackedTicket.value.status] ?? map.waiting;
@@ -120,8 +126,11 @@ onMounted(async () => {
     await queueStore.fetchPublicStatus();
 
     unsubscribeEcho = queueStore.subscribeEcho({
+        TicketIssued: onQueueEvent,
         TicketCalled: onQueueEvent,
         TicketCompleted: onQueueEvent,
+        TicketAbsent: onQueueEvent,
+        TicketRestored: onQueueEvent,
         QueueDayReset: () => {
             trackedTicket.value = null;
             fieldError.value = 'تم تصفير اليوم. يرجى التحقق من تذكرتك مرة أخرى.';
@@ -241,6 +250,7 @@ watch(searchType, () => {
                         'bg-blue-600': statusConfig.color === 'blue',
                         'bg-green-600': statusConfig.color === 'green',
                         'bg-red-500': statusConfig.color === 'red',
+                        'bg-orange-500': statusConfig.color === 'orange',
                     }"
                 >
                     <component :is="statusConfig.icon" class="mx-auto mb-3 h-10 w-10" />
@@ -259,6 +269,7 @@ watch(searchType, () => {
                             'bg-blue-100 text-blue-800': trackedTicket.status === 'serving',
                             'bg-green-100 text-green-800': trackedTicket.status === 'completed',
                             'bg-red-100 text-red-800': trackedTicket.status === 'cancelled',
+                            'bg-orange-100 text-orange-800': trackedTicket.status === 'absent',
                         }"
                     >
                         {{ trackedTicket.status_label }}

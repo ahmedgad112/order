@@ -216,6 +216,53 @@ class QueueFlowTest extends TestCase
             ->assertJsonStructure(['token', 'user' => ['id', 'email', 'role']]);
     }
 
+    public function test_teller_can_mark_absent_and_restore_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller('شباك 1')->create();
+
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'عميل غائب',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-1001',
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->postJson('/api/teller/call-next')->assertOk();
+        $ticketId = $ticket->id;
+
+        $absent = $this->postJson("/api/teller/tickets/{$ticketId}/mark-absent");
+        $absent->assertOk()
+            ->assertJsonPath('ticket.status', TicketStatus::Absent->value);
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticketId,
+            'status' => TicketStatus::Absent->value,
+        ]);
+
+        $this->getJson('/api/teller/absent-tickets')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.id', $ticketId);
+
+        $restore = $this->postJson("/api/teller/tickets/{$ticketId}/restore");
+        $restore->assertOk()
+            ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticketId,
+            'status' => TicketStatus::Waiting->value,
+            'user_id' => null,
+            'called_at' => null,
+        ]);
+
+        $this->getJson('/api/teller/absent-tickets')
+            ->assertOk()
+            ->assertJsonCount(0, 'tickets');
+    }
+
     public function test_inactive_user_cannot_login(): void
     {
         User::factory()->inactive()->teller()->create([

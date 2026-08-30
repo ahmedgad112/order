@@ -58,4 +58,9 @@ class QueueTicket extends Model
     {
         return $query->where('status', TicketStatus::Serving);
     }
+
+    public function scopeAbsent(Builder $query): Builder
+    {
+        return $query->where('status', TicketStatus::Absent);
+    }
 }

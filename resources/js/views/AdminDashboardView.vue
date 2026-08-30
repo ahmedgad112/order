@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import {
     BarChart3,
@@ -100,15 +100,8 @@ async function logout() {
     await router.push('/login');
 }
 
-let unsubscribeEcho = null;
-
 onMounted(async () => {
-    unsubscribeEcho = queueStore.subscribeEcho();
     await refresh();
-});
-
-onUnmounted(() => {
-    unsubscribeEcho?.();
 });
 </script>
 

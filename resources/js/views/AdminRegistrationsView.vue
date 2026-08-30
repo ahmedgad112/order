@@ -30,6 +30,7 @@ const statusOptions = [
     { value: 'serving', label: 'قيد الخدمة' },
     { value: 'completed', label: 'دخل' },
     { value: 'cancelled', label: 'ملغى' },
+    { value: 'absent', label: 'مش موجود' },
 ];
 
 const statusBadgeClass = {
@@ -37,6 +38,7 @@ const statusBadgeClass = {
     serving: 'bg-blue-100 text-blue-800',
     completed: 'bg-green-100 text-green-800',
     cancelled: 'bg-red-100 text-red-800',
+    absent: 'bg-orange-100 text-orange-800',
 };
 
 const filteredCount = computed(() => queueStore.registrations.length);
@@ -106,6 +108,8 @@ onMounted(async () => {
         TicketIssued: onQueueUpdate,
         TicketCalled: onQueueUpdate,
         TicketCompleted: onQueueUpdate,
+        TicketAbsent: onQueueUpdate,
+        TicketRestored: onQueueUpdate,
         QueueDayReset: onQueueUpdate,
     });
 });

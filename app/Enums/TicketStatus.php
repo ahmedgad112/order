@@ -8,6 +8,7 @@ enum TicketStatus: string
     case Serving = 'serving';
     case Completed = 'completed';
     case Cancelled = 'cancelled';
+    case Absent = 'absent';
 
     /**
      * @return list<string>
