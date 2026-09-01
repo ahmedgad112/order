@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\TicketStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\TicketResource;
@@ -19,12 +18,46 @@ class TellerQueueController extends Controller
         private readonly QueueSystemService $systemService,
     ) {}
 
+    public function tickets(Request $request): JsonResponse
+    {
+        $result = $this->queueService->getTellerTickets(
+            $request->string('status')->toString() ?: null,
+            $request->filled('search') ? $request->string('search')->toString() : null,
+        );
+
+        return response()->json([
+            'tickets' => TicketResource::collection($result['tickets']),
+            'stats' => $result['stats'],
+            'system' => $this->systemService->getStatus(),
+        ]);
+    }
+
+    public function markEntered(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markEntered($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل طلب الدخول.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function markFileDelivered(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markFileDelivered($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسليم الملف.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
     public function queueStatus(): JsonResponse
     {
         $status = $this->queueService->getPublicQueueStatus();
 
         return response()->json([
-            'serving' => PublicTicketResource::collection($status['serving']),
+            'serving' => TicketResource::collection($status['serving']),
             'waiting' => PublicTicketResource::collection($status['waiting']),
             'stats' => $status['stats'],
             'system' => $this->systemService->getStatus(),

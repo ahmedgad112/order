@@ -27,7 +27,9 @@ class QueueTicketFactory extends Factory
             'status' => TicketStatus::Waiting,
             'user_id' => null,
             'called_at' => null,
+            'entered_at' => null,
             'completed_at' => null,
+            'file_delivered_at' => null,
         ];
     }
 
@@ -37,7 +39,9 @@ class QueueTicketFactory extends Factory
             'status' => TicketStatus::Waiting,
             'user_id' => null,
             'called_at' => null,
+            'entered_at' => null,
             'completed_at' => null,
+            'file_delivered_at' => null,
         ]);
     }
 
@@ -47,7 +51,9 @@ class QueueTicketFactory extends Factory
             'status' => TicketStatus::Serving,
             'user_id' => $teller?->id,
             'called_at' => now(),
+            'entered_at' => now(),
             'completed_at' => null,
+            'file_delivered_at' => null,
         ]);
     }
 
@@ -57,7 +63,9 @@ class QueueTicketFactory extends Factory
             'status' => TicketStatus::Completed,
             'user_id' => $teller?->id,
             'called_at' => now()->subMinutes(5),
+            'entered_at' => now()->subMinutes(5),
             'completed_at' => now(),
+            'file_delivered_at' => now(),
         ]);
     }
 }

@@ -41,6 +41,8 @@ class AdminTicketController extends Controller
             'total' => QueueTicket::query()->today()->count(),
             'waiting' => QueueTicket::query()->today()->waiting()->count(),
             'serving' => QueueTicket::query()->today()->serving()->count(),
+            'entered' => QueueTicket::query()->today()->whereNotNull('entered_at')->count(),
+            'file_delivered' => QueueTicket::query()->today()->whereNotNull('file_delivered_at')->count(),
             'completed' => QueueTicket::query()->today()->where('status', TicketStatus::Completed)->count(),
             'cancelled' => QueueTicket::query()->today()->where('status', TicketStatus::Cancelled)->count(),
             'absent' => QueueTicket::query()->today()->where('status', TicketStatus::Absent)->count(),

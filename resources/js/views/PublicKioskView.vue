@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
@@ -18,6 +18,7 @@ const fieldErrors = ref({});
 const savingImage = ref(false);
 const imageSaveError = ref('');
 const ticketCaptureRef = ref(null);
+let stopAutoRefresh = null;
 
 const ticketFontFamily = '"Segoe UI", Tahoma, Arial, sans-serif';
 
@@ -179,6 +180,11 @@ async function saveAsImage() {
 
 onMounted(async () => {
     await queueStore.fetchPublicStatus();
+    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }));
+});
+
+onUnmounted(() => {
+    stopAutoRefresh?.();
 });
 </script>
 

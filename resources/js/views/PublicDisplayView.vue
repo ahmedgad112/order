@@ -8,6 +8,7 @@ const clock = ref(new Date().toLocaleTimeString('ar-EG'));
 const lastCalledId = ref(null);
 let clockTimer = null;
 let unsubscribeEcho = null;
+let stopAutoRefresh = null;
 
 function playChime() {
     try {
@@ -47,6 +48,8 @@ onMounted(async () => {
     unsubscribeEcho = queueStore.subscribeEcho({
         TicketCalled: onTicketCalled,
     });
+
+    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }));
 });
 
 onUnmounted(() => {
@@ -54,6 +57,7 @@ onUnmounted(() => {
         clearInterval(clockTimer);
     }
     unsubscribeEcho?.();
+    stopAutoRefresh?.();
 });
 </script>
 
@@ -105,7 +109,10 @@ onUnmounted(() => {
                         :key="ticket.id"
                         class="pulse-badge rounded-3xl border border-blue-500/40 bg-gradient-to-br from-blue-600/30 to-indigo-900/40 p-8"
                     >
-                        <p class="text-sm text-blue-200">{{ ticket.counter_name ?? 'الشباك' }}</p>
+                        <p class="text-sm text-blue-200">{{ ticket.teller_name || ticket.counter_name || 'الشباك' }}</p>
+                        <p v-if="ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name" class="text-xs text-blue-300">
+                            {{ ticket.counter_name }}
+                        </p>
                         <p class="my-3 text-7xl font-black text-white">{{ ticket.ticket_number }}</p>
                         <p class="text-2xl font-semibold text-blue-100">{{ ticket.masked_name }}</p>
                     </article>

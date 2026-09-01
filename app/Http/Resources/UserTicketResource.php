@@ -3,11 +3,12 @@
 namespace App\Http\Resources;
 
 use App\Enums\TicketStatus;
+use App\Models\QueueTicket;
 use App\Support\NameMasker;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\QueueTicket */
+/** @mixin QueueTicket */
 class UserTicketResource extends JsonResource
 {
     public function __construct(
@@ -30,6 +31,7 @@ class UserTicketResource extends JsonResource
             'status' => $this->status->value,
             'status_label' => $this->statusLabel(),
             'counter_name' => $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
+            'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'people_ahead' => $this->peopleAhead,
             'position_in_queue' => $this->positionInQueue,
             'called_at' => $this->called_at?->toIso8601String(),

@@ -26,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 
     Route::prefix('teller')->middleware('role:teller,admin')->group(function (): void {
         Route::get('/queue-status', [TellerQueueController::class, 'queueStatus']);
+        Route::get('/tickets', [TellerQueueController::class, 'tickets']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
         Route::post('/call-next', [TellerQueueController::class, 'callNext']);
         Route::post('/tickets/{ticket}/complete', [TellerQueueController::class, 'completeTicket']);
@@ -34,6 +35,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/absent-tickets', [TellerQueueController::class, 'absentTickets']);
         Route::post('/tickets/{ticket}/mark-absent', [TellerQueueController::class, 'markAbsent']);
         Route::post('/tickets/{ticket}/restore', [TellerQueueController::class, 'restoreTicket']);
+        Route::post('/tickets/{ticket}/mark-entered', [TellerQueueController::class, 'markEntered']);
+        Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);
     });
 
     Route::prefix('admin')->middleware('role:admin')->group(function (): void {

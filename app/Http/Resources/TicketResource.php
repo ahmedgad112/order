@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\QueueTicket;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\QueueTicket */
+/** @mixin QueueTicket */
 class TicketResource extends JsonResource
 {
     /**
@@ -24,7 +25,11 @@ class TicketResource extends JsonResource
             'counter_name' => $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'called_at' => $this->called_at?->toIso8601String(),
+            'entered_at' => $this->entered_at?->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
+            'file_delivered_at' => $this->file_delivered_at?->toIso8601String(),
+            'has_entered' => $this->entered_at !== null,
+            'file_delivered' => $this->file_delivered_at !== null,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

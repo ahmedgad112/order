@@ -48,15 +48,27 @@ function formatTime(iso) {
     return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 }
 
-async function loadTickets() {
-    loading.value = true;
+function tellerLabel(ticket) {
+    if (ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name) {
+        return `${ticket.teller_name} — ${ticket.counter_name}`;
+    }
+
+    return ticket.teller_name || ticket.counter_name || '—';
+}
+
+async function loadTickets(silent = false) {
+    if (!silent) {
+        loading.value = true;
+    }
     try {
         await queueStore.fetchRegistrations({
             status: statusFilter.value,
             search: search.value.trim() || undefined,
         });
     } finally {
-        loading.value = false;
+        if (!silent) {
+            loading.value = false;
+        }
     }
 }
 
@@ -100,6 +112,7 @@ watch(search, () => {
 });
 
 let unsubscribeEcho = null;
+let stopAutoRefresh = null;
 
 onMounted(async () => {
     await loadTickets();
@@ -112,10 +125,13 @@ onMounted(async () => {
         TicketRestored: onQueueUpdate,
         QueueDayReset: onQueueUpdate,
     });
+
+    stopAutoRefresh = queueStore.startAutoRefresh(() => loadTickets(true));
 });
 
 onUnmounted(() => {
     unsubscribeEcho?.();
+    stopAutoRefresh?.();
     clearTimeout(searchTimer);
 });
 </script>
@@ -251,8 +267,20 @@ onUnmounted(() => {
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>
                             <div class="flex justify-between gap-3">
-                                <dt class="text-slate-500">الشباك</dt>
-                                <dd class="text-slate-700">{{ ticket.counter_name ?? '—' }}</dd>
+                                <dt class="text-slate-500">طلب دخول</dt>
+                                <dd class="font-semibold" :class="ticket.has_entered ? 'text-blue-700' : 'text-slate-400'">
+                                    {{ ticket.has_entered ? 'تم' : '—' }}
+                                </dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">تسليم الملف</dt>
+                                <dd class="font-semibold" :class="ticket.file_delivered ? 'text-green-700' : 'text-slate-400'">
+                                    {{ ticket.file_delivered ? 'تم' : '—' }}
+                                </dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">موظف الشباك</dt>
+                                <dd class="text-slate-700">{{ tellerLabel(ticket) }}</dd>
                             </div>
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">وقت التسجيل</dt>
@@ -297,7 +325,9 @@ onUnmounted(() => {
                                 <th class="px-3 py-3">الرقم القومي</th>
                                 <th class="px-3 py-3">رقم الطلب</th>
                                 <th class="px-3 py-3">الحالة</th>
-                                <th class="px-3 py-3">الشباك</th>
+                                <th class="px-3 py-3">طلب دخول</th>
+                                <th class="px-3 py-3">تم تسليم الملف</th>
+                                <th class="px-3 py-3">موظف الشباك</th>
                                 <th class="px-3 py-3">وقت التسجيل</th>
                                 <th class="px-3 py-3">إجراء</th>
                             </tr>
@@ -323,7 +353,27 @@ onUnmounted(() => {
                                         {{ ticket.status_label }}
                                     </span>
                                 </td>
-                                <td class="px-3 py-3">{{ ticket.counter_name ?? '—' }}</td>
+                                <td class="px-3 py-3">
+                                    <span
+                                        v-if="ticket.has_entered"
+                                        class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700"
+                                    >
+                                        <CheckCircle2 class="h-4 w-4" />
+                                        تم
+                                    </span>
+                                    <span v-else class="text-xs text-slate-400">—</span>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <span
+                                        v-if="ticket.file_delivered"
+                                        class="inline-flex items-center gap-1 text-xs font-semibold text-green-700"
+                                    >
+                                        <CheckCircle2 class="h-4 w-4" />
+                                        تم
+                                    </span>
+                                    <span v-else class="text-xs text-slate-400">—</span>
+                                </td>
+                                <td class="px-3 py-3">{{ tellerLabel(ticket) }}</td>
                                 <td class="px-3 py-3 text-slate-500">{{ formatTime(ticket.created_at) }}</td>
                                 <td class="px-3 py-3">
                                     <button
@@ -346,7 +396,7 @@ onUnmounted(() => {
                                 </td>
                             </tr>
                             <tr v-if="!queueStore.registrations.length">
-                                <td colspan="8" class="py-16 text-center text-slate-400">
+                                <td colspan="10" class="py-16 text-center text-slate-400">
                                     لا توجد تسجيلات مطابقة
                                 </td>
                             </tr>

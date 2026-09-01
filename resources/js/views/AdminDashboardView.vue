@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import {
     BarChart3,
@@ -28,6 +28,7 @@ const actionLoading = ref(false);
 const actionFeedback = ref('');
 const actionError = ref('');
 const showResetConfirm = ref(false);
+let stopAutoRefresh = null;
 
 const avgWaitMinutes = computed(() => {
     const seconds = queueStore.metrics?.avg_wait_seconds ?? 0;
@@ -102,6 +103,11 @@ async function logout() {
 
 onMounted(async () => {
     await refresh();
+    stopAutoRefresh = queueStore.startAutoRefresh(() => refresh());
+});
+
+onUnmounted(() => {
+    stopAutoRefresh?.();
 });
 </script>
 

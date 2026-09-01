@@ -8,12 +8,32 @@ export const useQueueStore = defineStore('queue', () => {
     const stats = ref({ waiting: 0, serving: 0, completed: 0 });
     const currentTicket = ref(null);
     const absentTickets = ref([]);
+    const tellerTickets = ref([]);
+    const tellerTicketStats = ref({
+        total: 0,
+        waiting: 0,
+        serving: 0,
+        entered: 0,
+        file_delivered: 0,
+        completed: 0,
+        cancelled: 0,
+        absent: 0,
+    });
     const metrics = ref(null);
     const tellerPerformance = ref([]);
     const tellers = ref([]);
     const users = ref([]);
     const registrations = ref([]);
-    const registrationStats = ref({ total: 0, waiting: 0, serving: 0, completed: 0, cancelled: 0, absent: 0 });
+    const registrationStats = ref({
+        total: 0,
+        waiting: 0,
+        serving: 0,
+        entered: 0,
+        file_delivered: 0,
+        completed: 0,
+        cancelled: 0,
+        absent: 0,
+    });
     const system = ref({ is_open: true, closed_message: null });
     const loading = ref(false);
     const error = ref(null);
@@ -44,8 +64,10 @@ export const useQueueStore = defineStore('queue', () => {
         }
     }
 
-    async function fetchPublicStatus() {
-        loading.value = true;
+    async function fetchPublicStatus(options = {}) {
+        if (!options.silent) {
+            loading.value = true;
+        }
         error.value = null;
 
         try {
@@ -55,7 +77,9 @@ export const useQueueStore = defineStore('queue', () => {
             error.value = err.response?.data?.message ?? 'تعذر تحميل حالة الطابور.';
             throw err;
         } finally {
-            loading.value = false;
+            if (!options.silent) {
+                loading.value = false;
+            }
         }
     }
 
@@ -142,16 +166,63 @@ export const useQueueStore = defineStore('queue', () => {
         return data.tickets;
     }
 
+    let lastTellerTicketParams = {};
+
+    async function fetchTellerTickets(params) {
+        if (params !== undefined) {
+            lastTellerTicketParams = params;
+        }
+
+        const { data } = await axios.get('/teller/tickets', { params: lastTellerTicketParams });
+        tellerTickets.value = data.tickets;
+        tellerTicketStats.value = data.stats;
+        if (data.system) {
+            system.value = data.system;
+        }
+        return data;
+    }
+
+    function upsertTellerTicket(ticket) {
+        if (!ticket?.id) {
+            return;
+        }
+
+        const index = tellerTickets.value.findIndex((item) => item.id === ticket.id);
+        if (index >= 0) {
+            tellerTickets.value[index] = ticket;
+        } else {
+            tellerTickets.value = [...tellerTickets.value, ticket].sort(
+                (a, b) => a.ticket_number - b.ticket_number,
+            );
+        }
+    }
+
+    async function markTellerEntered(ticketId) {
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/mark-entered`);
+        upsertTellerTicket(data.ticket);
+        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchCurrentTicket()]);
+        return data;
+    }
+
+    async function markFileDelivered(ticketId) {
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/mark-file-delivered`);
+        upsertTellerTicket(data.ticket);
+        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchCurrentTicket()]);
+        return data;
+    }
+
     async function markAbsent(ticketId) {
         const { data } = await axios.post(`/teller/tickets/${ticketId}/mark-absent`);
-        currentTicket.value = null;
-        await Promise.all([fetchTellerStatus(), fetchAbsentTickets()]);
+        if (currentTicket.value?.id === ticketId) {
+            currentTicket.value = null;
+        }
+        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchAbsentTickets(), fetchCurrentTicket()]);
         return data;
     }
 
     async function restoreTicket(ticketId) {
         const { data } = await axios.post(`/teller/tickets/${ticketId}/restore`);
-        await Promise.all([fetchTellerStatus(), fetchAbsentTickets()]);
+        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchAbsentTickets()]);
         return data;
     }
 
@@ -203,8 +274,14 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
-    async function fetchRegistrations(params = {}) {
-        const { data } = await axios.get('/admin/tickets', { params });
+    let lastRegistrationParams = {};
+
+    async function fetchRegistrations(params) {
+        if (params !== undefined) {
+            lastRegistrationParams = params;
+        }
+
+        const { data } = await axios.get('/admin/tickets', { params: lastRegistrationParams });
         registrations.value = data.tickets;
         registrationStats.value = data.stats;
         return data;
@@ -246,6 +323,17 @@ export const useQueueStore = defineStore('queue', () => {
         stats.value = { waiting: 0, serving: 0, completed: 0 };
         currentTicket.value = null;
         absentTickets.value = [];
+        tellerTickets.value = [];
+        tellerTicketStats.value = {
+            total: 0,
+            waiting: 0,
+            serving: 0,
+            entered: 0,
+            file_delivered: 0,
+            completed: 0,
+            cancelled: 0,
+            absent: 0,
+        };
         return data;
     }
 
@@ -268,6 +356,7 @@ export const useQueueStore = defineStore('queue', () => {
                 tasks.push(
                     fetchCurrentTicket().catch(() => {}),
                     fetchAbsentTickets().catch(() => {}),
+                    fetchTellerTickets().catch(() => {}),
                 );
             }
 
@@ -289,6 +378,17 @@ export const useQueueStore = defineStore('queue', () => {
         stats.value = { waiting: 0, serving: 0, completed: 0 };
         currentTicket.value = null;
         absentTickets.value = [];
+        tellerTickets.value = [];
+        tellerTicketStats.value = {
+            total: 0,
+            waiting: 0,
+            serving: 0,
+            entered: 0,
+            file_delivered: 0,
+            completed: 0,
+            cancelled: 0,
+            absent: 0,
+        };
         scheduleDataRefresh();
     }
 
@@ -485,12 +585,37 @@ export const useQueueStore = defineStore('queue', () => {
         }
     }
 
+    function startAutoRefresh(callback, intervalMs = 4000) {
+        let inFlight = false;
+
+        const tick = async () => {
+            if (inFlight || document.hidden) {
+                return;
+            }
+
+            inFlight = true;
+            try {
+                await callback();
+            } catch {
+                // ignore polling errors
+            } finally {
+                inFlight = false;
+            }
+        };
+
+        const timer = setInterval(tick, intervalMs);
+
+        return () => clearInterval(timer);
+    }
+
     return {
         serving,
         waiting,
         stats,
         currentTicket,
         absentTickets,
+        tellerTickets,
+        tellerTicketStats,
         metrics,
         tellerPerformance,
         tellers,
@@ -513,6 +638,9 @@ export const useQueueStore = defineStore('queue', () => {
         cancelTicket,
         recallTicket,
         fetchAbsentTickets,
+        fetchTellerTickets,
+        markTellerEntered,
+        markFileDelivered,
         markAbsent,
         restoreTicket,
         fetchDailyMetrics,
@@ -538,5 +666,6 @@ export const useQueueStore = defineStore('queue', () => {
         subscribeEcho,
         bindEcho,
         unbindEcho,
+        startAutoRefresh,
     };
 });

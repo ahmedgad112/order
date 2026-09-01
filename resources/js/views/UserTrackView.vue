@@ -121,6 +121,7 @@ function onQueueEvent() {
 }
 
 let unsubscribeEcho = null;
+let stopAutoRefresh = null;
 
 onMounted(async () => {
     await queueStore.fetchPublicStatus();
@@ -136,10 +137,18 @@ onMounted(async () => {
             fieldError.value = 'تم تصفير اليوم. يرجى التحقق من تذكرتك مرة أخرى.';
         },
     });
+
+    stopAutoRefresh = queueStore.startAutoRefresh(async () => {
+        if (trackedTicket.value) {
+            await trackTicket(true);
+        }
+        await queueStore.fetchPublicStatus({ silent: true });
+    });
 });
 
 onUnmounted(() => {
     unsubscribeEcho?.();
+    stopAutoRefresh?.();
 });
 
 watch(searchType, () => {
@@ -288,11 +297,19 @@ watch(searchType, () => {
                     </div>
 
                     <div
-                        v-if="trackedTicket.status === 'serving' && trackedTicket.counter_name"
+                        v-if="trackedTicket.status === 'serving' && (trackedTicket.teller_name || trackedTicket.counter_name)"
                         class="mt-8 rounded-2xl bg-blue-50 p-5"
                     >
                         <p class="text-sm text-blue-600">توجّه إلى</p>
-                        <p class="text-3xl font-black text-blue-700">{{ trackedTicket.counter_name }}</p>
+                        <p class="text-3xl font-black text-blue-700">
+                            {{ trackedTicket.teller_name || trackedTicket.counter_name }}
+                        </p>
+                        <p
+                            v-if="trackedTicket.teller_name && trackedTicket.counter_name && trackedTicket.teller_name !== trackedTicket.counter_name"
+                            class="mt-1 text-sm font-semibold text-blue-600"
+                        >
+                            {{ trackedTicket.counter_name }}
+                        </p>
                     </div>
 
                     <button
