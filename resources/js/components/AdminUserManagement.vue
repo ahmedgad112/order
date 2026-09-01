@@ -160,8 +160,7 @@ async function handleDeactivate(user) {
             {{ formError }}
         </p>
 
-        <!-- Mobile cards -->
-        <div class="space-y-3 md:hidden">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <article
                 v-for="user in queueStore.users"
                 :key="user.id"
@@ -216,73 +215,9 @@ async function handleDeactivate(user) {
                     </button>
                 </div>
             </article>
-            <p v-if="!queueStore.users.length" class="py-12 text-center text-slate-400">
+            <p v-if="!queueStore.users.length" class="col-span-full py-12 text-center text-slate-400">
                 لا يوجد مستخدمون
             </p>
-        </div>
-
-        <!-- Desktop table -->
-        <div class="hidden overflow-x-auto md:block">
-            <table class="w-full text-right text-sm">
-                <thead>
-                    <tr class="border-b border-slate-100 text-slate-500">
-                        <th class="px-3 py-2">الاسم</th>
-                        <th class="px-3 py-2">البريد</th>
-                        <th class="px-3 py-2">الدور</th>
-                        <th class="px-3 py-2">الشباك</th>
-                        <th class="px-3 py-2">الحالة</th>
-                        <th class="px-3 py-2">إجراءات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr
-                        v-for="user in queueStore.users"
-                        :key="user.id"
-                        class="border-b border-slate-50"
-                    >
-                        <td class="px-3 py-3 font-semibold text-slate-800">{{ user.name }}</td>
-                        <td class="px-3 py-3 text-slate-600">{{ user.email }}</td>
-                        <td class="px-3 py-3">
-                            <span
-                                class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-                                :class="roleBadgeClass[user.role] ?? 'bg-slate-100 text-slate-700'"
-                            >
-                                <Shield v-if="user.role === 'super_admin' || user.role === 'manager'" class="h-3 w-3" />
-                                {{ user.role_label ?? roleLabel[user.role] ?? user.role }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-3">{{ user.counter_name ?? '—' }}</td>
-                        <td class="px-3 py-3">
-                            <span
-                                class="rounded-full px-2 py-1 text-xs font-semibold"
-                                :class="user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
-                            >
-                                {{ user.is_active ? 'نشط' : 'معطّل' }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-3">
-                            <div class="flex gap-2">
-                                <button
-                                    v-if="canManageUser(user)"
-                                    class="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
-                                    title="تعديل"
-                                    @click="openEdit(user)"
-                                >
-                                    <Pencil class="h-4 w-4" />
-                                </button>
-                                <button
-                                    v-if="user.id !== authStore.user?.id && user.is_active && canManageUser(user)"
-                                    class="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50"
-                                    title="تعطيل"
-                                    @click="handleDeactivate(user)"
-                                >
-                                    <UserX class="h-4 w-4" />
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
 
         <div

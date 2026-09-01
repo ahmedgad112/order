@@ -241,8 +241,7 @@ onUnmounted(() => {
 
                 <p class="mb-3 text-sm text-slate-500">عرض {{ filteredCount }} تسجيل</p>
 
-                <!-- Mobile cards -->
-                <div class="space-y-3 md:hidden">
+                <div class="grid gap-3 sm:grid-cols-2">
                     <article
                         v-for="ticket in queueStore.registrations"
                         :key="ticket.id"
@@ -261,7 +260,7 @@ onUnmounted(() => {
                                 {{ ticket.status_label }}
                             </span>
                         </div>
-                        <dl class="space-y-2 text-sm">
+                        <dl class="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">الرقم القومي</dt>
                                 <dd class="font-mono text-slate-700">{{ ticket.national_id }}</dd>
@@ -316,68 +315,10 @@ onUnmounted(() => {
                     </article>
                     <p
                         v-if="!queueStore.registrations.length"
-                        class="py-12 text-center text-slate-400"
+                        class="col-span-full py-12 text-center text-slate-400"
                     >
                         لا توجد تسجيلات مطابقة
                     </p>
-                </div>
-
-                <!-- Desktop table -->
-                <div class="hidden overflow-x-auto md:block">
-                    <table class="w-full min-w-[1180px] text-right text-sm">
-                        <thead>
-                            <tr class="border-b border-slate-100 text-slate-500">
-                                <th class="px-3 py-3">#</th>
-                                <th class="px-3 py-3">الاسم</th>
-                                <th class="px-3 py-3">الرقم القومي</th>
-                                <th class="px-3 py-3">رقم الطلب</th>
-                                <th class="px-3 py-3">الحالة</th>
-                                <th class="px-3 py-3">خطوات الطلب</th>
-                                <th class="px-3 py-3">موظف الشباك</th>
-                                <th class="px-3 py-3">وقت التسجيل</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="ticket in queueStore.registrations"
-                                :key="ticket.id"
-                                class="border-b border-slate-50 transition hover:bg-slate-50/80"
-                                :class="{ 'bg-green-50/50': ticket.status === 'completed' }"
-                            >
-                                <td class="px-3 py-3 text-lg font-black text-indigo-600">
-                                    {{ ticket.ticket_number }}
-                                </td>
-                                <td class="px-3 py-3 font-semibold text-slate-800">{{ ticket.full_name }}</td>
-                                <td class="px-3 py-3 font-mono text-slate-600">{{ ticket.national_id }}</td>
-                                <td class="px-3 py-3 text-slate-600">{{ ticket.order_number }}</td>
-                                <td class="px-3 py-3">
-                                    <span
-                                        class="rounded-full px-2.5 py-1 text-xs font-bold"
-                                        :class="statusBadgeClass[ticket.status]"
-                                    >
-                                        {{ ticket.status_label }}
-                                    </span>
-                                </td>
-                                <td class="px-3 py-3">
-                                    <TicketProcessActions
-                                        :ticket="ticket"
-                                        :busy-id="processBusyId"
-                                        :busy-step="busyStep"
-                                        :system-open="queueStore.isSystemOpen"
-                                        compact
-                                        @mark="handleProcessMark(ticket, $event)"
-                                    />
-                                </td>
-                                <td class="px-3 py-3">{{ tellerLabel(ticket) }}</td>
-                                <td class="px-3 py-3 text-slate-500">{{ formatTime(ticket.created_at) }}</td>
-                            </tr>
-                            <tr v-if="!queueStore.registrations.length">
-                                <td colspan="8" class="py-16 text-center text-slate-400">
-                                    لا توجد تسجيلات مطابقة
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </section>
         </main>

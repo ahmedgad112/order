@@ -1,7 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown } from 'lucide-vue-next';
+import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown, ExternalLink, FilePlus } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 
 const TicketQrCode = defineAsyncComponent(() => import('../components/TicketQrCode.vue'));
@@ -230,13 +230,6 @@ onUnmounted(() => {
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <RouterLink
-                        to="/track"
-                        class="flex items-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
-                    >
-                        <Search class="h-5 w-5" />
-                        متابعة التذكرة
-                    </RouterLink>
                     <div class="flex items-center gap-3 rounded-2xl bg-blue-600 px-5 py-3 text-white shadow-lg">
                         <Ticket class="h-6 w-6" />
                         <div class="text-left">
@@ -320,6 +313,44 @@ onUnmounted(() => {
                     </button>
                     </fieldset>
                 </form>
+            </div>
+
+            <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+                <p class="mb-4 text-center text-sm text-slate-500">اعرف رقمك وحالة تذكرتك</p>
+                <RouterLink
+                    to="/track"
+                    class="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-base font-bold text-white transition hover:bg-blue-700"
+                >
+                    <Search class="h-5 w-5" />
+                    متابعة دورك
+                </RouterLink>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+                    <p class="mb-4 text-center text-sm text-slate-500">قدّم طلب الالتحاق من هنا</p>
+                    <a
+                        href="https://batechu.com/admission"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-base font-bold text-white transition hover:bg-emerald-700"
+                    >
+                        <FilePlus class="h-5 w-5" />
+                        تقدم الطلب
+                    </a>
+                </div>
+                <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+                    <p class="mb-4 text-center text-sm text-slate-500">اعرف حالة طلبك في أي وقت</p>
+                    <a
+                        href="https://batechu.com/admission/track"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-base font-bold text-white transition hover:bg-indigo-700"
+                    >
+                        <ExternalLink class="h-5 w-5" />
+                        تتبع طلبك
+                    </a>
+                </div>
             </div>
         </main>
 

@@ -273,8 +273,7 @@ onUnmounted(() => {
                         <UserCheck class="h-5 w-5" />
                         أداء الموظفين
                     </h2>
-                    <!-- Mobile cards -->
-                    <div class="space-y-3 md:hidden">
+                    <div class="grid gap-3 sm:grid-cols-2">
                         <article
                             v-for="teller in queueStore.tellerPerformance"
                             :key="teller.id"
@@ -307,46 +306,9 @@ onUnmounted(() => {
                                 </div>
                             </dl>
                         </article>
-                        <p v-if="!queueStore.tellerPerformance?.length" class="py-8 text-center text-sm text-slate-400">
+                        <p v-if="!queueStore.tellerPerformance?.length" class="col-span-full py-8 text-center text-sm text-slate-400">
                             لا توجد بيانات
                         </p>
-                    </div>
-
-                    <!-- Desktop table -->
-                    <div class="hidden overflow-x-auto md:block">
-                        <table class="w-full text-right text-sm">
-                            <thead>
-                                <tr class="border-b border-slate-100 text-slate-500">
-                                    <th class="px-3 py-2">الموظف</th>
-                                    <th class="px-3 py-2">الشباك</th>
-                                    <th class="px-3 py-2">مكتمل اليوم</th>
-                                    <th class="px-3 py-2">قيد الخدمة</th>
-                                    <th class="px-3 py-2">متوسط الخدمة</th>
-                                    <th class="px-3 py-2">الحالة</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="teller in queueStore.tellerPerformance"
-                                    :key="teller.id"
-                                    class="border-b border-slate-50"
-                                >
-                                    <td class="px-3 py-3 font-semibold text-slate-800">{{ teller.name }}</td>
-                                    <td class="px-3 py-3">{{ teller.counter_name ?? '—' }}</td>
-                                    <td class="px-3 py-3">{{ teller.completed_today }}</td>
-                                    <td class="px-3 py-3">{{ teller.serving_now }}</td>
-                                    <td class="px-3 py-3">{{ Math.round(teller.avg_handling_seconds / 60) }} د</td>
-                                    <td class="px-3 py-3">
-                                        <span
-                                            class="rounded-full px-2 py-1 text-xs font-semibold"
-                                            :class="teller.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
-                                        >
-                                            {{ teller.is_active ? 'نشط' : 'غير نشط' }}
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
 

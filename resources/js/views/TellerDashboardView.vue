@@ -367,7 +367,7 @@ onUnmounted(() => {
                             <ClipboardList class="h-5 w-5 text-indigo-600" />
                             سجل الطلبات
                         </h2>
-                        <p class="mt-1 text-sm text-slate-500">كل الطلبات اليوم — سجّل الخطوات من الجدول أو من مسح QR</p>
+                        <p class="mt-1 text-sm text-slate-500">كل الطلبات اليوم — سجّل الخطوات من الكارد أو من مسح QR</p>
                     </div>
                     <span class="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                         مسافة: نداء التالي | Enter: إكمال | Esc: إلغاء
@@ -423,7 +423,7 @@ onUnmounted(() => {
 
                 <p class="mb-3 text-sm text-slate-500">عرض {{ filteredCount }} طلب</p>
 
-                <div class="space-y-3 md:hidden">
+                <div class="grid gap-3 sm:grid-cols-2">
                     <article
                         v-for="ticket in queueStore.tellerTickets"
                         :key="ticket.id"
@@ -446,7 +446,7 @@ onUnmounted(() => {
                                 {{ statusLabel[ticket.status] ?? ticket.status }}
                             </span>
                         </div>
-                        <dl class="space-y-2 text-sm">
+                        <dl class="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">الرقم القومي</dt>
                                 <dd class="font-mono text-slate-700">{{ ticket.national_id }}</dd>
@@ -455,7 +455,7 @@ onUnmounted(() => {
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>
-                            <div class="flex justify-between gap-3">
+                            <div class="flex justify-between gap-3 sm:col-span-2">
                                 <dt class="text-slate-500">موظف الشباك</dt>
                                 <dd class="text-slate-700">{{ tellerLabel(ticket) }}</dd>
                             </div>
@@ -491,91 +491,10 @@ onUnmounted(() => {
                     </article>
                     <p
                         v-if="!queueStore.tellerTickets.length"
-                        class="py-12 text-center text-slate-400"
+                        class="col-span-full py-12 text-center text-slate-400"
                     >
                         لا توجد طلبات مطابقة
                     </p>
-                </div>
-
-                <div class="hidden overflow-x-auto md:block">
-                    <table class="w-full min-w-[1280px] text-right text-sm">
-                        <thead>
-                            <tr class="border-b border-slate-100 text-slate-500">
-                                <th class="px-3 py-3">#</th>
-                                <th class="px-3 py-3">الاسم</th>
-                                <th class="px-3 py-3">الرقم القومي</th>
-                                <th class="px-3 py-3">رقم الطلب</th>
-                                <th class="px-3 py-3">موظف الشباك</th>
-                                <th class="px-3 py-3">الحالة</th>
-                                <th class="px-3 py-3">خطوات الطلب</th>
-                                <th class="px-3 py-3">مش موجود</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="ticket in queueStore.tellerTickets"
-                                :key="ticket.id"
-                                class="border-b border-slate-50 transition hover:bg-slate-50/80"
-                                :class="{
-                                    'bg-green-50/50': ticket.file_delivered,
-                                    'bg-blue-50/40': ticket.has_entered && !ticket.file_delivered,
-                                    'bg-orange-50/50': ticket.status === 'absent',
-                                }"
-                            >
-                                <td class="px-3 py-3 text-lg font-black text-indigo-600">
-                                    {{ ticket.ticket_number }}
-                                </td>
-                                <td class="px-3 py-3 font-semibold text-slate-800">{{ ticket.full_name }}</td>
-                                <td class="px-3 py-3 font-mono text-slate-600">{{ ticket.national_id }}</td>
-                                <td class="px-3 py-3 text-slate-600">{{ ticket.order_number }}</td>
-                                <td class="px-3 py-3 font-semibold text-slate-700">{{ tellerLabel(ticket) }}</td>
-                                <td class="px-3 py-3">
-                                    <span
-                                        class="rounded-full px-2.5 py-1 text-xs font-bold"
-                                        :class="statusBadgeClass[ticket.status]"
-                                    >
-                                        {{ statusLabel[ticket.status] ?? ticket.status }}
-                                    </span>
-                                </td>
-                                <td class="px-3 py-3">
-                                    <TicketProcessActions
-                                        :ticket="ticket"
-                                        :busy-id="processBusyId"
-                                        :busy-step="busyStep"
-                                        :system-open="queueStore.isSystemOpen"
-                                        compact
-                                        @mark="handleProcessMark(ticket, $event)"
-                                    />
-                                </td>
-                                <td class="px-3 py-3">
-                                    <button
-                                        v-if="canMarkAbsent(ticket)"
-                                        class="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-60"
-                                        :disabled="absentId === ticket.id"
-                                        @click="handleMarkAbsent(ticket)"
-                                    >
-                                        <UserX class="h-4 w-4" />
-                                        {{ absentId === ticket.id ? 'جاري...' : 'مش موجود' }}
-                                    </button>
-                                    <button
-                                        v-else-if="ticket.status === 'absent'"
-                                        class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
-                                        :disabled="restoringId === ticket.id"
-                                        @click="handleRestore(ticket)"
-                                    >
-                                        <RotateCcw class="h-4 w-4" />
-                                        {{ restoringId === ticket.id ? 'جاري...' : 'إرجاع' }}
-                                    </button>
-                                    <span v-else class="text-xs text-slate-400">—</span>
-                                </td>
-                            </tr>
-                            <tr v-if="!queueStore.tellerTickets.length">
-                                <td colspan="8" class="py-16 text-center text-slate-400">
-                                    لا توجد طلبات مطابقة
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </section>
 
@@ -592,42 +511,41 @@ onUnmounted(() => {
                     لا يوجد أحد مسجّل كـ "مش موجود"
                 </div>
 
-                <div v-else class="overflow-x-auto">
-                    <table class="w-full min-w-[640px] text-right text-sm">
-                        <thead>
-                            <tr class="border-b border-slate-100 text-slate-500">
-                                <th class="px-3 py-2">رقم التذكرة</th>
-                                <th class="px-3 py-2">الاسم</th>
-                                <th class="px-3 py-2">رقم الطلب</th>
-                                <th class="px-3 py-2">وقت النداء</th>
-                                <th class="px-3 py-2">موظف الشباك</th>
-                                <th class="px-3 py-2">إجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="ticket in queueStore.absentTickets"
-                                :key="ticket.id"
-                                class="border-b border-slate-50"
-                            >
-                                <td class="px-3 py-3 text-lg font-bold text-orange-600">{{ ticket.ticket_number }}</td>
-                                <td class="px-3 py-3 font-semibold text-slate-800">{{ ticket.full_name }}</td>
-                                <td class="px-3 py-3 text-slate-600">{{ ticket.order_number }}</td>
-                                <td class="px-3 py-3 text-slate-600">{{ formatTime(ticket.called_at) }}</td>
-                                <td class="px-3 py-3 text-slate-600">{{ tellerLabel(ticket) }}</td>
-                                <td class="px-3 py-3">
-                                    <button
-                                        class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
-                                        :disabled="restoringId === ticket.id"
-                                        @click="handleRestore(ticket)"
-                                    >
-                                        <RotateCcw class="h-4 w-4" />
-                                        {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <article
+                        v-for="ticket in queueStore.absentTickets"
+                        :key="ticket.id"
+                        class="rounded-2xl border border-orange-100 bg-orange-50/50 p-4"
+                    >
+                        <div class="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-2xl font-black text-orange-600">{{ ticket.ticket_number }}</p>
+                                <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
+                            </div>
+                        </div>
+                        <dl class="mb-4 space-y-2 text-sm">
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">رقم الطلب</dt>
+                                <dd class="text-slate-700">{{ ticket.order_number }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">وقت النداء</dt>
+                                <dd class="text-slate-700">{{ formatTime(ticket.called_at) }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">موظف الشباك</dt>
+                                <dd class="text-slate-700">{{ tellerLabel(ticket) }}</dd>
+                            </div>
+                        </dl>
+                        <button
+                            class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            :disabled="restoringId === ticket.id"
+                            @click="handleRestore(ticket)"
+                        >
+                            <RotateCcw class="h-4 w-4" />
+                            {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
+                        </button>
+                    </article>
                 </div>
             </section>
         </main>
