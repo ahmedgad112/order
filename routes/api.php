@@ -15,6 +15,8 @@ Route::prefix('public')->group(function (): void {
         ->middleware('throttle:20,1');
     Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket'])
         ->middleware('throttle:60,1');
+    Route::get('/tickets/{ticket:public_token}', [PublicQueueController::class, 'showTicket'])
+        ->middleware('throttle:60,1');
 });
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -23,8 +25,10 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/me/password', [AuthController::class, 'changePassword'])
+        ->middleware('throttle:6,1');
 
-    Route::prefix('teller')->middleware('role:teller,admin')->group(function (): void {
+    Route::prefix('teller')->middleware('role:teller,manager,super_admin')->group(function (): void {
         Route::get('/queue-status', [TellerQueueController::class, 'queueStatus']);
         Route::get('/tickets', [TellerQueueController::class, 'tickets']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
@@ -39,7 +43,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);
     });
 
-    Route::prefix('admin')->middleware('role:admin')->group(function (): void {
+    Route::prefix('admin')->middleware('role:manager,super_admin')->group(function (): void {
         Route::get('/system/status', [AdminSystemController::class, 'status']);
         Route::post('/system/close', [AdminSystemController::class, 'close']);
         Route::post('/system/open', [AdminSystemController::class, 'open']);

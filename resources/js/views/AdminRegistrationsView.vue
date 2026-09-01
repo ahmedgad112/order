@@ -13,6 +13,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import { useRouter } from 'vue-router';
+import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -162,6 +163,7 @@ onUnmounted(() => {
                         لوحة الإدارة
                         <ArrowRight class="h-4 w-4" />
                     </RouterLink>
+                    <ChangePasswordButton />
                     <button
                         class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         @click="logout"

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, RouterLink } from 'vue-router';
 import {
     CheckCircle2,
     ClipboardList,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
+import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -311,17 +312,28 @@ onUnmounted(() => {
                     <div>
                         <h1 class="text-2xl font-bold text-slate-900">لوحة الموظف</h1>
                         <p class="text-sm text-slate-500">
-                            {{ authStore.user?.name }} — {{ authStore.user?.counter_name ?? 'بدون شباك' }}
+                            {{ authStore.user?.role_label }} — {{ authStore.user?.name }}
+                            <span v-if="authStore.user?.counter_name"> — {{ authStore.user.counter_name }}</span>
                         </p>
                     </div>
                 </div>
-                <button
-                    class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
-                    @click="logout"
-                >
-                    <LogOut class="h-4 w-4" />
-                    خروج
-                </button>
+                <div class="flex flex-wrap gap-2">
+                    <RouterLink
+                        v-if="authStore.isAdmin"
+                        to="/admin"
+                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                        لوحة الإدارة
+                    </RouterLink>
+                    <ChangePasswordButton />
+                    <button
+                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
+                        @click="logout"
+                    >
+                        <LogOut class="h-4 w-4" />
+                        خروج
+                    </button>
+                </div>
             </div>
         </header>
 

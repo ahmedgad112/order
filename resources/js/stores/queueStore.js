@@ -104,6 +104,30 @@ export const useQueueStore = defineStore('queue', () => {
         }
     }
 
+    async function fetchScannedTicket(token, options = {}) {
+        if (!options.silent) {
+            loading.value = true;
+        }
+        error.value = null;
+
+        try {
+            const { data } = await axios.get(`/public/tickets/${token}`);
+            if (data.system) {
+                system.value = data.system;
+            }
+            return data.ticket;
+        } catch (err) {
+            error.value = err.response?.status === 404
+                ? 'لم يتم العثور على التذكرة.'
+                : err.response?.data?.message ?? 'تعذر تحميل بيانات التذكرة.';
+            throw err;
+        } finally {
+            if (!options.silent) {
+                loading.value = false;
+            }
+        }
+    }
+
     async function issueTicket(payload) {
         loading.value = true;
         error.value = null;
@@ -630,6 +654,7 @@ export const useQueueStore = defineStore('queue', () => {
         isSystemOpen,
         fetchPublicStatus,
         trackTicket,
+        fetchScannedTicket,
         issueTicket,
         fetchTellerStatus,
         fetchCurrentTicket,

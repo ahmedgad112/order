@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -35,13 +34,33 @@ class User extends Authenticatable
         return $this->hasMany(QueueTicket::class);
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === UserRole::SuperAdmin;
+    }
+
+    public function isManager(): bool
+    {
+        return $this->role === UserRole::Manager;
+    }
+
     public function isAdmin(): bool
     {
-        return $this->role === UserRole::Admin;
+        return $this->role->canAccessAdminPanel();
     }
 
     public function isTeller(): bool
     {
         return $this->role === UserRole::Teller;
+    }
+
+    public function canAssignRole(UserRole $role): bool
+    {
+        return $this->role->canAssign($role);
+    }
+
+    public function canManageUser(User $user): bool
+    {
+        return $this->role->canManage($user->role);
     }
 }

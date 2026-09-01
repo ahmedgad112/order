@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
+import PasswordInput from '../components/PasswordInput.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -13,13 +14,13 @@ const form = ref({
 
 async function submit() {
     try {
-        const user = await authStore.login(form.value);
+        await authStore.login(form.value);
         const redirect = router.currentRoute.value.query.redirect;
         if (redirect) {
             await router.push(String(redirect));
             return;
         }
-        await router.push(user.role === 'admin' ? '/admin' : '/teller');
+        await router.push({ name: authStore.homeRoute });
     } catch {
         // error shown via store
     }
@@ -60,12 +61,7 @@ onMounted(() => {
                 </div>
                 <div>
                     <label class="mb-2 block text-sm font-semibold text-slate-700">كلمة المرور</label>
-                    <input
-                        v-model="form.password"
-                        type="password"
-                        required
-                        class="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                    />
+                    <PasswordInput v-model="form.password" required autocomplete="current-password" />
                 </div>
                 <button
                     type="submit"

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TicketStatus;
+use App\Enums\UserRole;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -356,5 +357,46 @@ class QueueFlowTest extends TestCase
             'email' => 'off@test.local',
             'password' => 'password',
         ])->assertUnprocessable();
+    }
+
+    public function test_manager_can_access_admin_and_only_create_employees(): void
+    {
+        QueueSystemSetting::current();
+        $manager = User::factory()->manager()->create();
+        Sanctum::actingAs($manager);
+
+        $this->getJson('/api/admin/system/status')->assertOk();
+
+        $this->postJson('/api/admin/users', [
+            'name' => 'موظف جديد',
+            'email' => 'new-teller@queue.local',
+            'password' => 'password123',
+            'role' => UserRole::Teller->value,
+            'counter_name' => 'شباك 5',
+        ])->assertCreated();
+
+        $this->postJson('/api/admin/users', [
+            'name' => 'سوبر أدمن جديد',
+            'email' => 'new-super@queue.local',
+            'password' => 'password123',
+            'role' => UserRole::SuperAdmin->value,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['role']);
+    }
+
+    public function test_super_admin_can_create_manager(): void
+    {
+        QueueSystemSetting::current();
+        $superAdmin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($superAdmin);
+
+        $this->postJson('/api/admin/users', [
+            'name' => 'مدير جديد',
+            'email' => 'new-manager@queue.local',
+            'password' => 'password123',
+            'role' => UserRole::Manager->value,
+        ])->assertCreated()
+            ->assertJsonPath('user.role', UserRole::Manager->value)
+            ->assertJsonPath('user.role_label', 'مدير');
     }
 }

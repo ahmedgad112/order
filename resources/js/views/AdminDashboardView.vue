@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import AdminUserManagement from '../components/AdminUserManagement.vue';
+import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -123,10 +124,18 @@ onUnmounted(() => {
                     />
                     <div>
                         <h1 class="text-2xl font-bold text-slate-900">لوحة الإدارة</h1>
-                        <p class="text-sm text-slate-500">مؤشرات الأداء والتقارير اليومية</p>
+                        <p class="text-sm text-slate-500">
+                            {{ authStore.user?.role_label ?? 'الإدارة' }} — مؤشرات الأداء والتقارير اليومية
+                        </p>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <RouterLink
+                        to="/teller"
+                        class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                        لوحة الموظف
+                    </RouterLink>
                     <RouterLink
                         to="/display"
                         target="_blank"
@@ -141,6 +150,7 @@ onUnmounted(() => {
                         <ClipboardList class="h-4 w-4" />
                         سجل التسجيلات
                     </RouterLink>
+                    <ChangePasswordButton />
                     <button
                         class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
                         @click="logout"

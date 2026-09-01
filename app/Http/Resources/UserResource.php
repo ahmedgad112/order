@@ -2,10 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\UserRole;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\User */
+/** @mixin User */
 class UserResource extends JsonResource
 {
     /**
@@ -18,8 +20,16 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role->value,
+            'role_label' => $this->role->label(),
             'counter_name' => $this->counter_name,
             'is_active' => $this->is_active,
+            'assignable_roles' => array_map(
+                fn (UserRole $role): array => [
+                    'value' => $role->value,
+                    'label' => $role->label(),
+                ],
+                $this->role->assignableRoles(),
+            ),
         ];
     }
 }

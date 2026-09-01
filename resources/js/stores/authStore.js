@@ -10,8 +10,11 @@ export const useAuthStore = defineStore('auth', () => {
     const error = ref(null);
 
     const isAuthenticated = computed(() => Boolean(token.value && user.value));
-    const isAdmin = computed(() => user.value?.role === 'admin');
+    const isSuperAdmin = computed(() => user.value?.role === 'super_admin');
+    const isManager = computed(() => user.value?.role === 'manager');
+    const isAdmin = computed(() => isSuperAdmin.value || isManager.value);
     const isTeller = computed(() => user.value?.role === 'teller');
+    const homeRoute = computed(() => (isAdmin.value ? 'admin' : 'teller'));
 
     async function bootstrap() {
         if (!token.value) {
@@ -67,6 +70,12 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
+    async function changePassword(payload) {
+        const { data } = await axios.put('/me/password', payload);
+
+        return data.message;
+    }
+
     return {
         user,
         token,
@@ -74,10 +83,14 @@ export const useAuthStore = defineStore('auth', () => {
         loading,
         error,
         isAuthenticated,
+        isSuperAdmin,
+        isManager,
         isAdmin,
         isTeller,
+        homeRoute,
         bootstrap,
         login,
         logout,
+        changePassword,
     };
 });

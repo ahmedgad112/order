@@ -2,7 +2,9 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown } from 'lucide-vue-next';
+import QRCode from 'qrcode';
 import { useQueueStore } from '../stores/queueStore';
+import TicketQrCode from '../components/TicketQrCode.vue';
 
 const queueStore = useQueueStore();
 
@@ -22,10 +24,15 @@ let stopAutoRefresh = null;
 
 const ticketFontFamily = '"Segoe UI", Tahoma, Arial, sans-serif';
 
-function renderTicketToCanvas(ticket) {
+function ticketScanUrl(ticket) {
+    return `${window.location.origin}/t/${ticket.public_token}`;
+}
+
+async function renderTicketToCanvas(ticket) {
     const width = 400;
-    const height = 420;
+    const height = 580;
     const scale = 2;
+    const qrSize = 168;
     const canvas = document.createElement('canvas');
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -41,32 +48,48 @@ function renderTicketToCanvas(ticket) {
 
     ctx.fillStyle = '#dcfce7';
     ctx.beginPath();
-    ctx.arc(width / 2, 56, 40, 0, Math.PI * 2);
+    ctx.arc(width / 2, 48, 36, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#16a34a';
-    ctx.font = `bold 32px ${ticketFontFamily}`;
-    ctx.fillText('✓', width / 2, 58);
+    ctx.font = `bold 28px ${ticketFontFamily}`;
+    ctx.fillText('✓', width / 2, 50);
 
     ctx.fillStyle = '#64748b';
     ctx.font = `14px ${ticketFontFamily}`;
-    ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 125);
+    ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 108);
 
     ctx.fillStyle = '#2563eb';
-    ctx.font = `bold 72px ${ticketFontFamily}`;
-    ctx.fillText(String(ticket.ticket_number), width / 2, 205);
+    ctx.font = `bold 68px ${ticketFontFamily}`;
+    ctx.fillText(String(ticket.ticket_number), width / 2, 175);
 
     ctx.fillStyle = '#1e293b';
     ctx.font = `bold 18px ${ticketFontFamily}`;
-    ctx.fillText(ticket.masked_name, width / 2, 260);
+    ctx.fillText(ticket.masked_name, width / 2, 228);
 
+    const qrCanvas = document.createElement('canvas');
+    await QRCode.toCanvas(qrCanvas, ticketScanUrl(ticket), {
+        width: qrSize,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+    });
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.drawImage(qrCanvas, (width - qrSize) / 2, 252, qrSize, qrSize);
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = '#64748b';
-    ctx.font = `14px ${ticketFontFamily}`;
-    ctx.fillText('يرجى الانتظار حتى يتم نداؤك', width / 2, 300);
+    ctx.font = `13px ${ticketFontFamily}`;
+    ctx.fillText('امسح الرمز لعرض بياناتك', width / 2, 448);
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = `12px ${ticketFontFamily}`;
-    ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 335);
+    ctx.fillText('يرجى الانتظار حتى يتم نداؤك', width / 2, 478);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `12px ${ticketFontFamily}`;
+    ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 508);
 
     return canvas;
 }
@@ -299,18 +322,22 @@ onUnmounted(() => {
 
         <div
             v-if="showModal && issuedTicket"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center sm:p-6"
             @click.self="closeModal"
         >
-            <div class="w-full max-w-md animate-[fadeIn_0.3s_ease] rounded-3xl bg-white p-8 text-center shadow-2xl">
+            <div class="my-6 w-full max-w-md animate-[fadeIn_0.3s_ease] rounded-3xl bg-white p-8 text-center shadow-2xl sm:my-0">
                 <div id="ticket-print-area" ref="ticketCaptureRef" class="rounded-2xl bg-white p-2">
-                    <div class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-green-600">
-                        <Ticket class="h-10 w-10" />
+                    <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+                        <Ticket class="h-8 w-8" />
                     </div>
                     <p class="text-sm text-slate-500">تم إصدار تذكرتك بنجاح</p>
-                    <p class="my-4 text-6xl font-black text-blue-600">{{ issuedTicket.ticket_number }}</p>
+                    <p class="my-3 text-6xl font-black text-blue-600">{{ issuedTicket.ticket_number }}</p>
                     <p class="text-lg font-semibold text-slate-800">{{ issuedTicket.masked_name }}</p>
-                    <p class="mt-2 text-sm text-slate-500">يرجى الانتظار حتى يتم نداؤك</p>
+                    <div class="mt-5 flex justify-center">
+                        <TicketQrCode :value="ticketScanUrl(issuedTicket)" :size="176" />
+                    </div>
+                    <p class="mt-3 text-sm font-semibold text-slate-600">امسح الرمز لعرض بياناتك</p>
+                    <p class="mt-1 text-sm text-slate-500">يرجى الانتظار حتى يتم نداؤك</p>
                     <p class="mt-4 text-xs text-slate-400">{{ new Date().toLocaleString('ar-EG') }}</p>
                 </div>
 

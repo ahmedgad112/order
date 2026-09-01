@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { Pencil, Plus, Shield, UserCog, UserX } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
+import PasswordInput from './PasswordInput.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -24,8 +25,35 @@ const emptyForm = () => ({
 const form = ref(emptyForm());
 
 const roleLabel = {
-    admin: 'مدير',
+    super_admin: 'سوبر أدمن',
+    manager: 'مدير',
     teller: 'موظف',
+};
+
+const roleBadgeClass = {
+    super_admin: 'bg-purple-100 text-purple-700',
+    manager: 'bg-indigo-100 text-indigo-700',
+    teller: 'bg-blue-100 text-blue-700',
+};
+
+const assignableRoles = computed(() => authStore.user?.assignable_roles ?? [
+    { value: 'teller', label: 'موظف' },
+]);
+
+const canManageUser = (user) => {
+    if (!user) {
+        return false;
+    }
+
+    if (user.id === authStore.user?.id) {
+        return true;
+    }
+
+    if (authStore.isSuperAdmin) {
+        return true;
+    }
+
+    return authStore.isManager && user.role === 'teller';
 };
 
 const isEditing = computed(() => Boolean(editingUser.value));
@@ -115,7 +143,9 @@ async function handleDeactivate(user) {
                     <UserCog class="h-5 w-5" />
                     إدارة المستخدمين
                 </h2>
-                <p class="text-sm text-slate-500">إنشاء وتعديل حسابات المديرين والموظفين</p>
+                <p class="text-sm text-slate-500">
+                    {{ authStore.isSuperAdmin ? 'إنشاء وتعديل حسابات السوبر أدمن والمديرين والموظفين' : 'إنشاء وتعديل حسابات الموظفين' }}
+                </p>
             </div>
             <button
                 class="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
@@ -155,10 +185,10 @@ async function handleDeactivate(user) {
                         <dd>
                             <span
                                 class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-                                :class="user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'"
+                                :class="roleBadgeClass[user.role] ?? 'bg-slate-100 text-slate-700'"
                             >
-                                <Shield v-if="user.role === 'admin'" class="h-3 w-3" />
-                                {{ roleLabel[user.role] ?? user.role }}
+                                <Shield v-if="user.role === 'super_admin' || user.role === 'manager'" class="h-3 w-3" />
+                                {{ user.role_label ?? roleLabel[user.role] ?? user.role }}
                             </span>
                         </dd>
                     </div>
@@ -169,6 +199,7 @@ async function handleDeactivate(user) {
                 </dl>
                 <div class="flex gap-2 border-t border-slate-200/80 pt-3">
                     <button
+                        v-if="canManageUser(user)"
                         class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white"
                         @click="openEdit(user)"
                     >
@@ -176,7 +207,7 @@ async function handleDeactivate(user) {
                         تعديل
                     </button>
                     <button
-                        v-if="user.id !== authStore.user?.id && user.is_active"
+                        v-if="user.id !== authStore.user?.id && user.is_active && canManageUser(user)"
                         class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
                         @click="handleDeactivate(user)"
                     >
@@ -214,10 +245,10 @@ async function handleDeactivate(user) {
                         <td class="px-3 py-3">
                             <span
                                 class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-                                :class="user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'"
+                                :class="roleBadgeClass[user.role] ?? 'bg-slate-100 text-slate-700'"
                             >
-                                <Shield v-if="user.role === 'admin'" class="h-3 w-3" />
-                                {{ roleLabel[user.role] ?? user.role }}
+                                <Shield v-if="user.role === 'super_admin' || user.role === 'manager'" class="h-3 w-3" />
+                                {{ user.role_label ?? roleLabel[user.role] ?? user.role }}
                             </span>
                         </td>
                         <td class="px-3 py-3">{{ user.counter_name ?? '—' }}</td>
@@ -232,6 +263,7 @@ async function handleDeactivate(user) {
                         <td class="px-3 py-3">
                             <div class="flex gap-2">
                                 <button
+                                    v-if="canManageUser(user)"
                                     class="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
                                     title="تعديل"
                                     @click="openEdit(user)"
@@ -239,7 +271,7 @@ async function handleDeactivate(user) {
                                     <Pencil class="h-4 w-4" />
                                 </button>
                                 <button
-                                    v-if="user.id !== authStore.user?.id && user.is_active"
+                                    v-if="user.id !== authStore.user?.id && user.is_active && canManageUser(user)"
                                     class="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50"
                                     title="تعطيل"
                                     @click="handleDeactivate(user)"
@@ -286,12 +318,12 @@ async function handleDeactivate(user) {
                         <label class="mb-1 block text-sm font-semibold text-slate-700">
                             {{ isEditing ? 'كلمة مرور جديدة (اختياري)' : 'كلمة المرور' }}
                         </label>
-                        <input
+                        <PasswordInput
                             v-model="form.password"
-                            type="password"
                             :required="!isEditing"
                             minlength="8"
-                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            autocomplete="new-password"
+                            input-class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                         />
                     </div>
 
@@ -302,8 +334,13 @@ async function handleDeactivate(user) {
                             class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                             :disabled="editingUser?.id === authStore.user?.id"
                         >
-                            <option value="teller">موظف (شباك)</option>
-                            <option value="admin">مدير</option>
+                            <option
+                                v-for="role in assignableRoles"
+                                :key="role.value"
+                                :value="role.value"
+                            >
+                                {{ role.label }}
+                            </option>
                         </select>
                     </div>
 

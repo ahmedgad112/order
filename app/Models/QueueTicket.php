@@ -10,9 +10,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'ticket_number',
+    'public_token',
     'full_name',
     'national_id',
     'order_number',
@@ -23,11 +25,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'completed_at',
     'file_delivered_at',
 ])]
-#[Hidden(['national_id', 'order_number'])]
+#[Hidden(['national_id', 'order_number', 'public_token'])]
 class QueueTicket extends Model
 {
     /** @use HasFactory<QueueTicketFactory> */
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::creating(function (QueueTicket $ticket): void {
+            if (blank($ticket->public_token)) {
+                $ticket->public_token = (string) Str::uuid();
+            }
+        });
+    }
 
     protected function casts(): array
     {

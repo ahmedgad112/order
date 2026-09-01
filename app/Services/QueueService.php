@@ -366,6 +366,24 @@ class QueueService
             ]);
         }
 
+        return $this->trackingPayload($ticket);
+    }
+
+    /**
+     * @return array{ticket: QueueTicket, people_ahead: int|null, position_in_queue: int|null}
+     */
+    public function scanTicket(QueueTicket $ticket): array
+    {
+        $ticket->loadMissing('teller');
+
+        return $this->trackingPayload($ticket);
+    }
+
+    /**
+     * @return array{ticket: QueueTicket, people_ahead: int|null, position_in_queue: int|null}
+     */
+    private function trackingPayload(QueueTicket $ticket): array
+    {
         $peopleAhead = null;
         $positionInQueue = null;
 

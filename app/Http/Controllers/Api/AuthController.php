@@ -3,13 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\IssueTicketRequest;
+use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\LoginRequest;
-use App\Http\Resources\PublicTicketResource;
-use App\Http\Resources\TicketResource;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use App\Services\QueueService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -54,6 +51,17 @@ class AuthController extends Controller
     {
         return response()->json([
             'user' => new UserResource($request->user()),
+        ]);
+    }
+
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        $request->user()->update([
+            'password' => $request->validated('password'),
+        ]);
+
+        return response()->json([
+            'message' => 'تم تغيير كلمة المرور بنجاح.',
         ]);
     }
 }

@@ -21,6 +21,12 @@ const routes = [
         meta: { title: 'متابعة التذكرة' },
     },
     {
+        path: '/t/:token',
+        name: 'ticket-scan',
+        component: () => import('../views/TicketScanView.vue'),
+        meta: { title: 'بيانات التذكرة' },
+    },
+    {
         path: '/login',
         name: 'login',
         component: () => import('../views/LoginView.vue'),
@@ -30,19 +36,19 @@ const routes = [
         path: '/teller',
         name: 'teller',
         component: () => import('../views/TellerDashboardView.vue'),
-        meta: { title: 'لوحة الموظف', requiresAuth: true, roles: ['teller', 'admin'] },
+        meta: { title: 'لوحة الموظف', requiresAuth: true, roles: ['teller', 'manager', 'super_admin'] },
     },
     {
         path: '/admin',
         name: 'admin',
         component: () => import('../views/AdminDashboardView.vue'),
-        meta: { title: 'لوحة الإدارة', requiresAuth: true, roles: ['admin'] },
+        meta: { title: 'لوحة الإدارة', requiresAuth: true, roles: ['manager', 'super_admin'] },
     },
     {
         path: '/admin/registrations',
         name: 'admin-registrations',
         component: () => import('../views/AdminRegistrationsView.vue'),
-        meta: { title: 'سجل التسجيلات', requiresAuth: true, roles: ['admin'] },
+        meta: { title: 'سجل التسجيلات', requiresAuth: true, roles: ['manager', 'super_admin'] },
     },
 ];
 
@@ -67,13 +73,13 @@ router.beforeEach(async (to) => {
     }
 
     if (to.meta.guest && authStore.isAuthenticated) {
-        return authStore.isAdmin ? { name: 'admin' } : { name: 'teller' };
+        return { name: authStore.homeRoute };
     }
 
     if (to.meta.roles && authStore.user) {
         const allowed = to.meta.roles.includes(authStore.user.role);
         if (!allowed) {
-            return authStore.isAdmin ? { name: 'admin' } : { name: 'teller' };
+            return { name: authStore.homeRoute };
         }
     }
 

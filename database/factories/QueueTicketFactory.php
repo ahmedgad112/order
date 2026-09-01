@@ -21,6 +21,7 @@ class QueueTicketFactory extends Factory
     {
         return [
             'ticket_number' => fake()->unique()->numberBetween(1, 9999),
+            'public_token' => fake()->uuid(),
             'full_name' => fake()->name(),
             'national_id' => fake()->numerify('##############'),
             'order_number' => 'ORD-'.fake()->unique()->numerify('######'),
