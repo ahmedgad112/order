@@ -182,10 +182,12 @@ async function saveAsImage() {
     imageSaveError.value = '';
 
     try {
-        const canvas = renderTicketToCanvas(issuedTicket.value);
+        const canvas = await renderTicketToCanvas(issuedTicket.value);
         const filename = `ticket-${issuedTicket.value.ticket_number}.png`;
 
-        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
         if (isIos) {
             const tab = window.open(canvas.toDataURL('image/png'), '_blank');
             if (!tab) {
