@@ -2,17 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\TicketStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminTicketResource;
 use App\Models\QueueTicket;
 use App\Services\QueueService;
+use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AdminTicketController extends Controller
 {
-    public function __construct(private readonly QueueService $queueService) {}
+    public function __construct(
+        private readonly QueueService $queueService,
+        private readonly QueueSystemService $systemService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -37,29 +40,19 @@ class AdminTicketController extends Controller
 
         $tickets = $query->get();
 
-        $stats = [
-            'total' => QueueTicket::query()->today()->count(),
-            'waiting' => QueueTicket::query()->today()->waiting()->count(),
-            'serving' => QueueTicket::query()->today()->serving()->count(),
-            'entered' => QueueTicket::query()->today()->whereNotNull('entered_at')->count(),
-            'file_delivered' => QueueTicket::query()->today()->whereNotNull('file_delivered_at')->count(),
-            'completed' => QueueTicket::query()->today()->where('status', TicketStatus::Completed)->count(),
-            'cancelled' => QueueTicket::query()->today()->where('status', TicketStatus::Cancelled)->count(),
-            'absent' => QueueTicket::query()->today()->where('status', TicketStatus::Absent)->count(),
-        ];
-
         return response()->json([
             'tickets' => AdminTicketResource::collection($tickets),
-            'stats' => $stats,
+            'stats' => QueueTicket::todayStatCounts(),
+            'system' => $this->systemService->getStatus(),
         ]);
     }
 
-    public function markEntered(QueueTicket $ticket): JsonResponse
+    public function markEntered(Request $request, QueueTicket $ticket): JsonResponse
     {
-        $ticket = $this->queueService->adminMarkEntered($ticket);
+        $ticket = $this->queueService->markEntered($ticket, $request->user());
 
         return response()->json([
-            'message' => 'تم تسجيل الدخول بنجاح.',
+            'message' => 'تم تسجيل طلب الدخول.',
             'ticket' => new AdminTicketResource($ticket),
         ]);
     }

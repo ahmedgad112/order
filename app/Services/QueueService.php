@@ -10,6 +10,7 @@ use App\Events\TicketIssuedEvent;
 use App\Events\TicketRestoredEvent;
 use App\Models\QueueTicket;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -85,19 +86,26 @@ class QueueService
 
     public function completeTicket(QueueTicket $ticket, User $teller): QueueTicket
     {
-        $this->assertTicketOwnedByTeller($ticket, $teller);
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
 
-        if ($ticket->status !== TicketStatus::Serving) {
+        if ($ticket->file_delivered_at === null) {
             throw ValidationException::withMessages([
-                'ticket' => 'يمكن إكمال التذاكر قيد الخدمة فقط.',
+                'ticket' => 'سجّل تسليم الملف أولاً قبل الإكمال.',
+            ]);
+        }
+
+        if ($ticket->status === TicketStatus::Completed) {
+            throw ValidationException::withMessages([
+                'ticket' => 'تم إكمال هذه التذكرة مسبقاً.',
             ]);
         }
 
         $ticket->update([
             'status' => TicketStatus::Completed,
-            'entered_at' => $ticket->entered_at ?? now(),
+            'user_id' => $ticket->user_id ?? $teller->id,
+            'called_at' => $ticket->called_at ?? now(),
             'completed_at' => now(),
-            'file_delivered_at' => $ticket->file_delivered_at ?? now(),
         ]);
 
         $this->broadcastSafely(new TicketCompletedEvent($ticket));
@@ -187,6 +195,8 @@ class QueueService
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
             'completed_at' => null,
             'file_delivered_at' => null,
         ]);
@@ -209,37 +219,11 @@ class QueueService
             ->get();
     }
 
-    public function adminMarkEntered(QueueTicket $ticket): QueueTicket
-    {
-        if (! in_array($ticket->status, [TicketStatus::Waiting, TicketStatus::Serving], true)) {
-            throw ValidationException::withMessages([
-                'ticket' => 'لا يمكن تسجيل الدخول لهذه التذكرة.',
-            ]);
-        }
-
-        $ticket->update([
-            'status' => TicketStatus::Completed,
-            'called_at' => $ticket->called_at ?? now(),
-            'entered_at' => $ticket->entered_at ?? now(),
-            'completed_at' => now(),
-        ]);
-
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCompletedEvent($ticket));
-
-        return $ticket->fresh(['teller']);
-    }
-
     public function markEntered(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->systemService->assertSystemOpen();
-
-        if (! $teller->is_active) {
-            throw ValidationException::withMessages([
-                'teller' => 'حساب الموظف غير نشط.',
-            ]);
-        }
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
 
         if ($ticket->entered_at) {
             throw ValidationException::withMessages([
@@ -254,10 +238,46 @@ class QueueService
         }
 
         $ticket->update([
-            'status' => TicketStatus::Serving,
-            'user_id' => $teller->id,
-            'called_at' => $ticket->called_at ?? now(),
+            ...$this->servingAssignment($ticket, $teller),
             'entered_at' => now(),
+        ]);
+
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
+    public function markMedicalChecked(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
+        $this->assertCheckpointNotAlreadySet($ticket->medical_checked_at, 'تم تسجيل الكشف الطبي لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
+
+        $ticket->update([
+            ...$this->servingAssignment($ticket, $teller),
+            'medical_checked_at' => now(),
+        ]);
+
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
+    public function markFacePrinted(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
+        $this->assertCheckpointNotAlreadySet($ticket->face_printed_at, 'تم تسجيل بصمة الوجه لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->medical_checked_at, 'سجّل الكشف الطبي أولاً قبل بصمة الوجه.');
+
+        $ticket->update([
+            ...$this->servingAssignment($ticket, $teller),
+            'face_printed_at' => now(),
         ]);
 
         $ticket->load('teller');
@@ -269,48 +289,33 @@ class QueueService
 
     public function markFileDelivered(QueueTicket $ticket, User $teller): QueueTicket
     {
-        if (! $teller->is_active) {
-            throw ValidationException::withMessages([
-                'teller' => 'حساب الموظف غير نشط.',
-            ]);
-        }
-
-        if ($ticket->file_delivered_at) {
-            throw ValidationException::withMessages([
-                'ticket' => 'تم تسليم الملف لهذه التذكرة مسبقاً.',
-            ]);
-        }
-
-        if (! $ticket->entered_at && $ticket->status !== TicketStatus::Serving) {
-            throw ValidationException::withMessages([
-                'ticket' => 'سجّل طلب الدخول أولاً قبل تسليم الملف.',
-            ]);
-        }
-
-        if (in_array($ticket->status, [TicketStatus::Cancelled, TicketStatus::Absent], true)) {
-            throw ValidationException::withMessages([
-                'ticket' => 'لا يمكن تسليم الملف لهذه التذكرة.',
-            ]);
-        }
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
+        $this->assertCheckpointNotAlreadySet($ticket->file_delivered_at, 'تم تسليم الملف لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->face_printed_at, 'سجّل بصمة الوجه أولاً قبل تسليم الملف.');
 
         $ticket->update([
-            'status' => TicketStatus::Completed,
-            'user_id' => $ticket->user_id ?? $teller->id,
-            'called_at' => $ticket->called_at ?? now(),
-            'entered_at' => $ticket->entered_at ?? now(),
-            'completed_at' => now(),
+            ...$this->servingAssignment($ticket, $teller),
             'file_delivered_at' => now(),
         ]);
 
-        $this->broadcastSafely(new TicketCompletedEvent($ticket));
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
 
         return $ticket->fresh(['teller']);
     }
 
     /**
-     * @return array{tickets: Collection<int, QueueTicket>, stats: array<string, int>}
+     * @return array{
+     *     tickets: Collection<int, QueueTicket>,
+     *     stats: array<string, int>,
+     *     serving: Collection<int, QueueTicket>,
+     *     absent: Collection<int, QueueTicket>,
+     *     current: QueueTicket|null
+     * }
      */
-    public function getTellerTickets(?string $status = null, ?string $search = null): array
+    public function getTellerTickets(User $teller, ?string $status = null, ?string $search = null): array
     {
         $query = QueueTicket::query()
             ->today()
@@ -330,20 +335,24 @@ class QueueService
             });
         }
 
-        $today = QueueTicket::query()->today();
+        $serving = QueueTicket::query()
+            ->today()
+            ->serving()
+            ->with('teller')
+            ->orderBy('called_at')
+            ->get();
 
         return [
             'tickets' => $query->get(),
-            'stats' => [
-                'total' => (clone $today)->count(),
-                'waiting' => (clone $today)->waiting()->count(),
-                'serving' => (clone $today)->serving()->count(),
-                'entered' => (clone $today)->whereNotNull('entered_at')->count(),
-                'file_delivered' => (clone $today)->whereNotNull('file_delivered_at')->count(),
-                'completed' => (clone $today)->where('status', TicketStatus::Completed)->count(),
-                'cancelled' => (clone $today)->where('status', TicketStatus::Cancelled)->count(),
-                'absent' => (clone $today)->where('status', TicketStatus::Absent)->count(),
-            ],
+            'stats' => QueueTicket::todayStatCounts(),
+            'serving' => $serving,
+            'absent' => QueueTicket::query()
+                ->today()
+                ->absent()
+                ->with('teller')
+                ->latest('updated_at')
+                ->get(),
+            'current' => $serving->firstWhere('user_id', $teller->id),
         ];
     }
 
@@ -423,10 +432,12 @@ class QueueService
             ->limit(10)
             ->get();
 
+        $aggregates = QueueTicket::todayAggregates();
+
         $stats = [
-            'waiting' => QueueTicket::query()->today()->waiting()->count(),
-            'serving' => QueueTicket::query()->today()->serving()->count(),
-            'completed' => QueueTicket::query()->today()->where('status', TicketStatus::Completed)->count(),
+            'waiting' => $aggregates['waiting'],
+            'serving' => $aggregates['serving'],
+            'completed' => $aggregates['completed'],
         ];
 
         return compact('serving', 'waiting', 'stats');
@@ -439,6 +450,54 @@ class QueueService
                 'ticket' => 'هذه التذكرة غير مخصصة لك.',
             ]);
         }
+    }
+
+    private function assertActiveStaff(User $teller): void
+    {
+        if (! $teller->is_active) {
+            throw ValidationException::withMessages([
+                'teller' => 'حساب الموظف غير نشط.',
+            ]);
+        }
+    }
+
+    private function assertTicketIsProcessable(QueueTicket $ticket): void
+    {
+        if (in_array($ticket->status, [TicketStatus::Cancelled, TicketStatus::Absent], true)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'لا يمكن تحديث هذه التذكرة.',
+            ]);
+        }
+    }
+
+    private function assertCheckpointNotAlreadySet(mixed $value, string $message): void
+    {
+        if ($value) {
+            throw ValidationException::withMessages([
+                'ticket' => $message,
+            ]);
+        }
+    }
+
+    private function assertPreviousCheckpoint(mixed $value, string $message): void
+    {
+        if (! $value) {
+            throw ValidationException::withMessages([
+                'ticket' => $message,
+            ]);
+        }
+    }
+
+    /**
+     * @return array{status: TicketStatus, user_id: int, called_at: Carbon}
+     */
+    private function servingAssignment(QueueTicket $ticket, User $teller): array
+    {
+        return [
+            'status' => TicketStatus::Serving,
+            'user_id' => $ticket->user_id ?? $teller->id,
+            'called_at' => $ticket->called_at ?? now(),
+        ];
     }
 
     private function broadcastSafely(object $event): void

@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Enums\TicketStatus;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class TicketQrScanTest extends TestCase
@@ -38,9 +40,22 @@ class TicketQrScanTest extends TestCase
         ]);
     }
 
-    public function test_scanning_token_returns_ticket_personal_details(): void
+    public function test_returns_401_when_guest_scans_ticket(): void
     {
         QueueSystemSetting::current();
+        $ticket = QueueTicket::factory()->waiting()->create();
+
+        $this->getJson('/api/teller/tickets/scan/'.$ticket->public_token)
+            ->assertUnauthorized();
+
+        $this->get('/api/teller/tickets/scan/'.$ticket->public_token)
+            ->assertUnauthorized();
+    }
+
+    public function test_staff_can_scan_token_and_see_personal_details(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 4,
             'full_name' => 'محمد أحمد علي',
@@ -48,13 +63,16 @@ class TicketQrScanTest extends TestCase
             'order_number' => 'ORD-1001',
         ]);
 
-        $this->getJson('/api/public/tickets/'.$ticket->public_token)
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets/scan/'.$ticket->public_token)
             ->assertOk()
             ->assertJsonPath('ticket.ticket_number', 4)
             ->assertJsonPath('ticket.full_name', 'محمد أحمد علي')
             ->assertJsonPath('ticket.national_id', '29501011234567')
             ->assertJsonPath('ticket.order_number', 'ORD-1001')
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value)
+            ->assertJsonPath('ticket.has_entered', false)
             ->assertJsonPath('ticket.position_in_queue', 1)
             ->assertJsonPath('ticket.people_ahead', 0);
     }
@@ -63,8 +81,9 @@ class TicketQrScanTest extends TestCase
     {
         QueueSystemSetting::current();
         QueueTicket::factory()->waiting()->create();
+        Sanctum::actingAs(User::factory()->teller()->create());
 
-        $this->getJson('/api/public/tickets/'.Str::uuid())
+        $this->getJson('/api/teller/tickets/scan/'.Str::uuid())
             ->assertNotFound();
     }
 
@@ -72,8 +91,9 @@ class TicketQrScanTest extends TestCase
     {
         QueueSystemSetting::current();
         $ticket = QueueTicket::factory()->waiting()->create();
+        Sanctum::actingAs(User::factory()->teller()->create());
 
-        $this->getJson('/api/public/tickets/'.$ticket->id)
+        $this->getJson('/api/teller/tickets/scan/'.$ticket->id)
             ->assertNotFound();
     }
 

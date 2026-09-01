@@ -54,6 +54,16 @@ class User extends Authenticatable
         return $this->role === UserRole::Teller;
     }
 
+    public function canManageUsers(): bool
+    {
+        return $this->role->canManageUsers();
+    }
+
+    public function canControlSystem(): bool
+    {
+        return $this->role->canControlSystem();
+    }
+
     public function canAssignRole(UserRole $role): bool
     {
         return $this->role->canAssign($role);

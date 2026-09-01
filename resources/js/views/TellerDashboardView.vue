@@ -2,21 +2,19 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import {
-    CheckCircle2,
     ClipboardList,
-    FolderCheck,
     Lock,
     LogOut,
     PhoneCall,
     RefreshCw,
     RotateCcw,
     Search,
-    UserCheck,
     UserX,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import ChangePasswordButton from '../components/ChangePasswordButton.vue';
+import TicketProcessActions from '../components/TicketProcessActions.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -24,8 +22,8 @@ const router = useRouter();
 const actionMessage = ref('');
 const actionError = ref('');
 const restoringId = ref(null);
-const enteredId = ref(null);
-const deliveredId = ref(null);
+const processBusyId = ref(null);
+const busyStep = ref(null);
 const absentId = ref(null);
 const search = ref('');
 const statusFilter = ref('all');
@@ -87,55 +85,27 @@ async function loadTickets(silent = false) {
 }
 
 async function refresh() {
-    await Promise.all([
-        loadTickets(),
-        queueStore.fetchTellerStatus(),
-        queueStore.fetchCurrentTicket(),
-        queueStore.fetchAbsentTickets(),
-    ]);
-}
-
-function canMarkEntered(ticket) {
-    return ['waiting', 'serving'].includes(ticket.status) && !ticket.has_entered;
-}
-
-function canMarkFileDelivered(ticket) {
-    return Boolean(ticket.has_entered) && !ticket.file_delivered && ticket.status !== 'cancelled' && ticket.status !== 'absent';
+    await loadTickets();
 }
 
 function canMarkAbsent(ticket) {
-    return ['waiting', 'serving'].includes(ticket.status) && !ticket.file_delivered;
+    return ['waiting', 'serving'].includes(ticket.status);
 }
 
-async function handleMarkEntered(ticket) {
-    enteredId.value = ticket.id;
+async function handleProcessMark(ticket, step) {
+    processBusyId.value = ticket.id;
+    busyStep.value = step;
     actionError.value = '';
     try {
-        const result = await queueStore.markTellerEntered(ticket.id);
+        const result = await queueStore.markProcessStep(ticket.id, step);
         actionMessage.value = result.message;
-        await loadTickets();
     } catch (err) {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.ticket?.[0]
-            ?? 'تعذر تسجيل طلب الدخول.';
+            ?? 'تعذر تحديث الطلب.';
     } finally {
-        enteredId.value = null;
-    }
-}
-
-async function handleMarkFileDelivered(ticket) {
-    deliveredId.value = ticket.id;
-    actionError.value = '';
-    try {
-        const result = await queueStore.markFileDelivered(ticket.id);
-        actionMessage.value = result.message;
-        await loadTickets();
-    } catch (err) {
-        actionError.value = err.response?.data?.message
-            ?? err.response?.data?.errors?.ticket?.[0]
-            ?? 'تعذر تسجيل تسليم الملف.';
-    } finally {
-        deliveredId.value = null;
+        processBusyId.value = null;
+        busyStep.value = null;
     }
 }
 
@@ -144,7 +114,6 @@ async function handleCallNext() {
     try {
         await queueStore.callNext();
         actionMessage.value = 'تم نداء التذكرة التالية.';
-        await loadTickets();
     } catch (err) {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.queue?.[0]
@@ -160,7 +129,6 @@ async function handleComplete() {
     try {
         await queueStore.completeTicket(queueStore.currentTicket.id);
         actionMessage.value = 'تم إكمال التذكرة.';
-        await loadTickets();
     } catch (err) {
         actionError.value = err.response?.data?.message ?? 'تعذر إكمال التذكرة.';
     }
@@ -174,7 +142,6 @@ async function handleCancel() {
     try {
         await queueStore.cancelTicket(queueStore.currentTicket.id);
         actionMessage.value = 'تم إلغاء التذكرة.';
-        await loadTickets();
     } catch (err) {
         actionError.value = err.response?.data?.message ?? 'تعذر إلغاء التذكرة.';
     }
@@ -194,7 +161,6 @@ async function handleMarkAbsent(ticket = queueStore.currentTicket) {
     try {
         const result = await queueStore.markAbsent(ticket.id);
         actionMessage.value = result.message;
-        await loadTickets();
     } catch (err) {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.ticket?.[0]
@@ -210,7 +176,6 @@ async function handleRestore(ticket) {
     try {
         const result = await queueStore.restoreTicket(ticket.id);
         actionMessage.value = result.message;
-        await loadTickets();
     } catch (err) {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.ticket?.[0]
@@ -268,8 +233,8 @@ watch(search, () => {
     searchTimer = setTimeout(() => loadTickets(), 400);
 });
 
-onMounted(async () => {
-    await refresh();
+onMounted(() => {
+    refresh();
     window.addEventListener('keydown', onKeydown);
 
     unsubscribeEcho = queueStore.subscribeEcho({
@@ -282,13 +247,8 @@ onMounted(async () => {
     });
 
     stopAutoRefresh = queueStore.startAutoRefresh(async () => {
-        await Promise.all([
-            loadTickets(true),
-            queueStore.fetchTellerStatus(),
-            queueStore.fetchCurrentTicket(),
-            queueStore.fetchAbsentTickets(),
-        ]);
-    });
+        await loadTickets(true);
+    }, 5000);
 });
 
 onUnmounted(() => {
@@ -348,7 +308,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <div class="rounded-2xl bg-white p-4 shadow-sm">
                     <p class="text-xs text-slate-500">الإجمالي</p>
                     <p class="text-2xl font-black text-slate-800">{{ queueStore.tellerTicketStats.total }}</p>
@@ -361,8 +321,16 @@ onUnmounted(() => {
                     <p class="text-xs text-blue-700">طلب دخول</p>
                     <p class="text-2xl font-black text-blue-600">{{ queueStore.tellerTicketStats.entered }}</p>
                 </div>
+                <div class="rounded-2xl bg-teal-50 p-4 shadow-sm">
+                    <p class="text-xs text-teal-700">كشف طبي</p>
+                    <p class="text-2xl font-black text-teal-600">{{ queueStore.tellerTicketStats.medical_checked }}</p>
+                </div>
+                <div class="rounded-2xl bg-violet-50 p-4 shadow-sm">
+                    <p class="text-xs text-violet-700">بصمة وجه</p>
+                    <p class="text-2xl font-black text-violet-600">{{ queueStore.tellerTicketStats.face_printed }}</p>
+                </div>
                 <div class="rounded-2xl bg-green-50 p-4 shadow-sm">
-                    <p class="text-xs text-green-700">تم تسليم الملف</p>
+                    <p class="text-xs text-green-700">تسليم الملف</p>
                     <p class="text-2xl font-black text-green-600">{{ queueStore.tellerTicketStats.file_delivered }}</p>
                 </div>
             </section>
@@ -399,7 +367,7 @@ onUnmounted(() => {
                             <ClipboardList class="h-5 w-5 text-indigo-600" />
                             سجل الطلبات
                         </h2>
-                        <p class="mt-1 text-sm text-slate-500">كل الطلبات اليوم — سجّل الدخول وتسليم الملف من الجدول</p>
+                        <p class="mt-1 text-sm text-slate-500">كل الطلبات اليوم — سجّل الخطوات من الجدول أو من مسح QR</p>
                     </div>
                     <span class="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                         مسافة: نداء التالي | Enter: إكمال | Esc: إلغاء
@@ -492,46 +460,18 @@ onUnmounted(() => {
                                 <dd class="text-slate-700">{{ tellerLabel(ticket) }}</dd>
                             </div>
                         </dl>
-                        <div class="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-3">
-                            <button
-                                v-if="canMarkEntered(ticket)"
-                                class="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
-                                :disabled="enteredId === ticket.id || !queueStore.isSystemOpen"
-                                @click="handleMarkEntered(ticket)"
-                            >
-                                <UserCheck class="h-4 w-4" />
-                                {{ enteredId === ticket.id ? 'جاري...' : 'طلب دخول' }}
-                            </button>
-                            <p
-                                v-else-if="ticket.has_entered"
-                                class="flex items-center justify-center gap-1 text-xs font-semibold text-blue-700"
-                            >
-                                <CheckCircle2 class="h-4 w-4" />
-                                تم الدخول
-                            </p>
-                            <p v-else class="text-center text-xs text-slate-400">—</p>
-
-                            <button
-                                v-if="canMarkFileDelivered(ticket)"
-                                class="flex items-center justify-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
-                                :disabled="deliveredId === ticket.id"
-                                @click="handleMarkFileDelivered(ticket)"
-                            >
-                                <FolderCheck class="h-4 w-4" />
-                                {{ deliveredId === ticket.id ? 'جاري...' : 'تسليم الملف' }}
-                            </button>
-                            <p
-                                v-else-if="ticket.file_delivered"
-                                class="flex items-center justify-center gap-1 text-xs font-semibold text-green-700"
-                            >
-                                <CheckCircle2 class="h-4 w-4" />
-                                تم التسليم
-                            </p>
-                            <p v-else class="text-center text-xs text-slate-400">—</p>
-
+                        <div class="mt-4 space-y-2 border-t border-slate-200/80 pt-3">
+                            <TicketProcessActions
+                                :ticket="ticket"
+                                :busy-id="processBusyId"
+                                :busy-step="busyStep"
+                                :system-open="queueStore.isSystemOpen"
+                                compact
+                                @mark="handleProcessMark(ticket, $event)"
+                            />
                             <button
                                 v-if="canMarkAbsent(ticket)"
-                                class="col-span-2 flex items-center justify-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-60"
+                                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-60"
                                 :disabled="absentId === ticket.id"
                                 @click="handleMarkAbsent(ticket)"
                             >
@@ -540,7 +480,7 @@ onUnmounted(() => {
                             </button>
                             <button
                                 v-else-if="ticket.status === 'absent'"
-                                class="col-span-2 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
                                 :disabled="restoringId === ticket.id"
                                 @click="handleRestore(ticket)"
                             >
@@ -558,7 +498,7 @@ onUnmounted(() => {
                 </div>
 
                 <div class="hidden overflow-x-auto md:block">
-                    <table class="w-full min-w-[1080px] text-right text-sm">
+                    <table class="w-full min-w-[1280px] text-right text-sm">
                         <thead>
                             <tr class="border-b border-slate-100 text-slate-500">
                                 <th class="px-3 py-3">#</th>
@@ -567,8 +507,7 @@ onUnmounted(() => {
                                 <th class="px-3 py-3">رقم الطلب</th>
                                 <th class="px-3 py-3">موظف الشباك</th>
                                 <th class="px-3 py-3">الحالة</th>
-                                <th class="px-3 py-3">طلب دخول</th>
-                                <th class="px-3 py-3">تم تسليم الملف</th>
+                                <th class="px-3 py-3">خطوات الطلب</th>
                                 <th class="px-3 py-3">مش موجود</th>
                             </tr>
                         </thead>
@@ -599,42 +538,14 @@ onUnmounted(() => {
                                     </span>
                                 </td>
                                 <td class="px-3 py-3">
-                                    <button
-                                        v-if="canMarkEntered(ticket)"
-                                        class="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
-                                        :disabled="enteredId === ticket.id || !queueStore.isSystemOpen"
-                                        @click="handleMarkEntered(ticket)"
-                                    >
-                                        <UserCheck class="h-4 w-4" />
-                                        {{ enteredId === ticket.id ? 'جاري...' : 'طلب دخول' }}
-                                    </button>
-                                    <span
-                                        v-else-if="ticket.has_entered"
-                                        class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700"
-                                    >
-                                        <CheckCircle2 class="h-4 w-4" />
-                                        تم الدخول
-                                    </span>
-                                    <span v-else class="text-xs text-slate-400">—</span>
-                                </td>
-                                <td class="px-3 py-3">
-                                    <button
-                                        v-if="canMarkFileDelivered(ticket)"
-                                        class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
-                                        :disabled="deliveredId === ticket.id"
-                                        @click="handleMarkFileDelivered(ticket)"
-                                    >
-                                        <FolderCheck class="h-4 w-4" />
-                                        {{ deliveredId === ticket.id ? 'جاري...' : 'تسليم الملف' }}
-                                    </button>
-                                    <span
-                                        v-else-if="ticket.file_delivered"
-                                        class="inline-flex items-center gap-1 text-xs font-semibold text-green-700"
-                                    >
-                                        <CheckCircle2 class="h-4 w-4" />
-                                        تم التسليم
-                                    </span>
-                                    <span v-else class="text-xs text-slate-400">—</span>
+                                    <TicketProcessActions
+                                        :ticket="ticket"
+                                        :busy-id="processBusyId"
+                                        :busy-step="busyStep"
+                                        :system-open="queueStore.isSystemOpen"
+                                        compact
+                                        @mark="handleProcessMark(ticket, $event)"
+                                    />
                                 </td>
                                 <td class="px-3 py-3">
                                     <button
@@ -659,7 +570,7 @@ onUnmounted(() => {
                                 </td>
                             </tr>
                             <tr v-if="!queueStore.tellerTickets.length">
-                                <td colspan="9" class="py-16 text-center text-slate-400">
+                                <td colspan="8" class="py-16 text-center text-slate-400">
                                     لا توجد طلبات مطابقة
                                 </td>
                             </tr>

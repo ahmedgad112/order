@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRoute, RouterLink } from 'vue-router';
+import { useRoute, useRouter, RouterLink } from 'vue-router';
 import {
     ArrowRight,
     BellRing,
@@ -8,18 +8,27 @@ import {
     Clock,
     FileText,
     Hash,
+    LogOut,
     RefreshCw,
     User,
     XCircle,
 } from 'lucide-vue-next';
+import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
+import TicketProcessActions from '../components/TicketProcessActions.vue';
+import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 
 const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 const queueStore = useQueueStore();
 
 const ticket = ref(null);
 const loadError = ref('');
 const isRefreshing = ref(false);
+const actionMessage = ref('');
+const actionError = ref('');
+const busyStep = ref(null);
 
 const statusConfig = computed(() => {
     if (!ticket.value) {
@@ -30,37 +39,39 @@ const statusConfig = computed(() => {
         waiting: {
             color: 'amber',
             icon: Clock,
-            title: 'أنت في قائمة الانتظار',
-            hint: 'يرجى الانتظار حتى يتم نداؤك',
+            title: 'في قائمة الانتظار',
+            hint: 'يمكن تسجيل خطوات الطلب من الأزرار بالأسفل',
         },
         serving: {
             color: 'blue',
             icon: BellRing,
-            title: 'حان دورك الآن!',
-            hint: 'توجّه إلى الشباك فوراً',
+            title: 'قيد الخدمة',
+            hint: 'أكمل خطوات الطلب بالترتيب',
         },
         completed: {
             color: 'green',
             icon: CheckCircle2,
-            title: 'تمت خدمتك',
-            hint: 'شكراً لزيارتك',
+            title: 'اكتملت الخدمة',
+            hint: 'تم إنهاء كل خطوات الطلب',
         },
         cancelled: {
             color: 'red',
             icon: XCircle,
             title: 'تم إلغاء التذكرة',
-            hint: 'يرجى مراجعة الموظف',
+            hint: 'لا يمكن تحديث هذا الطلب',
         },
         absent: {
             color: 'orange',
             icon: XCircle,
-            title: 'تم نداؤك ولم تحضر',
-            hint: 'توجّه للموظف لإرجاعك للطابور',
+            title: 'تم نداؤه ولم يحضر',
+            hint: 'يمكن إرجاعه للطابور من لوحة الموظف',
         },
     };
 
     return map[ticket.value.status] ?? map.waiting;
 });
+
+const dashboardRoute = computed(() => (authStore.isAdmin ? '/admin' : '/teller'));
 
 async function loadTicket(silent = false) {
     if (!silent) {
@@ -80,10 +91,40 @@ async function loadTicket(silent = false) {
     }
 }
 
+async function handleProcessMark(step) {
+    if (!ticket.value) {
+        return;
+    }
+
+    busyStep.value = step;
+    actionError.value = '';
+    try {
+        const result = await queueStore.markProcessStep(ticket.value.id, step);
+        actionMessage.value = result.message;
+        ticket.value = {
+            ...ticket.value,
+            ...result.ticket,
+            status_label: ticket.value.status_label,
+        };
+        await loadTicket(true);
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر تحديث الطلب.';
+    } finally {
+        busyStep.value = null;
+    }
+}
+
 function onQueueEvent() {
     if (ticket.value) {
         loadTicket(true);
     }
+}
+
+async function logout() {
+    await authStore.logout();
+    await router.push({ name: 'login', query: { redirect: route.fullPath } });
 }
 
 let unsubscribeEcho = null;
@@ -128,16 +169,29 @@ onUnmounted(() => {
                     />
                     <div>
                         <h1 class="text-2xl font-bold text-slate-900">بيانات التذكرة</h1>
-                        <p class="text-sm text-slate-500">نتيجة مسح رمز QR</p>
+                        <p class="text-sm text-slate-500">
+                            {{ authStore.user?.role_label }} — {{ authStore.user?.name }}
+                        </p>
                     </div>
                 </div>
-                <RouterLink
-                    to="/"
-                    class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                    إصدار تذكرة
-                    <ArrowRight class="h-4 w-4" />
-                </RouterLink>
+                <div class="flex flex-wrap gap-2">
+                    <RouterLink
+                        :to="dashboardRoute"
+                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                        لوحة التحكم
+                        <ArrowRight class="h-4 w-4" />
+                    </RouterLink>
+                    <ChangePasswordButton />
+                    <button
+                        type="button"
+                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        @click="logout"
+                    >
+                        <LogOut class="h-4 w-4" />
+                        خروج
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -221,13 +275,26 @@ onUnmounted(() => {
                         </div>
                     </dl>
 
+                    <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p class="mb-3 text-sm font-bold text-slate-700">خطوات الطلب</p>
+                        <p v-if="actionMessage" class="mb-3 text-sm font-semibold text-green-600">{{ actionMessage }}</p>
+                        <p v-if="actionError" class="mb-3 text-sm font-semibold text-red-600">{{ actionError }}</p>
+                        <TicketProcessActions
+                            :ticket="ticket"
+                            :busy-id="ticket.id"
+                            :busy-step="busyStep"
+                            :system-open="queueStore.isSystemOpen"
+                            @mark="handleProcessMark"
+                        />
+                    </div>
+
                     <div v-if="ticket.status === 'waiting'" class="mt-6 grid grid-cols-2 gap-4">
                         <div class="rounded-2xl bg-amber-50 p-4 text-center">
-                            <p class="text-sm text-amber-700">ترتيبك</p>
+                            <p class="text-sm text-amber-700">الترتيب</p>
                             <p class="text-3xl font-black text-amber-600">{{ ticket.position_in_queue }}</p>
                         </div>
                         <div class="rounded-2xl bg-slate-50 p-4 text-center">
-                            <p class="text-sm text-slate-500">أمامك</p>
+                            <p class="text-sm text-slate-500">أمامه</p>
                             <p class="text-3xl font-black text-slate-700">{{ ticket.people_ahead }}</p>
                             <p class="text-xs text-slate-400">تذكرة</p>
                         </div>
@@ -237,7 +304,7 @@ onUnmounted(() => {
                         v-if="ticket.status === 'serving' && (ticket.teller_name || ticket.counter_name)"
                         class="mt-6 rounded-2xl bg-blue-50 p-5 text-center"
                     >
-                        <p class="text-sm text-blue-600">توجّه إلى</p>
+                        <p class="text-sm text-blue-600">موظف الشباك</p>
                         <p class="text-3xl font-black text-blue-700">
                             {{ ticket.teller_name || ticket.counter_name }}
                         </p>

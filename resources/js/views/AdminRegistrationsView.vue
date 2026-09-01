@@ -3,17 +3,16 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import {
     ArrowRight,
-    CheckCircle2,
     ClipboardList,
     LogOut,
     RefreshCw,
     Search,
-    UserCheck,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import { useRouter } from 'vue-router';
 import ChangePasswordButton from '../components/ChangePasswordButton.vue';
+import TicketProcessActions from '../components/TicketProcessActions.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -22,8 +21,10 @@ const router = useRouter();
 const search = ref('');
 const statusFilter = ref('all');
 const loading = ref(false);
-const actionId = ref(null);
+const processBusyId = ref(null);
+const busyStep = ref(null);
 const feedback = ref('');
+const actionError = ref('');
 
 const statusOptions = [
     { value: 'all', label: 'الكل' },
@@ -73,25 +74,23 @@ async function loadTickets(silent = false) {
     }
 }
 
-async function handleMarkEntered(ticket) {
-    if (!confirm(`تأكيد تسجيل دخول "${ticket.full_name}" (تذكرة ${ticket.ticket_number})؟`)) {
-        return;
-    }
-
-    actionId.value = ticket.id;
+async function handleProcessMark(ticket, step) {
+    processBusyId.value = ticket.id;
+    busyStep.value = step;
     feedback.value = '';
+    actionError.value = '';
     try {
-        const result = await queueStore.markTicketEntered(ticket.id);
+        const result = await queueStore.markProcessStep(ticket.id, step);
         feedback.value = result.message;
+        await loadTickets();
     } catch (err) {
-        feedback.value = err.response?.data?.message ?? 'تعذر تسجيل الدخول.';
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر تحديث الطلب.';
     } finally {
-        actionId.value = null;
+        processBusyId.value = null;
+        busyStep.value = null;
     }
-}
-
-function canMarkEntered(ticket) {
-    return ['waiting', 'serving'].includes(ticket.status);
 }
 
 async function logout() {
@@ -115,8 +114,8 @@ watch(search, () => {
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
-onMounted(async () => {
-    await loadTickets();
+onMounted(() => {
+    loadTickets();
 
     unsubscribeEcho = queueStore.subscribeEcho({
         TicketIssued: onQueueUpdate,
@@ -127,7 +126,7 @@ onMounted(async () => {
         QueueDayReset: onQueueUpdate,
     });
 
-    stopAutoRefresh = queueStore.startAutoRefresh(() => loadTickets(true));
+    stopAutoRefresh = queueStore.startAutoRefresh(() => loadTickets(true), 5000);
 });
 
 onUnmounted(() => {
@@ -152,7 +151,7 @@ onUnmounted(() => {
                             <ClipboardList class="h-7 w-7 text-indigo-600" />
                             سجل التسجيلات
                         </h1>
-                        <p class="text-sm text-slate-500">كل الأشخاص المسجلين اليوم — وتسجيل الدخول أمامهم</p>
+                        <p class="text-sm text-slate-500">كل الأشخاص المسجلين اليوم — وخطوات الطلب أمامهم</p>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -236,6 +235,9 @@ onUnmounted(() => {
                 <p v-if="feedback" class="mb-4 rounded-xl bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
                     {{ feedback }}
                 </p>
+                <p v-if="actionError" class="mb-4 rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">
+                    {{ actionError }}
+                </p>
 
                 <p class="mb-3 text-sm text-slate-500">عرض {{ filteredCount }} تسجيل</p>
 
@@ -275,6 +277,18 @@ onUnmounted(() => {
                                 </dd>
                             </div>
                             <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">كشف طبي</dt>
+                                <dd class="font-semibold" :class="ticket.has_medical_checked ? 'text-teal-700' : 'text-slate-400'">
+                                    {{ ticket.has_medical_checked ? 'تم' : '—' }}
+                                </dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">بصمة وجه</dt>
+                                <dd class="font-semibold" :class="ticket.has_face_printed ? 'text-violet-700' : 'text-slate-400'">
+                                    {{ ticket.has_face_printed ? 'تم' : '—' }}
+                                </dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">تسليم الملف</dt>
                                 <dd class="font-semibold" :class="ticket.file_delivered ? 'text-green-700' : 'text-slate-400'">
                                     {{ ticket.file_delivered ? 'تم' : '—' }}
@@ -290,23 +304,14 @@ onUnmounted(() => {
                             </div>
                         </dl>
                         <div class="mt-4 border-t border-slate-200/80 pt-3">
-                            <button
-                                v-if="canMarkEntered(ticket)"
-                                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
-                                :disabled="actionId === ticket.id"
-                                @click="handleMarkEntered(ticket)"
-                            >
-                                <UserCheck class="h-4 w-4" />
-                                {{ actionId === ticket.id ? 'جاري...' : 'دخل' }}
-                            </button>
-                            <p
-                                v-else-if="ticket.status === 'completed'"
-                                class="flex items-center justify-center gap-1 text-xs font-semibold text-green-700"
-                            >
-                                <CheckCircle2 class="h-4 w-4" />
-                                تم
-                            </p>
-                            <p v-else class="text-center text-xs text-slate-400">—</p>
+                            <TicketProcessActions
+                                :ticket="ticket"
+                                :busy-id="processBusyId"
+                                :busy-step="busyStep"
+                                :system-open="queueStore.isSystemOpen"
+                                compact
+                                @mark="handleProcessMark(ticket, $event)"
+                            />
                         </div>
                     </article>
                     <p
@@ -319,7 +324,7 @@ onUnmounted(() => {
 
                 <!-- Desktop table -->
                 <div class="hidden overflow-x-auto md:block">
-                    <table class="w-full text-right text-sm">
+                    <table class="w-full min-w-[1180px] text-right text-sm">
                         <thead>
                             <tr class="border-b border-slate-100 text-slate-500">
                                 <th class="px-3 py-3">#</th>
@@ -327,11 +332,9 @@ onUnmounted(() => {
                                 <th class="px-3 py-3">الرقم القومي</th>
                                 <th class="px-3 py-3">رقم الطلب</th>
                                 <th class="px-3 py-3">الحالة</th>
-                                <th class="px-3 py-3">طلب دخول</th>
-                                <th class="px-3 py-3">تم تسليم الملف</th>
+                                <th class="px-3 py-3">خطوات الطلب</th>
                                 <th class="px-3 py-3">موظف الشباك</th>
                                 <th class="px-3 py-3">وقت التسجيل</th>
-                                <th class="px-3 py-3">إجراء</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -356,49 +359,20 @@ onUnmounted(() => {
                                     </span>
                                 </td>
                                 <td class="px-3 py-3">
-                                    <span
-                                        v-if="ticket.has_entered"
-                                        class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700"
-                                    >
-                                        <CheckCircle2 class="h-4 w-4" />
-                                        تم
-                                    </span>
-                                    <span v-else class="text-xs text-slate-400">—</span>
-                                </td>
-                                <td class="px-3 py-3">
-                                    <span
-                                        v-if="ticket.file_delivered"
-                                        class="inline-flex items-center gap-1 text-xs font-semibold text-green-700"
-                                    >
-                                        <CheckCircle2 class="h-4 w-4" />
-                                        تم
-                                    </span>
-                                    <span v-else class="text-xs text-slate-400">—</span>
+                                    <TicketProcessActions
+                                        :ticket="ticket"
+                                        :busy-id="processBusyId"
+                                        :busy-step="busyStep"
+                                        :system-open="queueStore.isSystemOpen"
+                                        compact
+                                        @mark="handleProcessMark(ticket, $event)"
+                                    />
                                 </td>
                                 <td class="px-3 py-3">{{ tellerLabel(ticket) }}</td>
                                 <td class="px-3 py-3 text-slate-500">{{ formatTime(ticket.created_at) }}</td>
-                                <td class="px-3 py-3">
-                                    <button
-                                        v-if="canMarkEntered(ticket)"
-                                        class="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
-                                        :disabled="actionId === ticket.id"
-                                        @click="handleMarkEntered(ticket)"
-                                    >
-                                        <UserCheck class="h-4 w-4" />
-                                        {{ actionId === ticket.id ? 'جاري...' : 'دخل' }}
-                                    </button>
-                                    <span
-                                        v-else-if="ticket.status === 'completed'"
-                                        class="inline-flex items-center gap-1 text-xs font-semibold text-green-700"
-                                    >
-                                        <CheckCircle2 class="h-4 w-4" />
-                                        تم
-                                    </span>
-                                    <span v-else class="text-xs text-slate-400">—</span>
-                                </td>
                             </tr>
                             <tr v-if="!queueStore.registrations.length">
-                                <td colspan="10" class="py-16 text-center text-slate-400">
+                                <td colspan="8" class="py-16 text-center text-slate-400">
                                     لا توجد تسجيلات مطابقة
                                 </td>
                             </tr>

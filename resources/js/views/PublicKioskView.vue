@@ -1,10 +1,10 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown } from 'lucide-vue-next';
-import QRCode from 'qrcode';
 import { useQueueStore } from '../stores/queueStore';
-import TicketQrCode from '../components/TicketQrCode.vue';
+
+const TicketQrCode = defineAsyncComponent(() => import('../components/TicketQrCode.vue'));
 
 const queueStore = useQueueStore();
 
@@ -68,6 +68,7 @@ async function renderTicketToCanvas(ticket) {
     ctx.fillText(ticket.masked_name, width / 2, 228);
 
     const qrCanvas = document.createElement('canvas');
+    const QRCode = (await import('qrcode')).default;
     await QRCode.toCanvas(qrCanvas, ticketScanUrl(ticket), {
         width: qrSize,
         margin: 1,
@@ -203,9 +204,9 @@ async function saveAsImage() {
     }
 }
 
-onMounted(async () => {
-    await queueStore.fetchPublicStatus();
-    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }));
+onMounted(() => {
+    queueStore.fetchPublicStatus();
+    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 5000);
 });
 
 onUnmounted(() => {

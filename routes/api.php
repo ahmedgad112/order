@@ -15,8 +15,6 @@ Route::prefix('public')->group(function (): void {
         ->middleware('throttle:20,1');
     Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket'])
         ->middleware('throttle:60,1');
-    Route::get('/tickets/{ticket:public_token}', [PublicQueueController::class, 'showTicket'])
-        ->middleware('throttle:60,1');
 });
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -31,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::prefix('teller')->middleware('role:teller,manager,super_admin')->group(function (): void {
         Route::get('/queue-status', [TellerQueueController::class, 'queueStatus']);
         Route::get('/tickets', [TellerQueueController::class, 'tickets']);
+        Route::get('/tickets/scan/{ticket:public_token}', [TellerQueueController::class, 'showScannedTicket']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
         Route::post('/call-next', [TellerQueueController::class, 'callNext']);
         Route::post('/tickets/{ticket}/complete', [TellerQueueController::class, 'completeTicket']);
@@ -40,22 +39,28 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-absent', [TellerQueueController::class, 'markAbsent']);
         Route::post('/tickets/{ticket}/restore', [TellerQueueController::class, 'restoreTicket']);
         Route::post('/tickets/{ticket}/mark-entered', [TellerQueueController::class, 'markEntered']);
+        Route::post('/tickets/{ticket}/mark-medical-checked', [TellerQueueController::class, 'markMedicalChecked']);
+        Route::post('/tickets/{ticket}/mark-face-printed', [TellerQueueController::class, 'markFacePrinted']);
         Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);
     });
 
     Route::prefix('admin')->middleware('role:manager,super_admin')->group(function (): void {
+        Route::get('/dashboard', [AdminReportController::class, 'dashboard']);
         Route::get('/system/status', [AdminSystemController::class, 'status']);
-        Route::post('/system/close', [AdminSystemController::class, 'close']);
-        Route::post('/system/open', [AdminSystemController::class, 'open']);
-        Route::post('/system/reset-day', [AdminSystemController::class, 'resetDay']);
         Route::get('/reports/daily', [AdminReportController::class, 'dailyMetrics']);
         Route::get('/reports/teller-performance', [AdminReportController::class, 'tellerPerformance']);
         Route::get('/tellers', [AdminReportController::class, 'tellers']);
+        Route::get('/tickets', [AdminTicketController::class, 'index']);
+        Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
+    });
+
+    Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
+        Route::post('/system/close', [AdminSystemController::class, 'close']);
+        Route::post('/system/open', [AdminSystemController::class, 'open']);
+        Route::post('/system/reset-day', [AdminSystemController::class, 'resetDay']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);
         Route::put('/users/{user}', [AdminUserController::class, 'update']);
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
-        Route::get('/tickets', [AdminTicketController::class, 'index']);
-        Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
     });
 });

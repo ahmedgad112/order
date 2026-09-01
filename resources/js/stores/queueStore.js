@@ -14,6 +14,8 @@ export const useQueueStore = defineStore('queue', () => {
         waiting: 0,
         serving: 0,
         entered: 0,
+        medical_checked: 0,
+        face_printed: 0,
         file_delivered: 0,
         completed: 0,
         cancelled: 0,
@@ -29,6 +31,8 @@ export const useQueueStore = defineStore('queue', () => {
         waiting: 0,
         serving: 0,
         entered: 0,
+        medical_checked: 0,
+        face_printed: 0,
         file_delivered: 0,
         completed: 0,
         cancelled: 0,
@@ -111,15 +115,17 @@ export const useQueueStore = defineStore('queue', () => {
         error.value = null;
 
         try {
-            const { data } = await axios.get(`/public/tickets/${token}`);
+            const { data } = await axios.get(`/teller/tickets/scan/${token}`);
             if (data.system) {
                 system.value = data.system;
             }
             return data.ticket;
         } catch (err) {
-            error.value = err.response?.status === 404
-                ? 'لم يتم العثور على التذكرة.'
-                : err.response?.data?.message ?? 'تعذر تحميل بيانات التذكرة.';
+            error.value = err.response?.status === 401
+                ? 'يجب تسجيل الدخول لعرض بيانات التذكرة.'
+                : err.response?.status === 404
+                    ? 'لم يتم العثور على التذكرة.'
+                    : err.response?.data?.message ?? 'تعذر تحميل بيانات التذكرة.';
             throw err;
         } finally {
             if (!options.silent) {
@@ -160,21 +166,20 @@ export const useQueueStore = defineStore('queue', () => {
     async function callNext() {
         const { data } = await axios.post('/teller/call-next');
         currentTicket.value = data.ticket;
-        await fetchTellerStatus();
+        await fetchTellerTickets();
         return data.ticket;
     }
 
     async function completeTicket(ticketId) {
-        const { data } = await axios.post(`/teller/tickets/${ticketId}/complete`);
+        const data = await markProcessStep(ticketId, 'completed');
         currentTicket.value = null;
-        await fetchTellerStatus();
         return data.ticket;
     }
 
     async function cancelTicket(ticketId) {
         const { data } = await axios.post(`/teller/tickets/${ticketId}/cancel`);
         currentTicket.value = null;
-        await fetchTellerStatus();
+        await fetchTellerTickets();
         return data.ticket;
     }
 
@@ -200,6 +205,15 @@ export const useQueueStore = defineStore('queue', () => {
         const { data } = await axios.get('/teller/tickets', { params: lastTellerTicketParams });
         tellerTickets.value = data.tickets;
         tellerTicketStats.value = data.stats;
+        if (data.serving) {
+            serving.value = data.serving;
+        }
+        if (data.absent_tickets) {
+            absentTickets.value = data.absent_tickets;
+        }
+        if (Object.hasOwn(data, 'current_ticket')) {
+            currentTicket.value = data.current_ticket;
+        }
         if (data.system) {
             system.value = data.system;
         }
@@ -221,18 +235,30 @@ export const useQueueStore = defineStore('queue', () => {
         }
     }
 
-    async function markTellerEntered(ticketId) {
-        const { data } = await axios.post(`/teller/tickets/${ticketId}/mark-entered`);
+    async function markProcessStep(ticketId, step) {
+        const paths = {
+            entered: `/teller/tickets/${ticketId}/mark-entered`,
+            medical_checked: `/teller/tickets/${ticketId}/mark-medical-checked`,
+            face_printed: `/teller/tickets/${ticketId}/mark-face-printed`,
+            file_delivered: `/teller/tickets/${ticketId}/mark-file-delivered`,
+            completed: `/teller/tickets/${ticketId}/complete`,
+        };
+
+        const { data } = await axios.post(paths[step]);
         upsertTellerTicket(data.ticket);
-        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchCurrentTicket()]);
+        if (step === 'completed' && currentTicket.value?.id === ticketId) {
+            currentTicket.value = null;
+        }
+        await fetchTellerTickets();
         return data;
     }
 
+    async function markTellerEntered(ticketId) {
+        return markProcessStep(ticketId, 'entered');
+    }
+
     async function markFileDelivered(ticketId) {
-        const { data } = await axios.post(`/teller/tickets/${ticketId}/mark-file-delivered`);
-        upsertTellerTicket(data.ticket);
-        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchCurrentTicket()]);
-        return data;
+        return markProcessStep(ticketId, 'file_delivered');
     }
 
     async function markAbsent(ticketId) {
@@ -240,13 +266,24 @@ export const useQueueStore = defineStore('queue', () => {
         if (currentTicket.value?.id === ticketId) {
             currentTicket.value = null;
         }
-        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchAbsentTickets(), fetchCurrentTicket()]);
+        await fetchTellerTickets();
         return data;
     }
 
     async function restoreTicket(ticketId) {
         const { data } = await axios.post(`/teller/tickets/${ticketId}/restore`);
-        await Promise.all([fetchTellerTickets(), fetchTellerStatus(), fetchAbsentTickets()]);
+        await fetchTellerTickets();
+        return data;
+    }
+
+    async function fetchAdminDashboard() {
+        const { data } = await axios.get('/admin/dashboard');
+        metrics.value = data.metrics;
+        tellerPerformance.value = data.teller_performance ?? [];
+        tellers.value = data.tellers ?? data.teller_performance ?? [];
+        if (data.system) {
+            system.value = data.system;
+        }
         return data;
     }
 
@@ -276,25 +313,19 @@ export const useQueueStore = defineStore('queue', () => {
 
     async function createUser(payload) {
         const { data } = await axios.post('/admin/users', payload);
-        await fetchUsers();
-        await fetchTellers();
-        await fetchTellerPerformance();
+        await Promise.all([fetchUsers(), fetchAdminDashboard()]);
         return data;
     }
 
     async function updateUser(userId, payload) {
         const { data } = await axios.put(`/admin/users/${userId}`, payload);
-        await fetchUsers();
-        await fetchTellers();
-        await fetchTellerPerformance();
+        await Promise.all([fetchUsers(), fetchAdminDashboard()]);
         return data;
     }
 
     async function deactivateUser(userId) {
         const { data } = await axios.delete(`/admin/users/${userId}`);
-        await fetchUsers();
-        await fetchTellers();
-        await fetchTellerPerformance();
+        await Promise.all([fetchUsers(), fetchAdminDashboard()]);
         return data;
     }
 
@@ -308,17 +339,14 @@ export const useQueueStore = defineStore('queue', () => {
         const { data } = await axios.get('/admin/tickets', { params: lastRegistrationParams });
         registrations.value = data.tickets;
         registrationStats.value = data.stats;
+        if (data.system) {
+            system.value = data.system;
+        }
         return data;
     }
 
     async function markTicketEntered(ticketId) {
-        const { data } = await axios.post(`/admin/tickets/${ticketId}/mark-entered`);
-        const index = registrations.value.findIndex((t) => t.id === ticketId);
-        if (index >= 0) {
-            registrations.value[index] = data.ticket;
-        }
-        await fetchRegistrations();
-        return data;
+        return markProcessStep(ticketId, 'entered');
     }
 
     async function fetchSystemStatus() {
@@ -353,6 +381,8 @@ export const useQueueStore = defineStore('queue', () => {
             waiting: 0,
             serving: 0,
             entered: 0,
+            medical_checked: 0,
+            face_printed: 0,
             file_delivered: 0,
             completed: 0,
             cancelled: 0,
@@ -370,18 +400,11 @@ export const useQueueStore = defineStore('queue', () => {
             const tasks = [];
 
             if (auth.isAdmin) {
-                tasks.push(
-                    fetchDailyMetrics().catch(() => {}),
-                    fetchTellerPerformance().catch(() => {}),
-                );
+                tasks.push(fetchAdminDashboard().catch(() => {}));
             }
 
             if (auth.isTeller) {
-                tasks.push(
-                    fetchCurrentTicket().catch(() => {}),
-                    fetchAbsentTickets().catch(() => {}),
-                    fetchTellerTickets().catch(() => {}),
-                );
+                tasks.push(fetchTellerTickets().catch(() => {}));
             }
 
             if (tasks.length) {
@@ -408,6 +431,8 @@ export const useQueueStore = defineStore('queue', () => {
             waiting: 0,
             serving: 0,
             entered: 0,
+            medical_checked: 0,
+            face_printed: 0,
             file_delivered: 0,
             completed: 0,
             cancelled: 0,
@@ -511,51 +536,71 @@ export const useQueueStore = defineStore('queue', () => {
         });
     }
 
-    function attachEchoListeners() {
-        if (echoBound || !window.Echo) {
+    let echoBindPromise = null;
+
+    async function attachEchoListeners() {
+        if (echoBound) {
             return;
         }
 
-        window.Echo.channel('queue-channel')
-            .listen('.TicketIssued', (event) => {
-                handleTicketIssued(event);
-                runExtras('TicketIssued', event);
-            })
-            .listen('.TicketCalled', (event) => {
-                handleTicketCalled(event);
-                runExtras('TicketCalled', event);
-            })
-            .listen('.TicketCompleted', (event) => {
-                handleTicketCompleted(event);
-                runExtras('TicketCompleted', event);
-            })
-            .listen('.TicketAbsent', (event) => {
-                handleTicketAbsent(event);
-                runExtras('TicketAbsent', event);
-            })
-            .listen('.TicketRestored', (event) => {
-                handleTicketRestored(event);
-                runExtras('TicketRestored', event);
-            })
-            .listen('.QueueSystemUpdated', (event) => {
-                handleSystemUpdated(event);
-                runExtras('QueueSystemUpdated', event);
-            })
-            .listen('.QueueDayReset', (event) => {
-                handleDayReset(event);
-                runExtras('QueueDayReset', event);
-            });
+        if (echoBindPromise) {
+            await echoBindPromise;
+            return;
+        }
 
-        echoBound = true;
+        echoBindPromise = (async () => {
+            const { loadEcho } = await import('../echo');
+            const echo = await loadEcho();
+
+            if (!echo || echoBound) {
+                return;
+            }
+
+            echo.channel('queue-channel')
+                .listen('.TicketIssued', (event) => {
+                    handleTicketIssued(event);
+                    runExtras('TicketIssued', event);
+                })
+                .listen('.TicketCalled', (event) => {
+                    handleTicketCalled(event);
+                    runExtras('TicketCalled', event);
+                })
+                .listen('.TicketCompleted', (event) => {
+                    handleTicketCompleted(event);
+                    runExtras('TicketCompleted', event);
+                })
+                .listen('.TicketAbsent', (event) => {
+                    handleTicketAbsent(event);
+                    runExtras('TicketAbsent', event);
+                })
+                .listen('.TicketRestored', (event) => {
+                    handleTicketRestored(event);
+                    runExtras('TicketRestored', event);
+                })
+                .listen('.QueueSystemUpdated', (event) => {
+                    handleSystemUpdated(event);
+                    runExtras('QueueSystemUpdated', event);
+                })
+                .listen('.QueueDayReset', (event) => {
+                    handleDayReset(event);
+                    runExtras('QueueDayReset', event);
+                });
+
+            echoBound = true;
+        })();
+
+        await echoBindPromise;
     }
 
     function detachEchoListeners() {
         if (!echoBound || !window.Echo) {
+            echoBindPromise = null;
             return;
         }
 
         window.Echo.leave('queue-channel');
         echoBound = false;
+        echoBindPromise = null;
     }
 
     /**
@@ -666,9 +711,11 @@ export const useQueueStore = defineStore('queue', () => {
         fetchTellerTickets,
         markTellerEntered,
         markFileDelivered,
+        markProcessStep,
         markAbsent,
         restoreTicket,
         fetchDailyMetrics,
+        fetchAdminDashboard,
         fetchTellerPerformance,
         fetchTellers,
         fetchUsers,

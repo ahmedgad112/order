@@ -22,6 +22,8 @@ class QueueSystemService
 
     public function closeSystem(User $admin, ?string $message = null): array
     {
+        abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
+
         $settings = QueueSystemSetting::current();
 
         $settings->update([
@@ -40,6 +42,8 @@ class QueueSystemService
 
     public function openSystem(User $admin): array
     {
+        abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
+
         $settings = QueueSystemSetting::current();
 
         $settings->update([
@@ -58,6 +62,8 @@ class QueueSystemService
 
     public function resetDay(User $admin): array
     {
+        abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
+
         $deletedTickets = DB::transaction(function () use ($admin): int {
             $count = QueueTicket::query()->today()->count();
 

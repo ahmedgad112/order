@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import PasswordInput from '../components/PasswordInput.vue';
@@ -10,6 +10,12 @@ const router = useRouter();
 const form = ref({
     email: '',
     password: '',
+});
+
+const staffScanRedirect = computed(() => {
+    const redirect = router.currentRoute.value.query.redirect;
+
+    return typeof redirect === 'string' && redirect.startsWith('/t/');
 });
 
 async function submit() {
@@ -42,6 +48,12 @@ onMounted(() => {
                 />
                 <h1 class="text-2xl font-bold text-slate-900">تسجيل الدخول</h1>
                 <p class="text-sm text-slate-500">لوحة الموظفين والإدارة</p>
+                <p
+                    v-if="staffScanRedirect"
+                    class="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"
+                >
+                    عرض بيانات التذكرة متاح لموظفي النظام فقط. سجّل الدخول للمتابعة.
+                </p>
             </div>
 
             <p v-if="authStore.error" class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-center text-sm text-red-700">

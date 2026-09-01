@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ScannedTicketResource extends JsonResource
 {
     public function __construct(
-        $resource,
+        QueueTicket $resource,
         private readonly ?int $peopleAhead = null,
         private readonly ?int $positionInQueue = null,
     ) {
@@ -36,7 +36,15 @@ class ScannedTicketResource extends JsonResource
             'people_ahead' => $this->peopleAhead,
             'position_in_queue' => $this->positionInQueue,
             'called_at' => $this->called_at?->toIso8601String(),
+            'entered_at' => $this->entered_at?->toIso8601String(),
+            'medical_checked_at' => $this->medical_checked_at?->toIso8601String(),
+            'face_printed_at' => $this->face_printed_at?->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
+            'file_delivered_at' => $this->file_delivered_at?->toIso8601String(),
+            'has_entered' => $this->entered_at !== null,
+            'has_medical_checked' => $this->medical_checked_at !== null,
+            'has_face_printed' => $this->face_printed_at !== null,
+            'file_delivered' => $this->file_delivered_at !== null,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

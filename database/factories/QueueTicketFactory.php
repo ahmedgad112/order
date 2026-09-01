@@ -29,6 +29,8 @@ class QueueTicketFactory extends Factory
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
             'completed_at' => null,
             'file_delivered_at' => null,
         ];
@@ -41,6 +43,8 @@ class QueueTicketFactory extends Factory
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
             'completed_at' => null,
             'file_delivered_at' => null,
         ]);
@@ -53,6 +57,8 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now(),
             'entered_at' => now(),
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
             'completed_at' => null,
             'file_delivered_at' => null,
         ]);
@@ -65,8 +71,10 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now()->subMinutes(5),
             'entered_at' => now()->subMinutes(5),
+            'medical_checked_at' => now()->subMinutes(4),
+            'face_printed_at' => now()->subMinutes(3),
             'completed_at' => now(),
-            'file_delivered_at' => now(),
+            'file_delivered_at' => now()->subMinutes(1),
         ]);
     }
 }

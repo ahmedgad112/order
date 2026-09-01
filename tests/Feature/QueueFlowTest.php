@@ -102,6 +102,11 @@ class QueueFlowTest extends TestCase
 
         $ticketId = $call->json('ticket.id');
 
+        $this->postJson("/api/teller/tickets/{$ticketId}/mark-entered")->assertOk();
+        $this->postJson("/api/teller/tickets/{$ticketId}/mark-medical-checked")->assertOk();
+        $this->postJson("/api/teller/tickets/{$ticketId}/mark-face-printed")->assertOk();
+        $this->postJson("/api/teller/tickets/{$ticketId}/mark-file-delivered")->assertOk();
+
         $complete = $this->postJson("/api/teller/tickets/{$ticketId}/complete");
         $complete->assertOk()
             ->assertJsonPath('ticket.status', TicketStatus::Completed->value);
@@ -160,25 +165,65 @@ class QueueFlowTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
             ->assertJsonPath('tickets.0.has_entered', false)
-            ->assertJsonPath('tickets.0.file_delivered', false);
+            ->assertJsonPath('tickets.0.has_medical_checked', false)
+            ->assertJsonPath('tickets.0.has_face_printed', false)
+            ->assertJsonPath('tickets.0.file_delivered', false)
+            ->assertJsonPath('stats.total', 1)
+            ->assertJsonPath('stats.waiting', 1)
+            ->assertJsonPath('current_ticket', null)
+            ->assertJsonCount(0, 'serving')
+            ->assertJsonCount(0, 'absent_tickets');
 
-        $enter = $this->postJson("/api/teller/tickets/{$ticket->id}/mark-entered");
-        $enter->assertOk()
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-entered")
+            ->assertOk()
             ->assertJsonPath('ticket.has_entered', true)
             ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
 
-        $this->assertDatabaseHas('queue_tickets', [
-            'id' => $ticket->id,
-            'status' => TicketStatus::Serving->value,
-        ]);
         $this->assertNotNull($ticket->fresh()->entered_at);
 
-        $deliver = $this->postJson("/api/teller/tickets/{$ticket->id}/mark-file-delivered");
-        $deliver->assertOk()
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-medical-checked")
+            ->assertOk()
+            ->assertJsonPath('ticket.has_medical_checked', true);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-face-printed")
+            ->assertOk()
+            ->assertJsonPath('ticket.has_face_printed', true);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-file-delivered")
+            ->assertOk()
             ->assertJsonPath('ticket.file_delivered', true)
-            ->assertJsonPath('ticket.status', TicketStatus::Completed->value);
+            ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
 
         $this->assertNotNull($ticket->fresh()->file_delivered_at);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/complete")
+            ->assertOk()
+            ->assertJsonPath('ticket.status', TicketStatus::Completed->value);
+    }
+
+    public function test_teller_cannot_skip_process_steps(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-medical-checked")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket']);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-entered")->assertOk();
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-face-printed")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket']);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/complete")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket']);
     }
 
     public function test_teller_cannot_deliver_file_before_entry(): void
@@ -225,7 +270,8 @@ class QueueFlowTest extends TestCase
 
         $this->postJson("/api/admin/tickets/{$ticket->id}/mark-entered")
             ->assertOk()
-            ->assertJsonPath('ticket.status', TicketStatus::Completed->value);
+            ->assertJsonPath('ticket.has_entered', true)
+            ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
 
         QueueTicket::factory()->waiting()->create(['ticket_number' => 2]);
 
@@ -359,29 +405,32 @@ class QueueFlowTest extends TestCase
         ])->assertUnprocessable();
     }
 
-    public function test_manager_can_access_admin_and_only_create_employees(): void
+    public function test_manager_can_view_reports_but_cannot_manage_users_or_system(): void
     {
         QueueSystemSetting::current();
         $manager = User::factory()->manager()->create();
         Sanctum::actingAs($manager);
 
+        $this->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('user.permissions.manage_users', false)
+            ->assertJsonPath('user.permissions.control_system', false);
+        $this->getJson('/api/admin/dashboard')->assertOk();
         $this->getJson('/api/admin/system/status')->assertOk();
+        $this->getJson('/api/admin/tickets')->assertOk();
+        $this->getJson('/api/admin/tellers')->assertOk();
 
+        $this->getJson('/api/admin/users')->assertForbidden();
+        $this->postJson('/api/admin/system/close')->assertForbidden();
+        $this->postJson('/api/admin/system/open')->assertForbidden();
+        $this->postJson('/api/admin/system/reset-day')->assertForbidden();
         $this->postJson('/api/admin/users', [
             'name' => 'موظف جديد',
             'email' => 'new-teller@queue.local',
             'password' => 'password123',
             'role' => UserRole::Teller->value,
             'counter_name' => 'شباك 5',
-        ])->assertCreated();
-
-        $this->postJson('/api/admin/users', [
-            'name' => 'سوبر أدمن جديد',
-            'email' => 'new-super@queue.local',
-            'password' => 'password123',
-            'role' => UserRole::SuperAdmin->value,
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['role']);
+        ])->assertForbidden();
     }
 
     public function test_super_admin_can_create_manager(): void
@@ -398,5 +447,64 @@ class QueueFlowTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('user.role', UserRole::Manager->value)
             ->assertJsonPath('user.role_label', 'مدير');
+
+        $this->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('user.permissions.manage_users', true)
+            ->assertJsonPath('user.permissions.control_system', true);
+    }
+
+    public function test_admin_dashboard_returns_metrics_and_teller_performance(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        $teller = User::factory()->teller('شباك 1')->create();
+
+        QueueTicket::factory()->waiting()->create(['ticket_number' => 1]);
+        QueueTicket::factory()->completed($teller)->create(['ticket_number' => 2]);
+        QueueTicket::factory()->serving($teller)->create(['ticket_number' => 3]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/dashboard')
+            ->assertOk()
+            ->assertJsonPath('metrics.total', 3)
+            ->assertJsonPath('metrics.waiting', 1)
+            ->assertJsonPath('metrics.serving', 1)
+            ->assertJsonPath('metrics.completed', 1)
+            ->assertJsonPath('system.is_open', true)
+            ->assertJsonPath('teller_performance.0.name', $teller->name)
+            ->assertJsonPath('teller_performance.0.counter_name', 'شباك 1')
+            ->assertJsonPath('teller_performance.0.completed_today', 1)
+            ->assertJsonPath('teller_performance.0.serving_now', 1);
+
+        $this->getJson('/api/admin/reports/daily')
+            ->assertOk()
+            ->assertJsonPath('metrics.total', 3);
+    }
+
+    public function test_teller_ticket_list_includes_serving_absent_and_current(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller('شباك 1')->create();
+        $current = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 1,
+            'full_name' => 'قيد الخدمة',
+        ]);
+        QueueTicket::factory()->create([
+            'ticket_number' => 2,
+            'status' => TicketStatus::Absent,
+            'full_name' => 'مش موجود',
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets')
+            ->assertOk()
+            ->assertJsonPath('current_ticket.id', $current->id)
+            ->assertJsonPath('serving.0.id', $current->id)
+            ->assertJsonPath('absent_tickets.0.full_name', 'مش موجود')
+            ->assertJsonPath('stats.serving', 1)
+            ->assertJsonPath('stats.absent', 1);
     }
 }

@@ -24,7 +24,11 @@ const routes = [
         path: '/t/:token',
         name: 'ticket-scan',
         component: () => import('../views/TicketScanView.vue'),
-        meta: { title: 'بيانات التذكرة' },
+        meta: {
+            title: 'بيانات التذكرة',
+            requiresAuth: true,
+            roles: ['teller', 'manager', 'super_admin'],
+        },
     },
     {
         path: '/login',

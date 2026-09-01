@@ -22,6 +22,16 @@ enum UserRole: string
         return $this === self::SuperAdmin || $this === self::Manager;
     }
 
+    public function canManageUsers(): bool
+    {
+        return $this === self::SuperAdmin;
+    }
+
+    public function canControlSystem(): bool
+    {
+        return $this === self::SuperAdmin;
+    }
+
     /**
      * @return list<self>
      */

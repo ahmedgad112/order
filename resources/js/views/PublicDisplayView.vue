@@ -38,8 +38,8 @@ function onTicketCalled(event) {
     }
 }
 
-onMounted(async () => {
-    await queueStore.fetchPublicStatus();
+onMounted(() => {
+    queueStore.fetchPublicStatus();
 
     clockTimer = setInterval(() => {
         clock.value = new Date().toLocaleTimeString('ar-EG');
@@ -49,7 +49,7 @@ onMounted(async () => {
         TicketCalled: onTicketCalled,
     });
 
-    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }));
+    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 4000);
 });
 
 onUnmounted(() => {

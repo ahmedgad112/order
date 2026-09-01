@@ -27,9 +27,9 @@ class QueueSystemSetting extends Model
 
     public static function current(): self
     {
-        return static::query()->firstOrCreate([], [
+        return once(fn () => static::query()->firstOrCreate([], [
             'is_open' => true,
-        ]);
+        ]));
     }
 
     public function closedByUser(): BelongsTo

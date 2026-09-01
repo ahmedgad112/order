@@ -9,7 +9,15 @@
     <link rel="icon" href="{{ asset('favicon.webp') }}" type="image/webp">
     <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
     <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=cairo:400,500,600,700" rel="stylesheet" />
+    <link
+        rel="stylesheet"
+        href="https://fonts.bunny.net/css?family=cairo:400,500,600,700&display=swap"
+        media="print"
+        onload="this.media='all'"
+    >
+    <noscript>
+        <link href="https://fonts.bunny.net/css?family=cairo:400,500,600,700&display=swap" rel="stylesheet" />
+    </noscript>
   @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="antialiased bg-slate-50 text-slate-900">

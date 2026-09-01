@@ -42,14 +42,13 @@ const avgHandlingMinutes = computed(() => {
 });
 
 async function refresh() {
-    await Promise.all([
-        queueStore.fetchDailyMetrics(),
-        queueStore.fetchTellerPerformance(),
-        queueStore.fetchTellers(),
-        queueStore.fetchUsers(),
-        queueStore.fetchPublicStatus(),
-        queueStore.fetchSystemStatus(),
-    ]);
+    const tasks = [queueStore.fetchAdminDashboard()];
+
+    if (authStore.canManageUsers) {
+        tasks.push(queueStore.fetchUsers());
+    }
+
+    await Promise.all(tasks);
 }
 
 async function handleCloseSystem() {
@@ -102,9 +101,9 @@ async function logout() {
     await router.push('/login');
 }
 
-onMounted(async () => {
-    await refresh();
-    stopAutoRefresh = queueStore.startAutoRefresh(() => refresh());
+onMounted(() => {
+    refresh();
+    stopAutoRefresh = queueStore.startAutoRefresh(() => refresh(), 8000);
 });
 
 onUnmounted(() => {
@@ -125,7 +124,11 @@ onUnmounted(() => {
                     <div>
                         <h1 class="text-2xl font-bold text-slate-900">لوحة الإدارة</h1>
                         <p class="text-sm text-slate-500">
-                            {{ authStore.user?.role_label ?? 'الإدارة' }} — مؤشرات الأداء والتقارير اليومية
+                            {{ authStore.user?.role_label ?? 'الإدارة' }}
+                            —
+                            {{ authStore.canControlSystem
+                                ? 'إدارة النظام والحسابات والتقارير اليومية'
+                                : 'متابعة التقارير والتشغيل اليومي' }}
                         </p>
                     </div>
                 </div>
@@ -186,7 +189,7 @@ onUnmounted(() => {
                         </p>
                     </div>
 
-                    <div class="flex flex-wrap gap-3">
+                    <div v-if="authStore.canControlSystem" class="flex flex-wrap gap-3">
                         <button
                             v-if="queueStore.isSystemOpen"
                             class="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
@@ -214,9 +217,12 @@ onUnmounted(() => {
                             تصفير اليوم
                         </button>
                     </div>
+                    <p v-else class="text-sm font-semibold text-slate-500">
+                        فتح النظام وإغلاقه وتصفير اليوم متاح للسوبر أدمن فقط.
+                    </p>
                 </div>
 
-                <div v-if="queueStore.isSystemOpen" class="mt-4">
+                <div v-if="authStore.canControlSystem && queueStore.isSystemOpen" class="mt-4">
                     <label class="mb-2 block text-sm font-semibold text-slate-700">رسالة الإغلاق (اختياري)</label>
                     <input
                         v-model="closeMessage"
@@ -369,7 +375,7 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <AdminUserManagement />
+            <AdminUserManagement v-if="authStore.canManageUsers" />
         </main>
 
         <div

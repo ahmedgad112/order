@@ -20,4 +20,19 @@ export default defineConfig({
     optimizeDeps: {
         include: ['qrcode'],
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules/laravel-echo') || id.includes('node_modules/pusher-js')) {
+                        return 'realtime';
+                    }
+
+                    if (id.includes('node_modules/qrcode')) {
+                        return 'qr';
+                    }
+                },
+            },
+        },
+    },
 });

@@ -30,6 +30,10 @@ class UserResource extends JsonResource
                 ],
                 $this->role->assignableRoles(),
             ),
+            'permissions' => [
+                'manage_users' => $this->role->canManageUsers(),
+                'control_system' => $this->role->canControlSystem(),
+            ],
         ];
     }
 }

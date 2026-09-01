@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicTicketResource;
+use App\Http\Resources\ScannedTicketResource;
 use App\Http\Resources\TicketResource;
 use App\Models\QueueTicket;
 use App\Services\QueueService;
@@ -21,6 +22,7 @@ class TellerQueueController extends Controller
     public function tickets(Request $request): JsonResponse
     {
         $result = $this->queueService->getTellerTickets(
+            $request->user(),
             $request->string('status')->toString() ?: null,
             $request->filled('search') ? $request->string('search')->toString() : null,
         );
@@ -28,6 +30,23 @@ class TellerQueueController extends Controller
         return response()->json([
             'tickets' => TicketResource::collection($result['tickets']),
             'stats' => $result['stats'],
+            'serving' => TicketResource::collection($result['serving']),
+            'absent_tickets' => TicketResource::collection($result['absent']),
+            'current_ticket' => $result['current'] ? new TicketResource($result['current']) : null,
+            'system' => $this->systemService->getStatus(),
+        ]);
+    }
+
+    public function showScannedTicket(QueueTicket $ticket): JsonResponse
+    {
+        $result = $this->queueService->scanTicket($ticket);
+
+        return response()->json([
+            'ticket' => new ScannedTicketResource(
+                $result['ticket'],
+                $result['people_ahead'],
+                $result['position_in_queue'],
+            ),
             'system' => $this->systemService->getStatus(),
         ]);
     }
@@ -38,6 +57,26 @@ class TellerQueueController extends Controller
 
         return response()->json([
             'message' => 'تم تسجيل طلب الدخول.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function markMedicalChecked(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markMedicalChecked($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل الكشف الطبي.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function markFacePrinted(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markFacePrinted($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل بصمة الوجه.',
             'ticket' => new TicketResource($ticket),
         ]);
     }

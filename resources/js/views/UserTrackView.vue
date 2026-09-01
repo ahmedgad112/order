@@ -123,8 +123,8 @@ function onQueueEvent() {
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
-onMounted(async () => {
-    await queueStore.fetchPublicStatus();
+onMounted(() => {
+    queueStore.fetchPublicStatus();
 
     unsubscribeEcho = queueStore.subscribeEcho({
         TicketIssued: onQueueEvent,
