@@ -24,16 +24,22 @@ class AdminTicketController extends Controller
             'status' => ['sometimes', 'nullable', 'string'],
             'step' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...QueueTicket::processStepValues()])],
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'date' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
         ], [
             'step.in' => 'خطوة الطلب غير صحيحة.',
+            'date.date_format' => 'تاريخ الأرشيف غير صحيح.',
+            'date.before_or_equal' => 'لا يمكن عرض تسجيلات تاريخ في المستقبل.',
         ]);
 
         $status = $validated['status'] ?? null;
         $step = $validated['step'] ?? null;
         $search = $validated['search'] ?? null;
+        $date = filled($validated['date'] ?? null)
+            ? $validated['date']
+            : today()->toDateString();
 
         $query = QueueTicket::query()
-            ->today()
+            ->onDate($date)
             ->with('teller')
             ->orderBy('ticket_number');
 
@@ -52,8 +58,12 @@ class AdminTicketController extends Controller
         $tickets = $query->get();
 
         return response()->json([
+            'date' => $date,
+            'today' => today()->toDateString(),
+            'is_today' => $date === today()->toDateString(),
+            'available_dates' => QueueTicket::registrationDates(),
             'tickets' => AdminTicketResource::collection($tickets),
-            'stats' => QueueTicket::todayStatCounts(),
+            'stats' => QueueTicket::statCountsForDate($date),
             'system' => $this->systemService->getStatus(),
         ]);
     }

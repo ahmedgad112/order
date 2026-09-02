@@ -1,25 +1,22 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRoute, useRouter, RouterLink } from 'vue-router';
+import { useRoute } from 'vue-router';
 import {
-    ArrowRight,
     BellRing,
     CheckCircle2,
     Clock,
     FileText,
     Hash,
-    LogOut,
     RefreshCw,
     User,
     XCircle,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
+import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
-import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 
 const route = useRoute();
-const router = useRouter();
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
 
@@ -71,7 +68,9 @@ const statusConfig = computed(() => {
     return map[ticket.value.status] ?? map.waiting;
 });
 
-const dashboardRoute = computed(() => (authStore.isAdmin ? '/admin' : '/teller'));
+const navbarSubtitle = computed(() => (
+    [authStore.user?.role_label, authStore.user?.name].filter(Boolean).join(' — ')
+));
 
 async function loadTicket(silent = false) {
     if (!silent) {
@@ -122,11 +121,6 @@ function onQueueEvent() {
     }
 }
 
-async function logout() {
-    await authStore.logout();
-    await router.push({ name: 'login', query: { redirect: route.fullPath } });
-}
-
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
@@ -162,41 +156,7 @@ onUnmounted(() => {
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <header class="border-b border-blue-100 bg-white/80 backdrop-blur">
-            <div class="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div class="flex items-center gap-3">
-                    <img
-                        :src="'/logo.webp'"
-                        alt="جامعة برج العرب التكنولوجية"
-                        class="h-14 w-auto object-contain"
-                    />
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900">بيانات التذكرة</h1>
-                        <p class="text-sm text-slate-500">
-                            {{ authStore.user?.role_label }} — {{ authStore.user?.name }}
-                        </p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <RouterLink
-                        :to="dashboardRoute"
-                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                        لوحة التحكم
-                        <ArrowRight class="h-4 w-4" />
-                    </RouterLink>
-                    <ChangePasswordButton />
-                    <button
-                        type="button"
-                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        @click="logout"
-                    >
-                        <LogOut class="h-4 w-4" />
-                        خروج
-                    </button>
-                </div>
-            </div>
-        </header>
+        <AppNavbar title="بيانات التذكرة" :subtitle="navbarSubtitle" max-width="3xl" />
 
         <main class="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
             <div

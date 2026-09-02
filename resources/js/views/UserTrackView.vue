@@ -1,8 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
 import {
-    ArrowRight,
     BellRing,
     CheckCircle2,
     Clock,
@@ -14,6 +12,7 @@ import {
     XCircle,
 } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
+import AppNavbar from '../components/AppNavbar.vue';
 
 const queueStore = useQueueStore();
 
@@ -165,28 +164,7 @@ watch(searchType, () => {
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-        <header class="border-b border-indigo-100 bg-white/80 backdrop-blur">
-            <div class="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div class="flex items-center gap-3">
-                    <img
-                        :src="'/logo.webp'"
-                        alt="جامعة برج العرب التكنولوجية"
-                        class="h-14 w-auto object-contain"
-                    />
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900">متابعة التذكرة</h1>
-                        <p class="text-sm text-slate-500">اعرف مكانك في الطابور</p>
-                    </div>
-                </div>
-                <RouterLink
-                    to="/"
-                    class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                    إصدار تذكرة
-                    <ArrowRight class="h-4 w-4" />
-                </RouterLink>
-            </div>
-        </header>
+        <AppNavbar title="متابعة التذكرة" subtitle="اعرف مكانك في الطابور" max-width="3xl" />
 
         <main class="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
             <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">

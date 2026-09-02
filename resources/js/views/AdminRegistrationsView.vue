@@ -1,26 +1,21 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
 import {
-    ArrowRight,
-    ClipboardList,
-    LogOut,
+    Archive,
+    CalendarDays,
     RefreshCw,
     Search,
 } from 'lucide-vue-next';
-import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
-import { useRouter } from 'vue-router';
-import ChangePasswordButton from '../components/ChangePasswordButton.vue';
+import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 
-const authStore = useAuthStore();
 const queueStore = useQueueStore();
-const router = useRouter();
 
 const search = ref('');
 const stepFilter = ref('all');
+const selectedDate = ref('');
 const loading = ref(false);
 
 const processStepValues = ['entered', 'medical_checked', 'face_printed', 'file_delivered'];
@@ -49,10 +44,20 @@ const statusBadgeClass = {
 };
 
 const filteredCount = computed(() => queueStore.registrations.length);
+const isToday = computed(() => queueStore.registrationIsToday);
+const recentArchiveDates = computed(() => queueStore.registrationDates.slice(0, 8));
+const pageSubtitle = computed(() => {
+    if (!isToday.value && queueStore.registrationDate) {
+        return `أرشيف التسجيلات — ${formatArchiveDate(queueStore.registrationDate)}`;
+    }
+
+    return 'كل الأشخاص المسجلين اليوم — ويمكن فتح أرشيف الأيام السابقة';
+});
 
 function listParams() {
     const params = {
         search: search.value.trim() || undefined,
+        date: selectedDate.value || undefined,
     };
 
     if (processStepValues.includes(stepFilter.value)) {
@@ -69,6 +74,40 @@ function formatTime(iso) {
     return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatArchiveDate(date) {
+    if (!date) return '';
+    return new Date(`${date}T12:00:00`).toLocaleDateString('ar-EG', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+}
+
+function formatRegisteredAt(iso) {
+    if (!iso) return '—';
+    if (isToday.value) {
+        return formatTime(iso);
+    }
+
+    return new Date(iso).toLocaleString('ar-EG', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function selectDate(date) {
+    selectedDate.value = date;
+    loadTickets();
+}
+
+function onDateInput(event) {
+    selectDate(event.target.value);
+}
+
 function tellerLabel(ticket) {
     if (ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name) {
         return `${ticket.teller_name} — ${ticket.counter_name}`;
@@ -83,6 +122,9 @@ async function loadTickets(silent = false) {
     }
     try {
         await queueStore.fetchRegistrations(listParams());
+        if (queueStore.registrationDate) {
+            selectedDate.value = queueStore.registrationDate;
+        }
     } finally {
         if (!silent) {
             loading.value = false;
@@ -125,13 +167,10 @@ async function handleDelete(ticket) {
     }
 }
 
-async function logout() {
-    await authStore.logout();
-    await router.push('/login');
-}
-
 function onQueueUpdate() {
-    loadTickets();
+    if (isToday.value) {
+        loadTickets();
+    }
 }
 
 let searchTimer = null;
@@ -159,7 +198,11 @@ onMounted(() => {
         QueueDayReset: onQueueUpdate,
     });
 
-    stopAutoRefresh = queueStore.startAutoRefresh(() => loadTickets(true), 5000);
+    stopAutoRefresh = queueStore.startAutoRefresh(() => {
+        if (isToday.value) {
+            loadTickets(true);
+        }
+    }, 5000);
 });
 
 onUnmounted(() => {
@@ -171,41 +214,7 @@ onUnmounted(() => {
 
 <template>
     <div class="min-h-screen bg-slate-100">
-        <header class="border-b border-slate-200 bg-white">
-            <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div class="flex items-center gap-3">
-                    <img
-                        :src="'/logo.webp'"
-                        alt="جامعة برج العرب التكنولوجية"
-                        class="h-12 w-auto object-contain"
-                    />
-                    <div>
-                        <h1 class="flex items-center gap-2 text-2xl font-bold text-slate-900">
-                            <ClipboardList class="h-7 w-7 text-indigo-600" />
-                            سجل التسجيلات
-                        </h1>
-                        <p class="text-sm text-slate-500">كل الأشخاص المسجلين اليوم — وخطوات الطلب أمامهم</p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <RouterLink
-                        to="/admin"
-                        class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                        لوحة الإدارة
-                        <ArrowRight class="h-4 w-4" />
-                    </RouterLink>
-                    <ChangePasswordButton />
-                    <button
-                        class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        @click="logout"
-                    >
-                        <LogOut class="h-4 w-4" />
-                        خروج
-                    </button>
-                </div>
-            </div>
-        </header>
+        <AppNavbar title="سجل التسجيلات" :subtitle="pageSubtitle" />
 
         <main class="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
             <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -232,6 +241,55 @@ onUnmounted(() => {
                 <div class="rounded-2xl bg-green-50 p-4 shadow-sm">
                     <p class="text-xs text-green-700">تسليم الملف</p>
                     <p class="text-2xl font-black text-green-600">{{ queueStore.registrationStats.file_delivered }}</p>
+                </div>
+            </section>
+
+            <section class="rounded-3xl bg-white p-5 shadow-sm">
+                <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h2 class="flex items-center gap-2 text-lg font-bold text-slate-800">
+                            <Archive class="h-5 w-5 text-indigo-600" />
+                            الأرشيف
+                        </h2>
+                        <p class="mt-1 text-sm text-slate-500">اختر يوماً سابقاً لعرض الأشخاص الذين سجلوا فيه</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            class="rounded-xl px-3 py-2 text-sm font-semibold transition"
+                            :class="isToday
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                            @click="selectDate(queueStore.registrationToday)"
+                        >
+                            اليوم
+                        </button>
+                        <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                            <CalendarDays class="h-4 w-4 text-indigo-600" />
+                            <span class="sr-only">تاريخ الأرشيف</span>
+                            <input
+                                type="date"
+                                class="bg-transparent text-slate-800 outline-none"
+                                :value="selectedDate"
+                                :max="queueStore.registrationToday || undefined"
+                                @change="onDateInput"
+                            />
+                        </label>
+                    </div>
+                </div>
+                <div v-if="recentArchiveDates.length" class="flex flex-wrap gap-2">
+                    <button
+                        v-for="date in recentArchiveDates"
+                        :key="date"
+                        type="button"
+                        class="rounded-xl px-3 py-1.5 text-xs font-semibold transition"
+                        :class="selectedDate === date
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                        @click="selectDate(date)"
+                    >
+                        {{ formatArchiveDate(date) }}
+                    </button>
                 </div>
             </section>
 
@@ -336,10 +394,10 @@ onUnmounted(() => {
                             </div>
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">وقت التسجيل</dt>
-                                <dd class="text-slate-700">{{ formatTime(ticket.created_at) }}</dd>
+                                <dd class="text-slate-700">{{ formatRegisteredAt(ticket.created_at) }}</dd>
                             </div>
                         </dl>
-                        <div class="mt-4 border-t border-slate-200/80 pt-3">
+                        <div v-if="isToday" class="mt-4 border-t border-slate-200/80 pt-3">
                             <TicketProcessActions
                                 :ticket="ticket"
                                 :busy-id="processBusyId"
@@ -360,7 +418,7 @@ onUnmounted(() => {
                         v-if="!queueStore.registrations.length"
                         class="col-span-full py-12 text-center text-slate-400"
                     >
-                        لا توجد تسجيلات مطابقة
+                        {{ isToday && !search ? 'لا توجد تسجيلات اليوم' : 'لا توجد تسجيلات مطابقة' }}
                     </p>
                 </div>
             </section>

@@ -1,13 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRouter, RouterLink } from 'vue-router';
 import {
     BarChart3,
     CheckCircle,
-    ClipboardList,
     Clock3,
     Lock,
-    LogOut,
     Power,
     RefreshCcw,
     Timer,
@@ -18,11 +15,18 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import AdminUserManagement from '../components/AdminUserManagement.vue';
-import ChangePasswordButton from '../components/ChangePasswordButton.vue';
+import AppNavbar from '../components/AppNavbar.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
-const router = useRouter();
+const navbarSubtitle = computed(() => {
+    const role = authStore.user?.role_label ?? 'الإدارة';
+    const hint = authStore.canControlSystem
+        ? 'إدارة النظام والحسابات والتقارير اليومية'
+        : 'متابعة التقارير والتشغيل اليومي';
+
+    return `${role} — ${hint}`;
+});
 
 const closeMessage = ref('');
 const actionLoading = ref(false);
@@ -30,6 +34,7 @@ const actionFeedback = ref('');
 const actionError = ref('');
 const showResetConfirm = ref(false);
 let stopAutoRefresh = null;
+let unsubscribeEcho = null;
 
 const avgWaitMinutes = computed(() => {
     const seconds = queueStore.metrics?.avg_wait_seconds ?? 0;
@@ -96,74 +101,21 @@ async function handleResetDay() {
     }
 }
 
-async function logout() {
-    await authStore.logout();
-    await router.push('/login');
-}
-
 onMounted(() => {
     refresh();
-    stopAutoRefresh = queueStore.startAutoRefresh(() => refresh(), 8000);
+    unsubscribeEcho = queueStore.subscribeEcho();
+    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchAdminDashboard(), 8000);
 });
 
 onUnmounted(() => {
+    unsubscribeEcho?.();
     stopAutoRefresh?.();
 });
 </script>
 
 <template>
     <div class="min-h-screen bg-slate-100">
-        <header class="border-b border-slate-200 bg-white">
-            <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div class="flex items-center gap-3">
-                    <img
-                        :src="'/logo.webp'"
-                        alt="جامعة برج العرب التكنولوجية"
-                        class="h-12 w-auto object-contain"
-                    />
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900">لوحة الإدارة</h1>
-                        <p class="text-sm text-slate-500">
-                            {{ authStore.user?.role_label ?? 'الإدارة' }}
-                            —
-                            {{ authStore.canControlSystem
-                                ? 'إدارة النظام والحسابات والتقارير اليومية'
-                                : 'متابعة التقارير والتشغيل اليومي' }}
-                        </p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <RouterLink
-                        to="/teller"
-                        class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                        لوحة الموظف
-                    </RouterLink>
-                    <RouterLink
-                        to="/display"
-                        target="_blank"
-                        class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                        شاشة العرض
-                    </RouterLink>
-                    <RouterLink
-                        to="/admin/registrations"
-                        class="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-                    >
-                        <ClipboardList class="h-4 w-4" />
-                        سجل التسجيلات
-                    </RouterLink>
-                    <ChangePasswordButton />
-                    <button
-                        class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
-                        @click="logout"
-                    >
-                        <LogOut class="h-4 w-4" />
-                        خروج
-                    </button>
-                </div>
-            </div>
-        </header>
+        <AppNavbar title="لوحة الإدارة" :subtitle="navbarSubtitle" />
 
         <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
             <section class="rounded-3xl border p-6 shadow-sm" :class="queueStore.isSystemOpen ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">

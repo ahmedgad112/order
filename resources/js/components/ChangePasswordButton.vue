@@ -4,6 +4,13 @@ import { KeyRound } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import PasswordInput from './PasswordInput.vue';
 
+defineProps({
+    block: {
+        type: Boolean,
+        default: false,
+    },
+});
+
 const authStore = useAuthStore();
 
 const showForm = ref(false);
@@ -58,11 +65,12 @@ async function submit() {
 <template>
     <button
         type="button"
-        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        :class="block ? 'w-full justify-center' : 'w-fit'"
         @click="openForm"
     >
         <KeyRound class="h-4 w-4" />
-        تغيير كلمة المرور
+        <span :class="block ? '' : 'hidden sm:inline'">تغيير كلمة المرور</span>
     </button>
 
     <div

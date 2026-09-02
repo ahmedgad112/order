@@ -4,12 +4,15 @@ namespace App\Models;
 
 use App\Enums\TicketStatus;
 use Database\Factories\QueueTicketFactory;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 #[Fillable([
@@ -40,6 +43,19 @@ class QueueTicket extends Model
                 $ticket->public_token = (string) Str::uuid();
             }
         });
+
+        static::saved(fn () => self::forgetPublicStatusCache());
+        static::deleted(fn () => self::forgetPublicStatusCache());
+    }
+
+    public static function publicStatusCacheKey(): string
+    {
+        return 'queue.public_status.'.today()->toDateString();
+    }
+
+    public static function forgetPublicStatusCache(): void
+    {
+        Cache::forget(self::publicStatusCacheKey());
     }
 
     protected function casts(): array
@@ -60,11 +76,18 @@ class QueueTicket extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function scopeOnDate(Builder $query, DateTimeInterface|string $date): Builder
+    {
+        $day = Carbon::parse($date)->startOfDay();
+
+        return $query
+            ->where('created_at', '>=', $day)
+            ->where('created_at', '<', $day->copy()->addDay());
+    }
+
     public function scopeToday(Builder $query): Builder
     {
-        return $query
-            ->where('created_at', '>=', today()->startOfDay())
-            ->where('created_at', '<', today()->addDay()->startOfDay());
+        return $query->onDate(today());
     }
 
     public static function durationSecondsSql(string $fromColumn, string $toColumn): string
@@ -92,12 +115,12 @@ class QueueTicket extends Model
      *     avg_handling_seconds: int
      * }
      */
-    public static function todayAggregates(): array
+    public static function aggregatesForDate(DateTimeInterface|string $date): array
     {
         $waitSql = self::durationSecondsSql('created_at', 'called_at');
         $handleSql = self::durationSecondsSql('called_at', 'completed_at');
 
-        $row = self::query()->today()->toBase()
+        $row = self::query()->onDate($date)->toBase()
             ->selectRaw('COUNT(*) as total')
             ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) as waiting', [TicketStatus::Waiting->value])
             ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) as serving', [TicketStatus::Serving->value])
@@ -132,15 +155,60 @@ class QueueTicket extends Model
     }
 
     /**
+     * @return array{
+     *     total: int,
+     *     waiting: int,
+     *     serving: int,
+     *     entered: int,
+     *     medical_checked: int,
+     *     face_printed: int,
+     *     file_delivered: int,
+     *     completed: int,
+     *     cancelled: int,
+     *     absent: int,
+     *     avg_wait_seconds: int,
+     *     avg_handling_seconds: int
+     * }
+     */
+    public static function todayAggregates(): array
+    {
+        return self::aggregatesForDate(today());
+    }
+
+    /**
      * @return array<string, int>
      */
-    public static function todayStatCounts(): array
+    public static function statCountsForDate(DateTimeInterface|string $date): array
     {
-        $aggregates = self::todayAggregates();
+        $aggregates = self::aggregatesForDate($date);
 
         unset($aggregates['avg_wait_seconds'], $aggregates['avg_handling_seconds']);
 
         return $aggregates;
+    }
+
+    public static function todayStatCounts(): array
+    {
+        return self::statCountsForDate(today());
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function registrationDates(): array
+    {
+        return self::query()
+            ->toBase()
+            ->selectRaw('DATE(created_at) as registration_date')
+            ->whereNotNull('created_at')
+            ->groupByRaw('DATE(created_at)')
+            ->orderByDesc('registration_date')
+            ->pluck('registration_date')
+            ->filter()
+            ->map(fn (mixed $date): string => Carbon::parse((string) $date)->toDateString())
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function scopeActive(Builder $query): Builder

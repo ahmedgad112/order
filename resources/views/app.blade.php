@@ -8,6 +8,7 @@
     <link rel="icon" href="{{ asset('favicon.png') }}" type="image/png">
     <link rel="icon" href="{{ asset('favicon.webp') }}" type="image/webp">
     <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
+    <link rel="preload" href="{{ asset('logo.webp') }}" as="image" type="image/webp">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link
         rel="stylesheet"

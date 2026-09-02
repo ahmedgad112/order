@@ -1,10 +1,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRouter, RouterLink } from 'vue-router';
 import {
     ClipboardList,
     Lock,
-    LogOut,
     PhoneCall,
     RefreshCw,
     RotateCcw,
@@ -13,13 +11,12 @@ import {
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
-import ChangePasswordButton from '../components/ChangePasswordButton.vue';
+import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
-const router = useRouter();
 const actionMessage = ref('');
 const actionError = ref('');
 const restoringId = ref(null);
@@ -86,6 +83,13 @@ const servingNow = computed(() => {
     }
 
     return serving.map((ticket) => byId[ticket.id] ?? ticket);
+});
+
+const navbarSubtitle = computed(() => {
+    const parts = [authStore.user?.role_label, authStore.user?.name, authStore.user?.counter_name]
+        .filter(Boolean);
+
+    return parts.join(' — ');
 });
 
 async function loadTickets(silent = false) {
@@ -249,11 +253,6 @@ function onKeydown(event) {
     }
 }
 
-async function logout() {
-    await authStore.logout();
-    await router.push('/login');
-}
-
 let searchTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
@@ -294,41 +293,7 @@ onUnmounted(() => {
 
 <template>
     <div class="min-h-screen bg-slate-100">
-        <header class="border-b border-slate-200 bg-white">
-            <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div class="flex items-center gap-3">
-                    <img
-                        :src="'/logo.webp'"
-                        alt="جامعة برج العرب التكنولوجية"
-                        class="h-12 w-auto object-contain"
-                    />
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900">لوحة الموظف</h1>
-                        <p class="text-sm text-slate-500">
-                            {{ authStore.user?.role_label }} — {{ authStore.user?.name }}
-                            <span v-if="authStore.user?.counter_name"> — {{ authStore.user.counter_name }}</span>
-                        </p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <RouterLink
-                        v-if="authStore.isAdmin"
-                        to="/admin"
-                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                        لوحة الإدارة
-                    </RouterLink>
-                    <ChangePasswordButton />
-                    <button
-                        class="flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
-                        @click="logout"
-                    >
-                        <LogOut class="h-4 w-4" />
-                        خروج
-                    </button>
-                </div>
-            </div>
-        </header>
+        <AppNavbar title="لوحة الموظف" :subtitle="navbarSubtitle" />
 
         <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
             <div

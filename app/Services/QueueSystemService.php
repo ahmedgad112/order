@@ -68,6 +68,7 @@ class QueueSystemService
             $count = QueueTicket::query()->today()->count();
 
             QueueTicket::query()->today()->delete();
+            QueueTicket::forgetPublicStatusCache();
 
             $settings = QueueSystemSetting::current();
             $settings->update([

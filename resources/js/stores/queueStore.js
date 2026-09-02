@@ -26,6 +26,10 @@ export const useQueueStore = defineStore('queue', () => {
     const tellers = ref([]);
     const users = ref([]);
     const registrations = ref([]);
+    const registrationDate = ref('');
+    const registrationToday = ref('');
+    const registrationIsToday = ref(true);
+    const registrationDates = ref([]);
     const registrationStats = ref({
         total: 0,
         waiting: 0,
@@ -340,6 +344,10 @@ export const useQueueStore = defineStore('queue', () => {
         const { data } = await axios.get('/admin/tickets', { params: lastRegistrationParams });
         registrations.value = data.tickets;
         registrationStats.value = data.stats;
+        registrationDate.value = data.date ?? '';
+        registrationToday.value = data.today ?? '';
+        registrationIsToday.value = data.is_today !== false;
+        registrationDates.value = data.available_dates ?? [];
         if (data.system) {
             system.value = data.system;
         }
@@ -621,6 +629,7 @@ export const useQueueStore = defineStore('queue', () => {
                 });
 
             echoBound = true;
+            armLiveRefreshers();
         })();
 
         await echoBindPromise;
@@ -635,6 +644,7 @@ export const useQueueStore = defineStore('queue', () => {
         window.Echo.leave('queue-channel');
         echoBound = false;
         echoBindPromise = null;
+        armLiveRefreshers();
     }
 
     /**
@@ -688,8 +698,15 @@ export const useQueueStore = defineStore('queue', () => {
         }
     }
 
-    function startAutoRefresh(callback, intervalMs = 4000) {
+    const liveRefreshers = new Set();
+
+    function armLiveRefreshers() {
+        liveRefreshers.forEach((controller) => controller.arm());
+    }
+
+    function startAutoRefresh(callback, intervalMs = 5000) {
         let inFlight = false;
+        let timer = null;
 
         const tick = async () => {
             if (inFlight || document.hidden) {
@@ -706,9 +723,22 @@ export const useQueueStore = defineStore('queue', () => {
             }
         };
 
-        const timer = setInterval(tick, intervalMs);
+        const controller = {
+            arm() {
+                clearInterval(timer);
+                const ms = echoBound ? Math.max(intervalMs, 25000) : intervalMs;
+                timer = setInterval(tick, ms);
+            },
+            stop() {
+                clearInterval(timer);
+                liveRefreshers.delete(controller);
+            },
+        };
 
-        return () => clearInterval(timer);
+        liveRefreshers.add(controller);
+        controller.arm();
+
+        return () => controller.stop();
     }
 
     return {
@@ -724,6 +754,10 @@ export const useQueueStore = defineStore('queue', () => {
         tellers,
         users,
         registrations,
+        registrationDate,
+        registrationToday,
+        registrationIsToday,
+        registrationDates,
         registrationStats,
         system,
         loading,

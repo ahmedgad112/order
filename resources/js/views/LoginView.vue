@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
+import AppNavbar from '../components/AppNavbar.vue';
 import PasswordInput from '../components/PasswordInput.vue';
 
 const authStore = useAuthStore();
@@ -38,12 +39,18 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-        <div class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+    <div class="min-h-screen bg-slate-100">
+        <AppNavbar title="نظام إدارة الأدوار" subtitle="لوحة الموظفين والإدارة" max-width="7xl" />
+
+        <div class="flex items-center justify-center px-4 py-12">
+            <div class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
             <div class="mb-8 text-center">
                 <img
                     :src="'/logo.webp'"
                     alt="جامعة برج العرب التكنولوجية"
+                    width="160"
+                    height="96"
+                    decoding="async"
                     class="mx-auto mb-4 h-24 w-auto object-contain"
                 />
                 <h1 class="text-2xl font-bold text-slate-900">تسجيل الدخول</h1>
@@ -83,7 +90,7 @@ onMounted(() => {
                     {{ authStore.loading ? 'جاري الدخول...' : 'دخول' }}
                 </button>
             </form>
-
+            </div>
         </div>
     </div>
 </template>

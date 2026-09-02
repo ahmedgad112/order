@@ -39,6 +39,40 @@ class QueueFlowTest extends TestCase
         ]);
     }
 
+    public function test_public_queue_status_returns_the_same_counts_on_repeated_reads(): void
+    {
+        QueueSystemSetting::current();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+        ]);
+
+        $first = $this->getJson('/api/public/queue-status')->assertOk();
+        $second = $this->getJson('/api/public/queue-status')->assertOk();
+
+        $this->assertSame($first->json('stats'), $second->json('stats'));
+        $this->assertSame(1, $second->json('stats.waiting'));
+    }
+
+    public function test_public_queue_status_updates_after_a_ticket_is_issued(): void
+    {
+        QueueSystemSetting::current();
+
+        $this->getJson('/api/public/queue-status')
+            ->assertOk()
+            ->assertJsonPath('stats.waiting', 0);
+
+        $this->postJson('/api/public/tickets', [
+            'full_name' => 'محمد أحمد علي',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-1001',
+        ])->assertCreated();
+
+        $this->getJson('/api/public/queue-status')
+            ->assertOk()
+            ->assertJsonPath('stats.waiting', 1)
+            ->assertJsonPath('waiting.0.ticket_number', 1);
+    }
+
     public function test_cannot_issue_ticket_when_system_is_closed(): void
     {
         $settings = QueueSystemSetting::current();
@@ -324,6 +358,94 @@ class QueueFlowTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
             ->assertJsonPath('tickets.0.full_name', 'أحمد علي');
+    }
+
+    public function test_admin_ticket_list_defaults_to_today_and_excludes_previous_days(): void
+    {
+        $this->freezeTime();
+
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'مسجل أمس',
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'مسجل اليوم',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'مسجل اليوم')
+            ->assertJsonPath('date', now()->toDateString())
+            ->assertJsonPath('today', now()->toDateString())
+            ->assertJsonPath('is_today', true)
+            ->assertJsonPath('stats.total', 1);
+    }
+
+    public function test_admin_ticket_list_returns_registrations_for_a_past_date(): void
+    {
+        $this->freezeTime();
+
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        $yesterday = now()->subDay()->toDateString();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'مسجل أمس',
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'مسجل اليوم',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?date='.$yesterday)
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'مسجل أمس')
+            ->assertJsonPath('date', $yesterday)
+            ->assertJsonPath('is_today', false)
+            ->assertJsonPath('stats.total', 1)
+            ->assertJsonPath('available_dates.0', now()->toDateString())
+            ->assertJsonPath('available_dates.1', $yesterday);
+    }
+
+    public function test_returns_422_when_admin_ticket_date_filter_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?date=not-a-date')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'date' => 'تاريخ الأرشيف غير صحيح.',
+            ]);
+    }
+
+    public function test_returns_422_when_admin_ticket_date_filter_is_in_the_future(): void
+    {
+        $this->freezeTime();
+
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?date='.now()->addDay()->toDateString())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'date' => 'لا يمكن عرض تسجيلات تاريخ في المستقبل.',
+            ]);
     }
 
     public function test_teller_cannot_skip_process_steps(): void

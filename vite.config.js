@@ -24,6 +24,18 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks(id) {
+                    if (
+                        id.includes('node_modules/vue/')
+                        || id.includes('node_modules/vue-router')
+                        || id.includes('node_modules/pinia')
+                    ) {
+                        return 'vue';
+                    }
+
+                    if (id.includes('node_modules/axios')) {
+                        return 'http';
+                    }
+
                     if (id.includes('node_modules/laravel-echo') || id.includes('node_modules/pusher-js')) {
                         return 'realtime';
                     }

@@ -13,6 +13,7 @@ use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -430,29 +431,31 @@ class QueueService
      */
     public function getPublicQueueStatus(): array
     {
-        $serving = QueueTicket::query()
-            ->today()
-            ->serving()
-            ->with('teller')
-            ->orderBy('called_at')
-            ->get();
+        return Cache::remember(QueueTicket::publicStatusCacheKey(), 3, function (): array {
+            $serving = QueueTicket::query()
+                ->today()
+                ->serving()
+                ->with('teller')
+                ->orderBy('called_at')
+                ->get();
 
-        $waiting = QueueTicket::query()
-            ->today()
-            ->waiting()
-            ->orderBy('ticket_number')
-            ->limit(10)
-            ->get();
+            $waiting = QueueTicket::query()
+                ->today()
+                ->waiting()
+                ->orderBy('ticket_number')
+                ->limit(10)
+                ->get();
 
-        $aggregates = QueueTicket::todayAggregates();
+            $aggregates = QueueTicket::todayAggregates();
 
-        $stats = [
-            'waiting' => $aggregates['waiting'],
-            'serving' => $aggregates['serving'],
-            'completed' => $aggregates['completed'],
-        ];
+            $stats = [
+                'waiting' => $aggregates['waiting'],
+                'serving' => $aggregates['serving'],
+                'completed' => $aggregates['completed'],
+            ];
 
-        return compact('serving', 'waiting', 'stats');
+            return compact('serving', 'waiting', 'stats');
+        });
     }
 
     private function assertTicketOwnedByTeller(QueueTicket $ticket, User $teller): void

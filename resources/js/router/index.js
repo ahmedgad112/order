@@ -52,7 +52,7 @@ const routes = [
         path: '/admin/registrations',
         name: 'admin-registrations',
         component: () => import('../views/AdminRegistrationsView.vue'),
-        meta: { title: 'سجل التسجيلات', requiresAuth: true, roles: ['manager', 'super_admin'] },
+        meta: { title: 'السجل والأرشيف', requiresAuth: true, roles: ['manager', 'super_admin'] },
     },
 ];
 
@@ -88,6 +88,27 @@ router.beforeEach(async (to) => {
     }
 
     return true;
+});
+
+const prefetchByRoute = {
+    kiosk: ['track', 'login'],
+    track: ['kiosk'],
+    login: ['teller', 'admin'],
+    teller: ['admin', 'admin-registrations'],
+    admin: ['teller', 'admin-registrations'],
+    'admin-registrations': ['admin', 'teller'],
+};
+
+router.afterEach((to) => {
+    const names = prefetchByRoute[to.name] ?? [];
+
+    names.forEach((name) => {
+        const matched = router.resolve({ name }).matched.at(-1)?.components?.default;
+
+        if (typeof matched === 'function') {
+            matched();
+        }
+    });
 });
 
 export default router;

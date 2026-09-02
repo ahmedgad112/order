@@ -1,6 +1,5 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue';
-import QRCode from 'qrcode';
 
 const props = defineProps({
     value: {
@@ -20,6 +19,8 @@ async function renderQr() {
         dataUrl.value = '';
         return;
     }
+
+    const QRCode = (await import('qrcode')).default;
 
     dataUrl.value = await QRCode.toDataURL(props.value, {
         width: props.size,

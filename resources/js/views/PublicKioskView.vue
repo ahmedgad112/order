@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue
 import { RouterLink } from 'vue-router';
 import { Ticket, Printer, User, Hash, FileText, Lock, Search, ImageDown, ExternalLink, FilePlus } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
+import AppNavbar from '../components/AppNavbar.vue';
 
 const TicketQrCode = defineAsyncComponent(() => import('../components/TicketQrCode.vue'));
 
@@ -21,6 +22,7 @@ const savingImage = ref(false);
 const imageSaveError = ref('');
 const ticketCaptureRef = ref(null);
 let stopAutoRefresh = null;
+let unsubscribeEcho = null;
 
 const ticketFontFamily = '"Segoe UI", Tahoma, Arial, sans-serif';
 const admissionApplyUrl = 'https://batechu.com/admission';
@@ -245,40 +247,27 @@ async function saveAsImage() {
 
 onMounted(() => {
     queueStore.fetchPublicStatus();
+    unsubscribeEcho = queueStore.subscribeEcho();
     stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 5000);
 });
 
 onUnmounted(() => {
+    unsubscribeEcho?.();
     stopAutoRefresh?.();
 });
 </script>
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <header class="border-b border-blue-100 bg-white/80 backdrop-blur">
-            <div class="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div class="flex items-center gap-3">
-                    <img
-                        :src="'/logo.webp'"
-                        alt="جامعة برج العرب التكنولوجية"
-                        class="h-14 w-auto object-contain"
-                    />
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900">نظام إدارة الأدوار</h1>
-                        <p class="text-sm text-slate-500">إصدار تذكرة جديدة</p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <div class="flex items-center gap-3 rounded-2xl bg-blue-600 px-5 py-3 text-white shadow-lg">
-                        <Ticket class="h-6 w-6" />
-                        <div class="text-left">
-                            <p class="text-xs opacity-80">في الانتظار</p>
-                            <p class="text-2xl font-bold leading-none">{{ queueStore.stats.waiting }}</p>
-                        </div>
-                    </div>
+        <AppNavbar title="نظام إدارة الأدوار" subtitle="إصدار تذكرة جديدة" max-width="5xl">
+            <div class="flex items-center gap-3 rounded-2xl bg-blue-600 px-4 py-2 text-white shadow-lg sm:px-5 sm:py-3">
+                <Ticket class="h-5 w-5 sm:h-6 sm:w-6" />
+                <div class="text-left">
+                    <p class="text-[10px] opacity-80 sm:text-xs">في الانتظار</p>
+                    <p class="text-xl font-bold leading-none sm:text-2xl">{{ queueStore.stats.waiting }}</p>
                 </div>
             </div>
-        </header>
+        </AppNavbar>
 
         <main class="mx-auto max-w-3xl px-6 py-10">
             <div

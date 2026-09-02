@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { Clock, Users, Lock } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
+import AppNavbar from '../components/AppNavbar.vue';
 
 const queueStore = useQueueStore();
 const clock = ref(new Date().toLocaleTimeString('ar-EG'));
@@ -63,29 +64,24 @@ onUnmounted(() => {
 
 <template>
     <div class="min-h-screen bg-slate-950 text-white">
-        <header class="flex flex-col gap-4 border-b border-slate-800 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-6">
-            <div class="flex items-center gap-4">
-                <img
-                    :src="'/logo.webp'"
-                    alt="جامعة برج العرب التكنولوجية"
-                    class="h-16 w-auto rounded-xl bg-white p-1.5 object-contain"
-                />
-                <div>
-                    <h1 class="text-2xl font-bold sm:text-3xl">شاشة عرض الطابور</h1>
-                    <p class="text-slate-400">متابعة مباشرة للتذاكر</p>
-                </div>
-            </div>
+        <AppNavbar
+            title="شاشة عرض الطابور"
+            subtitle="متابعة مباشرة للتذاكر"
+            variant="display"
+            max-width="full"
+            :show-nav="false"
+        >
             <div class="flex flex-wrap items-center gap-4 text-slate-300 sm:gap-6">
                 <div class="flex items-center gap-2">
                     <Users class="h-5 w-5" />
                     <span>بالانتظار: {{ queueStore.stats.waiting }}</span>
                 </div>
-                <div class="flex items-center gap-2 text-xl font-mono sm:text-2xl">
+                <div class="flex items-center gap-2 font-mono text-xl sm:text-2xl">
                     <Clock class="h-5 w-5" />
                     <span>{{ clock }}</span>
                 </div>
             </div>
-        </header>
+        </AppNavbar>
 
         <div
             v-if="!queueStore.isSystemOpen"
