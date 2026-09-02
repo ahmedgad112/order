@@ -11,6 +11,7 @@ use App\Services\QueueService;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class TellerQueueController extends Controller
 {
@@ -21,10 +22,19 @@ class TellerQueueController extends Controller
 
     public function tickets(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'status' => ['sometimes', 'nullable', 'string'],
+            'step' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...QueueTicket::processStepValues()])],
+            'search' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ], [
+            'step.in' => 'خطوة الطلب غير صحيحة.',
+        ]);
+
         $result = $this->queueService->getTellerTickets(
             $request->user(),
-            $request->string('status')->toString() ?: null,
-            $request->filled('search') ? $request->string('search')->toString() : null,
+            filled($validated['status'] ?? null) ? $validated['status'] : null,
+            filled($validated['search'] ?? null) ? $validated['search'] : null,
+            filled($validated['step'] ?? null) ? $validated['step'] : null,
         );
 
         return response()->json([

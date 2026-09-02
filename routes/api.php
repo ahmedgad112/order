@@ -58,6 +58,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/system/close', [AdminSystemController::class, 'close']);
         Route::post('/system/open', [AdminSystemController::class, 'open']);
         Route::post('/system/reset-day', [AdminSystemController::class, 'resetDay']);
+        Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);
         Route::put('/users/{user}', [AdminUserController::class, 'update']);

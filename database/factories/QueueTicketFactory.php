@@ -64,6 +64,34 @@ class QueueTicketFactory extends Factory
         ]);
     }
 
+    public function medicalChecked(?User $teller = null): static
+    {
+        return $this->state(fn () => [
+            'status' => TicketStatus::Serving,
+            'user_id' => $teller?->id,
+            'called_at' => now()->subMinutes(3),
+            'entered_at' => now()->subMinutes(3),
+            'medical_checked_at' => now()->subMinutes(2),
+            'face_printed_at' => null,
+            'completed_at' => null,
+            'file_delivered_at' => null,
+        ]);
+    }
+
+    public function facePrinted(?User $teller = null): static
+    {
+        return $this->state(fn () => [
+            'status' => TicketStatus::Serving,
+            'user_id' => $teller?->id,
+            'called_at' => now()->subMinutes(4),
+            'entered_at' => now()->subMinutes(4),
+            'medical_checked_at' => now()->subMinutes(3),
+            'face_printed_at' => now()->subMinutes(2),
+            'completed_at' => null,
+            'file_delivered_at' => null,
+        ]);
+    }
+
     public function completed(?User $teller = null): static
     {
         return $this->state(fn () => [

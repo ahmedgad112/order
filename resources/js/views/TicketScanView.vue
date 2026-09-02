@@ -139,6 +139,9 @@ onMounted(async () => {
         TicketCompleted: onQueueEvent,
         TicketAbsent: onQueueEvent,
         TicketRestored: onQueueEvent,
+        TicketDeleted: () => {
+            loadTicket(true);
+        },
         QueueDayReset: () => {
             loadTicket(true);
         },

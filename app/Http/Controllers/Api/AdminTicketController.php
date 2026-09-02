@@ -9,6 +9,7 @@ use App\Services\QueueService;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminTicketController extends Controller
 {
@@ -19,23 +20,33 @@ class AdminTicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'status' => ['sometimes', 'nullable', 'string'],
+            'step' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...QueueTicket::processStepValues()])],
+            'search' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ], [
+            'step.in' => 'خطوة الطلب غير صحيحة.',
+        ]);
+
+        $status = $validated['status'] ?? null;
+        $step = $validated['step'] ?? null;
+        $search = $validated['search'] ?? null;
+
         $query = QueueTicket::query()
             ->today()
             ->with('teller')
             ->orderBy('ticket_number');
 
-        if ($request->filled('status') && $request->string('status')->toString() !== 'all') {
-            $query->where('status', $request->string('status')->toString());
+        if (filled($status) && $status !== 'all') {
+            $query->where('status', $status);
         }
 
-        if ($request->filled('search')) {
-            $search = $request->string('search')->toString();
-            $query->where(function ($q) use ($search): void {
-                $q->where('full_name', 'like', "%{$search}%")
-                    ->orWhere('national_id', 'like', "%{$search}%")
-                    ->orWhere('order_number', 'like', "%{$search}%")
-                    ->orWhere('ticket_number', 'like', "%{$search}%");
-            });
+        if (filled($step) && $step !== 'all') {
+            $query->atProcessStep($step);
+        }
+
+        if (filled($search)) {
+            $query->matchingSearch($search);
         }
 
         $tickets = $query->get();
@@ -54,6 +65,15 @@ class AdminTicketController extends Controller
         return response()->json([
             'message' => 'تم تسجيل طلب الدخول.',
             'ticket' => new AdminTicketResource($ticket),
+        ]);
+    }
+
+    public function destroy(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $this->queueService->deleteTicket($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم حذف الطلب بنجاح.',
         ]);
     }
 }

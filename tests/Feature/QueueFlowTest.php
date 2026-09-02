@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
+use App\Events\TicketDeletedEvent;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class QueueFlowTest extends TestCase
@@ -199,6 +202,128 @@ class QueueFlowTest extends TestCase
         $this->postJson("/api/teller/tickets/{$ticket->id}/complete")
             ->assertOk()
             ->assertJsonPath('ticket.status', TicketStatus::Completed->value);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function currentProcessSteps(): array
+    {
+        return [
+            'entered' => ['entered', 'في انتظار الدخول'],
+            'medical_checked' => ['medical_checked', 'في انتظار الكشف'],
+            'face_printed' => ['face_printed', 'في انتظار البصمة'],
+            'file_delivered' => ['file_delivered', 'في انتظار التسليم'],
+        ];
+    }
+
+    #[DataProvider('currentProcessSteps')]
+    public function test_admin_ticket_list_filters_by_current_process_step(string $step, string $expectedName): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        $teller = User::factory()->teller()->create();
+
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'في انتظار الدخول',
+        ]);
+        QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 2,
+            'full_name' => 'في انتظار الكشف',
+        ]);
+        QueueTicket::factory()->medicalChecked($teller)->create([
+            'ticket_number' => 3,
+            'full_name' => 'في انتظار البصمة',
+        ]);
+        QueueTicket::factory()->facePrinted($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => 'في انتظار التسليم',
+        ]);
+        QueueTicket::factory()->completed($teller)->create([
+            'ticket_number' => 5,
+            'full_name' => 'تم الاكتمال',
+        ]);
+        QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 6,
+            'full_name' => 'ملغى بعد الدخول',
+            'status' => TicketStatus::Cancelled,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?step='.$step)
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', $expectedName);
+    }
+
+    public function test_returns_422_when_admin_process_step_filter_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?step=waiting')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'step' => 'خطوة الطلب غير صحيحة.',
+            ]);
+    }
+
+    public function test_teller_ticket_list_filters_by_current_process_step(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'في انتظار الدخول',
+        ]);
+        QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 2,
+            'full_name' => 'في انتظار الكشف',
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?step=medical_checked')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'في انتظار الكشف');
+    }
+
+    public function test_returns_422_when_teller_process_step_filter_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?step=waiting')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'step' => 'خطوة الطلب غير صحيحة.',
+            ]);
+    }
+
+    public function test_admin_ticket_list_filters_by_search_term(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'أحمد علي',
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'سارة محمد',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?search='.urlencode('أحمد'))
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'أحمد علي');
     }
 
     public function test_teller_cannot_skip_process_steps(): void
@@ -506,5 +631,67 @@ class QueueFlowTest extends TestCase
             ->assertJsonPath('absent_tickets.0.full_name', 'مش موجود')
             ->assertJsonPath('stats.serving', 1)
             ->assertJsonPath('stats.absent', 1);
+    }
+
+    public function test_returns_401_when_guest_deletes_a_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $ticket = QueueTicket::factory()->waiting()->create(['ticket_number' => 1]);
+
+        $this->deleteJson('/api/admin/tickets/'.$ticket->id)
+            ->assertUnauthorized();
+
+        $this->assertModelExists($ticket);
+    }
+
+    /**
+     * @return array<string, array{0: UserRole}>
+     */
+    public static function nonSuperAdminRoles(): array
+    {
+        return [
+            'teller' => [UserRole::Teller],
+            'manager' => [UserRole::Manager],
+        ];
+    }
+
+    #[DataProvider('nonSuperAdminRoles')]
+    public function test_returns_403_when_non_super_admin_deletes_a_ticket(UserRole $role): void
+    {
+        QueueSystemSetting::current();
+        $user = match ($role) {
+            UserRole::Teller => User::factory()->teller()->create(),
+            UserRole::Manager => User::factory()->manager()->create(),
+            UserRole::SuperAdmin => User::factory()->superAdmin()->create(),
+        };
+        $ticket = QueueTicket::factory()->waiting()->create(['ticket_number' => 1]);
+        Sanctum::actingAs($user);
+
+        $this->deleteJson('/api/admin/tickets/'.$ticket->id)
+            ->assertForbidden();
+
+        $this->assertModelExists($ticket);
+    }
+
+    public function test_super_admin_can_delete_a_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $superAdmin = User::factory()->superAdmin()->create();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 7,
+            'full_name' => 'محمود علي',
+        ]);
+        Event::fake([TicketDeletedEvent::class]);
+        Sanctum::actingAs($superAdmin);
+
+        $this->deleteJson('/api/admin/tickets/'.$ticket->id)
+            ->assertOk()
+            ->assertJsonPath('message', 'تم حذف الطلب بنجاح.');
+
+        $this->assertModelMissing($ticket);
+        Event::assertDispatched(
+            TicketDeletedEvent::class,
+            fn (TicketDeletedEvent $event): bool => $event->ticketId === $ticket->id && $event->ticketNumber === 7,
+        );
     }
 }

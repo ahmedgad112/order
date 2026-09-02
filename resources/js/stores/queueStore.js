@@ -51,6 +51,7 @@ export const useQueueStore = defineStore('queue', () => {
         TicketCompleted: new Set(),
         TicketAbsent: new Set(),
         TicketRestored: new Set(),
+        TicketDeleted: new Set(),
         QueueSystemUpdated: new Set(),
         QueueDayReset: new Set(),
     };
@@ -345,6 +346,12 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
+    async function deleteTicket(ticketId) {
+        const { data } = await axios.delete(`/admin/tickets/${ticketId}`);
+        removeTicketFromLists(ticketId);
+        return data;
+    }
+
     async function markTicketEntered(ticketId) {
         return markProcessStep(ticketId, 'entered');
     }
@@ -494,6 +501,29 @@ export const useQueueStore = defineStore('queue', () => {
         waiting.value = waiting.value.filter((item) => item.id !== ticketId);
     }
 
+    function removeTicketFromLists(ticketId) {
+        serving.value = serving.value.filter((item) => item.id !== ticketId);
+        removeFromWaiting(ticketId);
+        absentTickets.value = absentTickets.value.filter((item) => item.id !== ticketId);
+        tellerTickets.value = tellerTickets.value.filter((item) => item.id !== ticketId);
+        registrations.value = registrations.value.filter((item) => item.id !== ticketId);
+        stats.value.serving = serving.value.length;
+        stats.value.waiting = waiting.value.length;
+        if (currentTicket.value?.id === ticketId) {
+            currentTicket.value = null;
+        }
+    }
+
+    function handleTicketDeleted(event) {
+        const ticketId = event.ticket_id;
+        if (!ticketId) {
+            return;
+        }
+
+        removeTicketFromLists(ticketId);
+        scheduleDataRefresh();
+    }
+
     function handleTicketIssued(event) {
         const ticket = event.ticket;
         waiting.value = [...waiting.value, ticket]
@@ -577,6 +607,10 @@ export const useQueueStore = defineStore('queue', () => {
                     handleTicketRestored(event);
                     runExtras('TicketRestored', event);
                 })
+                .listen('.TicketDeleted', (event) => {
+                    handleTicketDeleted(event);
+                    runExtras('TicketDeleted', event);
+                })
                 .listen('.QueueSystemUpdated', (event) => {
                     handleSystemUpdated(event);
                     runExtras('QueueSystemUpdated', event);
@@ -605,7 +639,7 @@ export const useQueueStore = defineStore('queue', () => {
 
     /**
      * Subscribe to the shared queue channel. Returns an unsubscribe function.
-     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'QueueSystemUpdated'|'QueueDayReset', Function>>} handlers
+     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'QueueSystemUpdated'|'QueueDayReset', Function>>} handlers
      */
     function subscribeEcho(handlers = {}) {
         Object.entries(handlers).forEach(([eventName, handler]) => {
@@ -723,6 +757,7 @@ export const useQueueStore = defineStore('queue', () => {
         updateUser,
         deactivateUser,
         fetchRegistrations,
+        deleteTicket,
         markTicketEntered,
         fetchSystemStatus,
         closeSystem,
@@ -735,6 +770,7 @@ export const useQueueStore = defineStore('queue', () => {
         handleTicketCompleted,
         handleTicketAbsent,
         handleTicketRestored,
+        handleTicketDeleted,
         subscribeEcho,
         bindEcho,
         unbindEcho,

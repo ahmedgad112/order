@@ -13,27 +13,32 @@ import { useQueueStore } from '../stores/queueStore';
 import { useRouter } from 'vue-router';
 import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
+import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
 const router = useRouter();
 
 const search = ref('');
-const statusFilter = ref('all');
+const stepFilter = ref('all');
 const loading = ref(false);
-const processBusyId = ref(null);
-const busyStep = ref(null);
-const feedback = ref('');
-const actionError = ref('');
 
-const statusOptions = [
+const processStepValues = ['entered', 'medical_checked', 'face_printed', 'file_delivered'];
+const stepOptions = [
     { value: 'all', label: 'الكل' },
-    { value: 'waiting', label: 'في الانتظار' },
-    { value: 'serving', label: 'قيد الخدمة' },
+    { value: 'entered', label: 'طلب دخول' },
+    { value: 'medical_checked', label: 'كشف طبي' },
+    { value: 'face_printed', label: 'بصمة وجه' },
+    { value: 'file_delivered', label: 'تسليم الملف' },
     { value: 'completed', label: 'دخل' },
     { value: 'cancelled', label: 'ملغى' },
     { value: 'absent', label: 'مش موجود' },
 ];
+const processBusyId = ref(null);
+const busyStep = ref(null);
+const deletingId = ref(null);
+const feedback = ref('');
+const actionError = ref('');
 
 const statusBadgeClass = {
     waiting: 'bg-amber-100 text-amber-800',
@@ -44,6 +49,20 @@ const statusBadgeClass = {
 };
 
 const filteredCount = computed(() => queueStore.registrations.length);
+
+function listParams() {
+    const params = {
+        search: search.value.trim() || undefined,
+    };
+
+    if (processStepValues.includes(stepFilter.value)) {
+        params.step = stepFilter.value;
+    } else if (stepFilter.value !== 'all') {
+        params.status = stepFilter.value;
+    }
+
+    return params;
+}
 
 function formatTime(iso) {
     if (!iso) return '—';
@@ -63,10 +82,7 @@ async function loadTickets(silent = false) {
         loading.value = true;
     }
     try {
-        await queueStore.fetchRegistrations({
-            status: statusFilter.value,
-            search: search.value.trim() || undefined,
-        });
+        await queueStore.fetchRegistrations(listParams());
     } finally {
         if (!silent) {
             loading.value = false;
@@ -93,6 +109,22 @@ async function handleProcessMark(ticket, step) {
     }
 }
 
+async function handleDelete(ticket) {
+    deletingId.value = ticket.id;
+    feedback.value = '';
+    actionError.value = '';
+    try {
+        const result = await queueStore.deleteTicket(ticket.id);
+        feedback.value = result.message;
+        await loadTickets();
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? 'تعذر حذف الطلب.';
+    } finally {
+        deletingId.value = null;
+    }
+}
+
 async function logout() {
     await authStore.logout();
     await router.push('/login');
@@ -104,7 +136,7 @@ function onQueueUpdate() {
 
 let searchTimer = null;
 
-watch(statusFilter, () => loadTickets());
+watch(stepFilter, () => loadTickets());
 
 watch(search, () => {
     clearTimeout(searchTimer);
@@ -123,6 +155,7 @@ onMounted(() => {
         TicketCompleted: onQueueUpdate,
         TicketAbsent: onQueueUpdate,
         TicketRestored: onQueueUpdate,
+        TicketDeleted: onQueueUpdate,
         QueueDayReset: onQueueUpdate,
     });
 
@@ -175,7 +208,7 @@ onUnmounted(() => {
         </header>
 
         <main class="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <div class="rounded-2xl bg-white p-4 shadow-sm">
                     <p class="text-xs text-slate-500">الإجمالي</p>
                     <p class="text-2xl font-black text-slate-800">{{ queueStore.registrationStats.total }}</p>
@@ -185,16 +218,20 @@ onUnmounted(() => {
                     <p class="text-2xl font-black text-amber-600">{{ queueStore.registrationStats.waiting }}</p>
                 </div>
                 <div class="rounded-2xl bg-blue-50 p-4 shadow-sm">
-                    <p class="text-xs text-blue-700">قيد الخدمة</p>
-                    <p class="text-2xl font-black text-blue-600">{{ queueStore.registrationStats.serving }}</p>
+                    <p class="text-xs text-blue-700">طلب دخول</p>
+                    <p class="text-2xl font-black text-blue-600">{{ queueStore.registrationStats.entered }}</p>
+                </div>
+                <div class="rounded-2xl bg-teal-50 p-4 shadow-sm">
+                    <p class="text-xs text-teal-700">كشف طبي</p>
+                    <p class="text-2xl font-black text-teal-600">{{ queueStore.registrationStats.medical_checked }}</p>
+                </div>
+                <div class="rounded-2xl bg-violet-50 p-4 shadow-sm">
+                    <p class="text-xs text-violet-700">بصمة وجه</p>
+                    <p class="text-2xl font-black text-violet-600">{{ queueStore.registrationStats.face_printed }}</p>
                 </div>
                 <div class="rounded-2xl bg-green-50 p-4 shadow-sm">
-                    <p class="text-xs text-green-700">دخل</p>
-                    <p class="text-2xl font-black text-green-600">{{ queueStore.registrationStats.completed }}</p>
-                </div>
-                <div class="rounded-2xl bg-red-50 p-4 shadow-sm">
-                    <p class="text-xs text-red-700">ملغى</p>
-                    <p class="text-2xl font-black text-red-600">{{ queueStore.registrationStats.cancelled }}</p>
+                    <p class="text-xs text-green-700">تسليم الملف</p>
+                    <p class="text-2xl font-black text-green-600">{{ queueStore.registrationStats.file_delivered }}</p>
                 </div>
             </section>
 
@@ -211,14 +248,14 @@ onUnmounted(() => {
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button
-                            v-for="opt in statusOptions"
+                            v-for="opt in stepOptions"
                             :key="opt.value"
                             type="button"
                             class="rounded-xl px-3 py-2 text-sm font-semibold transition"
-                            :class="statusFilter === opt.value
+                            :class="stepFilter === opt.value
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                            @click="statusFilter = opt.value"
+                            @click="stepFilter = opt.value"
                         >
                             {{ opt.label }}
                         </button>
@@ -310,6 +347,12 @@ onUnmounted(() => {
                                 :system-open="queueStore.isSystemOpen"
                                 compact
                                 @mark="handleProcessMark(ticket, $event)"
+                            />
+                            <TicketDeleteButton
+                                class="mt-2"
+                                :ticket="ticket"
+                                :busy="deletingId === ticket.id"
+                                @delete="handleDelete"
                             />
                         </div>
                     </article>

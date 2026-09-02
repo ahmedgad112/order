@@ -23,14 +23,43 @@ const ticketCaptureRef = ref(null);
 let stopAutoRefresh = null;
 
 const ticketFontFamily = '"Segoe UI", Tahoma, Arial, sans-serif';
+const admissionApplyUrl = 'https://batechu.com/admission';
+const admissionTrackUrl = 'https://batechu.com/admission/track';
 
 function ticketScanUrl(ticket) {
     return `${window.location.origin}/t/${ticket.public_token}`;
 }
 
+function drawAdmissionLinkBox(ctx, width, y, label, url, background, labelColor) {
+    const boxX = 28;
+    const boxW = width - 56;
+    const boxH = 68;
+
+    ctx.fillStyle = background;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(boxX, y, boxW, boxH, 14);
+    } else {
+        ctx.rect(boxX, y, boxW, boxH);
+    }
+    ctx.fill();
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = labelColor;
+    ctx.font = `bold 14px ${ticketFontFamily}`;
+    ctx.fillText(label, width / 2, y + 24);
+
+    ctx.direction = 'ltr';
+    ctx.fillStyle = '#334155';
+    ctx.font = `11px ${ticketFontFamily}`;
+    ctx.fillText(url, width / 2, y + 46);
+}
+
 async function renderTicketToCanvas(ticket) {
     const width = 400;
-    const height = 580;
+    const height = 720;
     const scale = 2;
     const qrSize = 168;
     const canvas = document.createElement('canvas');
@@ -91,6 +120,16 @@ async function renderTicketToCanvas(ticket) {
     ctx.fillStyle = '#94a3b8';
     ctx.font = `12px ${ticketFontFamily}`;
     ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 508);
+
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(36, 528);
+    ctx.lineTo(width - 36, 528);
+    ctx.stroke();
+
+    drawAdmissionLinkBox(ctx, width, 542, 'تقدم الطلب', admissionApplyUrl, '#ecfdf5', '#047857');
+    drawAdmissionLinkBox(ctx, width, 620, 'تتبع طلبك', admissionTrackUrl, '#eef2ff', '#4338ca');
 
     return canvas;
 }
@@ -373,6 +412,26 @@ onUnmounted(() => {
                     <p class="mt-3 text-sm font-semibold text-slate-600">امسح الرمز لعرض بياناتك</p>
                     <p class="mt-1 text-sm text-slate-500">يرجى الانتظار حتى يتم نداؤك</p>
                     <p class="mt-4 text-xs text-slate-400">{{ new Date().toLocaleString('ar-EG') }}</p>
+                    <div class="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
+                        <a
+                            :href="admissionApplyUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="rounded-2xl bg-emerald-50 px-4 py-3"
+                        >
+                            <span class="block text-sm font-bold text-emerald-800">تقدم الطلب</span>
+                            <span class="mt-1 block text-xs text-slate-600" dir="ltr">{{ admissionApplyUrl }}</span>
+                        </a>
+                        <a
+                            :href="admissionTrackUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="rounded-2xl bg-indigo-50 px-4 py-3"
+                        >
+                            <span class="block text-sm font-bold text-indigo-800">تتبع طلبك</span>
+                            <span class="mt-1 block text-xs text-slate-600" dir="ltr">{{ admissionTrackUrl }}</span>
+                        </a>
+                    </div>
                 </div>
 
                 <p v-if="imageSaveError" class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">

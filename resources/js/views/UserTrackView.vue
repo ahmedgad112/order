@@ -132,6 +132,12 @@ onMounted(() => {
         TicketCompleted: onQueueEvent,
         TicketAbsent: onQueueEvent,
         TicketRestored: onQueueEvent,
+        TicketDeleted: (event) => {
+            if (trackedTicket.value?.id === event.ticket_id) {
+                trackedTicket.value = null;
+                fieldError.value = 'تم حذف هذا الطلب.';
+            }
+        },
         QueueDayReset: () => {
             trackedTicket.value = null;
             fieldError.value = 'تم تصفير اليوم. يرجى التحقق من تذكرتك مرة أخرى.';

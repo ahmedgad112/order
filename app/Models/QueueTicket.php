@@ -162,4 +162,44 @@ class QueueTicket extends Model
     {
         return $query->where('status', TicketStatus::Absent);
     }
+
+    /**
+     * @return list<string>
+     */
+    public static function processStepValues(): array
+    {
+        return ['entered', 'medical_checked', 'face_printed', 'file_delivered'];
+    }
+
+    public function scopeAtProcessStep(Builder $query, string $step): Builder
+    {
+        return match ($step) {
+            'entered' => $query
+                ->whereIn('status', TicketStatus::activeValues())
+                ->whereNull('entered_at'),
+            'medical_checked' => $query
+                ->whereNotNull('entered_at')
+                ->whereNull('medical_checked_at')
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
+            'face_printed' => $query
+                ->whereNotNull('medical_checked_at')
+                ->whereNull('face_printed_at')
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
+            'file_delivered' => $query
+                ->whereNotNull('face_printed_at')
+                ->whereNull('file_delivered_at')
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
+            default => $query,
+        };
+    }
+
+    public function scopeMatchingSearch(Builder $query, string $search): Builder
+    {
+        return $query->where(function (Builder $q) use ($search): void {
+            $q->where('full_name', 'like', "%{$search}%")
+                ->orWhere('national_id', 'like', "%{$search}%")
+                ->orWhere('order_number', 'like', "%{$search}%")
+                ->orWhere('ticket_number', 'like', "%{$search}%");
+        });
+    }
 }

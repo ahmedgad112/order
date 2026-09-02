@@ -15,6 +15,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import ChangePasswordButton from '../components/ChangePasswordButton.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
+import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -25,9 +26,12 @@ const restoringId = ref(null);
 const processBusyId = ref(null);
 const busyStep = ref(null);
 const absentId = ref(null);
+const deletingId = ref(null);
 const search = ref('');
-const statusFilter = ref('all');
+const stepFilter = ref('all');
 const loading = ref(false);
+
+const processStepValues = ['entered', 'medical_checked', 'face_printed', 'file_delivered'];
 
 const statusLabel = {
     waiting: 'في الانتظار',
@@ -45,16 +49,32 @@ const statusBadgeClass = {
     absent: 'bg-orange-100 text-orange-800',
 };
 
-const statusOptions = [
+const stepOptions = [
     { value: 'all', label: 'الكل' },
-    { value: 'waiting', label: 'في الانتظار' },
-    { value: 'serving', label: 'قيد الخدمة' },
+    { value: 'entered', label: 'طلب دخول' },
+    { value: 'medical_checked', label: 'كشف طبي' },
+    { value: 'face_printed', label: 'بصمة وجه' },
+    { value: 'file_delivered', label: 'تسليم الملف' },
     { value: 'completed', label: 'مكتمل' },
     { value: 'absent', label: 'مش موجود' },
     { value: 'cancelled', label: 'ملغى' },
 ];
 
 const filteredCount = computed(() => queueStore.tellerTickets.length);
+
+function listParams() {
+    const params = {
+        search: search.value.trim() || undefined,
+    };
+
+    if (processStepValues.includes(stepFilter.value)) {
+        params.step = stepFilter.value;
+    } else if (stepFilter.value !== 'all') {
+        params.status = stepFilter.value;
+    }
+
+    return params;
+}
 
 const servingNow = computed(() => {
     const serving = (queueStore.serving ?? []).filter((ticket) => ticket.status === 'serving');
@@ -73,10 +93,7 @@ async function loadTickets(silent = false) {
         loading.value = true;
     }
     try {
-        await queueStore.fetchTellerTickets({
-            status: statusFilter.value,
-            search: search.value.trim() || undefined,
-        });
+        await queueStore.fetchTellerTickets(listParams());
     } finally {
         if (!silent) {
             loading.value = false;
@@ -185,6 +202,21 @@ async function handleRestore(ticket) {
     }
 }
 
+async function handleDelete(ticket) {
+    deletingId.value = ticket.id;
+    actionError.value = '';
+    try {
+        const result = await queueStore.deleteTicket(ticket.id);
+        actionMessage.value = result.message;
+        await loadTickets();
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? 'تعذر حذف الطلب.';
+    } finally {
+        deletingId.value = null;
+    }
+}
+
 function tellerLabel(ticket) {
     if (ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name) {
         return `${ticket.teller_name} — ${ticket.counter_name}`;
@@ -226,7 +258,7 @@ let searchTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
-watch(statusFilter, () => loadTickets());
+watch(stepFilter, () => loadTickets());
 
 watch(search, () => {
     clearTimeout(searchTimer);
@@ -243,6 +275,7 @@ onMounted(() => {
         TicketCompleted: () => loadTickets(true),
         TicketAbsent: () => loadTickets(true),
         TicketRestored: () => loadTickets(true),
+        TicketDeleted: () => loadTickets(true),
         QueueDayReset: () => loadTickets(true),
     });
 
@@ -400,14 +433,14 @@ onUnmounted(() => {
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button
-                            v-for="opt in statusOptions"
+                            v-for="opt in stepOptions"
                             :key="opt.value"
                             type="button"
                             class="rounded-xl px-3 py-2 text-sm font-semibold transition"
-                            :class="statusFilter === opt.value
+                            :class="stepFilter === opt.value
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                            @click="statusFilter = opt.value"
+                            @click="stepFilter = opt.value"
                         >
                             {{ opt.label }}
                         </button>
@@ -487,6 +520,11 @@ onUnmounted(() => {
                                 <RotateCcw class="h-4 w-4" />
                                 {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
                             </button>
+                            <TicketDeleteButton
+                                :ticket="ticket"
+                                :busy="deletingId === ticket.id"
+                                @delete="handleDelete"
+                            />
                         </div>
                     </article>
                     <p
@@ -545,6 +583,12 @@ onUnmounted(() => {
                             <RotateCcw class="h-4 w-4" />
                             {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
                         </button>
+                        <TicketDeleteButton
+                            class="mt-2"
+                            :ticket="ticket"
+                            :busy="deletingId === ticket.id"
+                            @delete="handleDelete"
+                        />
                     </article>
                 </div>
             </section>

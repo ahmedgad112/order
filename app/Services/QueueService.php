@@ -6,6 +6,7 @@ use App\Enums\TicketStatus;
 use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketCompletedEvent;
+use App\Events\TicketDeletedEvent;
 use App\Events\TicketIssuedEvent;
 use App\Events\TicketRestoredEvent;
 use App\Models\QueueTicket;
@@ -131,6 +132,18 @@ class QueueService
         $this->broadcastSafely(new TicketCompletedEvent($ticket));
 
         return $ticket->fresh(['teller']);
+    }
+
+    public function deleteTicket(QueueTicket $ticket, User $admin): void
+    {
+        abort_unless($admin->isSuperAdmin(), 403, 'ليس لديك صلاحية للوصول.');
+
+        $ticketId = $ticket->id;
+        $ticketNumber = $ticket->ticket_number;
+
+        $ticket->delete();
+
+        $this->broadcastSafely(new TicketDeletedEvent($ticketId, $ticketNumber));
     }
 
     public function recallTicket(QueueTicket $ticket, User $teller): QueueTicket
@@ -315,7 +328,7 @@ class QueueService
      *     current: QueueTicket|null
      * }
      */
-    public function getTellerTickets(User $teller, ?string $status = null, ?string $search = null): array
+    public function getTellerTickets(User $teller, ?string $status = null, ?string $search = null, ?string $step = null): array
     {
         $query = QueueTicket::query()
             ->today()
@@ -326,13 +339,12 @@ class QueueService
             $query->where('status', $status);
         }
 
+        if ($step && $step !== 'all') {
+            $query->atProcessStep($step);
+        }
+
         if ($search) {
-            $query->where(function ($q) use ($search): void {
-                $q->where('full_name', 'like', "%{$search}%")
-                    ->orWhere('national_id', 'like', "%{$search}%")
-                    ->orWhere('order_number', 'like', "%{$search}%")
-                    ->orWhere('ticket_number', 'like', "%{$search}%");
-            });
+            $query->matchingSearch($search);
         }
 
         $serving = QueueTicket::query()
