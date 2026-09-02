@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 
 #[Fillable([
     'ticket_number',
+    'session_started_at',
     'public_token',
     'full_name',
     'national_id',
@@ -42,6 +43,10 @@ class QueueTicket extends Model
             if (blank($ticket->public_token)) {
                 $ticket->public_token = (string) Str::uuid();
             }
+
+            if (blank($ticket->session_started_at)) {
+                $ticket->session_started_at = QueueSystemSetting::current()->currentSessionStartedAt();
+            }
         });
 
         static::saved(fn () => self::forgetPublicStatusCache());
@@ -50,7 +55,7 @@ class QueueTicket extends Model
 
     public static function publicStatusCacheKey(): string
     {
-        return 'queue.public_status.'.today()->toDateString();
+        return 'queue.public_status.'.self::currentSessionStartedAt()->timestamp;
     }
 
     public static function forgetPublicStatusCache(): void
@@ -62,6 +67,7 @@ class QueueTicket extends Model
     {
         return [
             'status' => TicketStatus::class,
+            'session_started_at' => 'datetime',
             'called_at' => 'datetime',
             'entered_at' => 'datetime',
             'medical_checked_at' => 'datetime',
@@ -76,6 +82,11 @@ class QueueTicket extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public static function currentSessionStartedAt(): Carbon
+    {
+        return QueueSystemSetting::current()->currentSessionStartedAt();
+    }
+
     public function scopeOnDate(Builder $query, DateTimeInterface|string $date): Builder
     {
         $day = Carbon::parse($date)->startOfDay();
@@ -87,7 +98,7 @@ class QueueTicket extends Model
 
     public function scopeToday(Builder $query): Builder
     {
-        return $query->onDate(today());
+        return $query->where('session_started_at', self::currentSessionStartedAt());
     }
 
     public static function durationSecondsSql(string $fromColumn, string $toColumn): string

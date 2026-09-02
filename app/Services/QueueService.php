@@ -9,6 +9,7 @@ use App\Events\TicketCompletedEvent;
 use App\Events\TicketDeletedEvent;
 use App\Events\TicketIssuedEvent;
 use App\Events\TicketRestoredEvent;
+use App\Events\TicketUpdatedEvent;
 use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -27,8 +28,9 @@ class QueueService
      */
     public function issueTicket(array $data): QueueTicket
     {
-        $this->systemService->assertSystemOpen();
+        $this->systemService->assertAcceptingTickets();
         $ticket = DB::transaction(function () use ($data): QueueTicket {
+            $sessionStartedAt = QueueTicket::currentSessionStartedAt();
             $maxNumber = QueueTicket::query()
                 ->today()
                 ->lockForUpdate()
@@ -36,6 +38,7 @@ class QueueService
 
             return QueueTicket::query()->create([
                 'ticket_number' => ($maxNumber ?? 0) + 1,
+                'session_started_at' => $sessionStartedAt,
                 'full_name' => $data['full_name'],
                 'national_id' => $data['national_id'],
                 'order_number' => $data['order_number'],
@@ -137,7 +140,7 @@ class QueueService
 
     public function deleteTicket(QueueTicket $ticket, User $admin): void
     {
-        abort_unless($admin->isSuperAdmin(), 403, 'ليس لديك صلاحية للوصول.');
+        abort_unless($admin->canDeleteTickets(), 403, 'ليس لديك صلاحية للوصول.');
 
         $ticketId = $ticket->id;
         $ticketNumber = $ticket->ticket_number;
@@ -145,6 +148,24 @@ class QueueService
         $ticket->delete();
 
         $this->broadcastSafely(new TicketDeletedEvent($ticketId, $ticketNumber));
+    }
+
+    /**
+     * @param  array{full_name: string, national_id: string, order_number: string}  $data
+     */
+    public function updateTicket(QueueTicket $ticket, array $data, User $admin): QueueTicket
+    {
+        abort_unless($admin->canEditTickets(), 403, 'ليس لديك صلاحية للوصول.');
+
+        $ticket->update([
+            'full_name' => $data['full_name'],
+            'national_id' => $data['national_id'],
+            'order_number' => $data['order_number'],
+        ]);
+
+        $this->broadcastSafely(new TicketUpdatedEvent($ticket->id, $ticket->ticket_number));
+
+        return $ticket->fresh(['teller']);
     }
 
     public function recallTicket(QueueTicket $ticket, User $teller): QueueTicket

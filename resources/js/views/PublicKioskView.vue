@@ -278,8 +278,16 @@ onUnmounted(() => {
                 <h2 class="text-xl font-bold text-red-800">النظام مغلق حالياً</h2>
                 <p class="mt-2 text-red-700">{{ queueStore.system.closed_message || 'لا يمكن إصدار تذاكر جديدة في الوقت الحالي.' }}</p>
             </div>
+            <div
+                v-else-if="!queueStore.isAcceptingTickets"
+                class="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center"
+            >
+                <Lock class="mx-auto mb-3 h-10 w-10 text-amber-500" />
+                <h2 class="text-xl font-bold text-amber-800">انتهى استقبال الطلبات اليوم</h2>
+                <p class="mt-2 text-amber-700">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
+            </div>
 
-            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl" :class="{ 'opacity-60': !queueStore.isSystemOpen }">
+            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl" :class="{ 'opacity-60': !queueStore.isAcceptingTickets }">
                 <h2 class="mb-8 text-center text-3xl font-bold text-slate-800">احصل على تذكرتك</h2>
 
                 <p v-if="fieldErrors.general" class="mb-6 rounded-xl bg-red-50 px-4 py-3 text-center text-red-700">
@@ -287,7 +295,7 @@ onUnmounted(() => {
                 </p>
 
                 <form class="space-y-6" @submit.prevent="submitForm">
-                    <fieldset :disabled="!queueStore.isSystemOpen" class="space-y-6">
+                    <fieldset :disabled="!queueStore.isAcceptingTickets" class="space-y-6">
                     <div>
                         <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <User class="h-4 w-4" />
@@ -333,11 +341,13 @@ onUnmounted(() => {
 
                     <button
                         type="submit"
-                        :disabled="queueStore.loading || !queueStore.isSystemOpen"
+                        :disabled="queueStore.loading || !queueStore.isAcceptingTickets"
                         class="flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-5 text-xl font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <Ticket class="h-6 w-6" />
-                        {{ !queueStore.isSystemOpen ? 'النظام مغلق' : (queueStore.loading ? 'جاري الإصدار...' : 'إصدار التذكرة') }}
+                        {{ !queueStore.isAcceptingTickets
+                            ? (queueStore.isSystemOpen ? 'انتهى استقبال الطلبات' : 'النظام مغلق')
+                            : (queueStore.loading ? 'جاري الإصدار...' : 'إصدار التذكرة') }}
                     </button>
                     </fieldset>
                 </form>

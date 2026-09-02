@@ -47,14 +47,25 @@ class AdminSystemController extends Controller
         ]);
     }
 
-    public function resetDay(Request $request): JsonResponse
+    public function endDay(Request $request): JsonResponse
     {
-        $result = $this->systemService->resetDay($request->user());
+        $result = $this->systemService->endDay($request->user());
 
         return response()->json([
-            'message' => 'تم تصفير اليوم بنجاح.',
-            'deleted_tickets' => $result['deleted_tickets'],
-            'reset_at' => $result['reset_at'],
+            'message' => 'تم إنهاء اليوم وأرشفة الطلبات. النظام ما زال يعمل بدون استقبال طلبات جديدة.',
+            'archived_tickets' => $result['archived_tickets'],
+            'ended_at' => $result['ended_at'],
+            'system' => $result['system'],
+        ]);
+    }
+
+    public function openDay(Request $request): JsonResponse
+    {
+        $result = $this->systemService->openDay($request->user());
+
+        return response()->json([
+            'message' => 'تم فتح يوم جديد. العداد يبدأ من الصفر.',
+            'opened_at' => $result['opened_at'],
             'system' => $result['system'],
         ]);
     }

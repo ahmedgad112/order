@@ -1,12 +1,12 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import {
+    Archive,
     BarChart3,
     CheckCircle,
     Clock3,
     Lock,
     Power,
-    RefreshCcw,
     Timer,
     Unlock,
     Users,
@@ -32,7 +32,8 @@ const closeMessage = ref('');
 const actionLoading = ref(false);
 const actionFeedback = ref('');
 const actionError = ref('');
-const showResetConfirm = ref(false);
+const showEndDayConfirm = ref(false);
+const showOpenDayConfirm = ref(false);
 let stopAutoRefresh = null;
 let unsubscribeEcho = null;
 
@@ -85,17 +86,37 @@ async function handleOpenSystem() {
     }
 }
 
-async function handleResetDay() {
+async function handleEndDay() {
     actionLoading.value = true;
     actionError.value = '';
     actionFeedback.value = '';
     try {
-        const result = await queueStore.resetDay();
-        actionFeedback.value = `${result.message} (تم حذف ${result.deleted_tickets} تذكرة)`;
-        showResetConfirm.value = false;
+        const result = await queueStore.endDay();
+        actionFeedback.value = `${result.message} (تم أرشفة ${result.archived_tickets} طلب)`;
+        showEndDayConfirm.value = false;
         await refresh();
     } catch (err) {
-        actionError.value = err.response?.data?.message ?? 'تعذر تصفير اليوم.';
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.system?.[0]
+            ?? 'تعذر إنهاء اليوم.';
+    } finally {
+        actionLoading.value = false;
+    }
+}
+
+async function handleOpenDay() {
+    actionLoading.value = true;
+    actionError.value = '';
+    actionFeedback.value = '';
+    try {
+        const result = await queueStore.openDay();
+        actionFeedback.value = result.message;
+        showOpenDayConfirm.value = false;
+        await refresh();
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.system?.[0]
+            ?? 'تعذر فتح اليوم.';
     } finally {
         actionLoading.value = false;
     }
@@ -118,26 +139,42 @@ onUnmounted(() => {
         <AppNavbar title="لوحة الإدارة" :subtitle="navbarSubtitle" />
 
         <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-            <section class="rounded-3xl border p-6 shadow-sm" :class="queueStore.isSystemOpen ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
+            <section
+                class="rounded-3xl border p-6 shadow-sm"
+                :class="queueStore.isSystemOpen
+                    ? (queueStore.isDayOpen ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50')
+                    : 'border-red-200 bg-red-50'"
+            >
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <div class="mb-2 flex items-center gap-2">
+                        <div class="mb-2 flex flex-wrap items-center gap-2">
                             <component :is="queueStore.isSystemOpen ? Unlock : Lock" class="h-5 w-5" />
                             <h2 class="text-lg font-bold text-slate-900">حالة النظام</h2>
                             <span
                                 class="rounded-full px-3 py-1 text-xs font-bold"
                                 :class="queueStore.isSystemOpen ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'"
                             >
-                                {{ queueStore.isSystemOpen ? 'مفتوح' : 'مغلق' }}
+                                {{ queueStore.isSystemOpen ? 'النظام شغال' : 'النظام مغلق' }}
+                            </span>
+                            <span
+                                class="rounded-full px-3 py-1 text-xs font-bold"
+                                :class="queueStore.isDayOpen ? 'bg-blue-100 text-blue-800' : 'bg-amber-200 text-amber-900'"
+                            >
+                                {{ queueStore.isDayOpen ? 'اليوم مفتوح' : 'اليوم مؤرشف' }}
                             </span>
                         </div>
                         <p class="text-sm text-slate-600">
-                            {{ queueStore.isSystemOpen
-                                ? 'النظام يستقبل تذاكر جديدة ويسمح بنداء العملاء.'
-                                : (queueStore.system.closed_message || 'النظام مغلق ولا يمكن إصدار تذاكر جديدة.') }}
+                            {{ !queueStore.isSystemOpen
+                                ? (queueStore.system.closed_message || 'النظام مغلق ولا يمكن إصدار تذاكر جديدة.')
+                                : (queueStore.isDayOpen
+                                    ? 'النظام يستقبل طلبات جديدة والموظفين يقدروا يكملوا الشغل.'
+                                    : (queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم. النظام شغال لمتابعة الطلبات الحالية.')) }}
                         </p>
-                        <p v-if="queueStore.system.last_reset_at" class="mt-1 text-xs text-slate-500">
-                            آخر تصفير: {{ new Date(queueStore.system.last_reset_at).toLocaleString('ar-EG') }}
+                        <p v-if="queueStore.system.day_ended_at" class="mt-1 text-xs text-slate-500">
+                            آخر إنهاء لليوم: {{ new Date(queueStore.system.day_ended_at).toLocaleString('ar-EG') }}
+                        </p>
+                        <p v-else-if="queueStore.system.last_reset_at" class="mt-1 text-xs text-slate-500">
+                            آخر فتح لليوم: {{ new Date(queueStore.system.last_reset_at).toLocaleString('ar-EG') }}
                         </p>
                     </div>
 
@@ -161,16 +198,26 @@ onUnmounted(() => {
                             فتح النظام
                         </button>
                         <button
+                            v-if="queueStore.isDayOpen"
                             class="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-60"
                             :disabled="actionLoading"
-                            @click="showResetConfirm = true"
+                            @click="showEndDayConfirm = true"
                         >
-                            <RefreshCcw class="h-4 w-4" />
-                            تصفير اليوم
+                            <Archive class="h-4 w-4" />
+                            انتهاء اليوم
+                        </button>
+                        <button
+                            v-else
+                            class="flex items-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+                            :disabled="actionLoading"
+                            @click="showOpenDayConfirm = true"
+                        >
+                            <Power class="h-4 w-4" />
+                            فتح اليوم
                         </button>
                     </div>
                     <p v-else class="text-sm font-semibold text-slate-500">
-                        فتح النظام وإغلاقه وتصفير اليوم متاح للسوبر أدمن فقط.
+                        فتح النظام وإغلاقه وإنهاء اليوم متاح للسوبر أدمن فقط.
                     </p>
                 </div>
 
@@ -293,26 +340,54 @@ onUnmounted(() => {
         </main>
 
         <div
-            v-if="showResetConfirm"
+            v-if="showEndDayConfirm"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-6"
-            @click.self="showResetConfirm = false"
+            @click.self="showEndDayConfirm = false"
         >
             <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-                <h3 class="text-xl font-bold text-slate-900">تأكيد تصفير اليوم</h3>
+                <h3 class="text-xl font-bold text-slate-900">تأكيد انتهاء اليوم</h3>
                 <p class="mt-3 text-sm text-slate-600">
-                    سيتم حذف جميع تذاكر اليوم وإعادة العداد من 1. هذا الإجراء لا يمكن التراجع عنه.
+                    هيتوقف استقبال الناس الجديدة ويتأرشف اليوم. السيستم هيفضل شغال عشان تكملوا الطلبات الحالية، ومن غير ما يتقفل.
                 </p>
                 <div class="mt-6 flex gap-3">
                     <button
-                        class="flex-1 rounded-xl bg-red-600 py-3 font-bold text-white hover:bg-red-700 disabled:opacity-60"
+                        class="flex-1 rounded-xl bg-amber-600 py-3 font-bold text-white hover:bg-amber-700 disabled:opacity-60"
                         :disabled="actionLoading"
-                        @click="handleResetDay"
+                        @click="handleEndDay"
                     >
-                        {{ actionLoading ? 'جاري التصفير...' : 'تأكيد التصفير' }}
+                        {{ actionLoading ? 'جاري إنهاء اليوم...' : 'تأكيد انتهاء اليوم' }}
                     </button>
                     <button
                         class="flex-1 rounded-xl border border-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-                        @click="showResetConfirm = false"
+                        @click="showEndDayConfirm = false"
+                    >
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showOpenDayConfirm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-6"
+            @click.self="showOpenDayConfirm = false"
+        >
+            <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+                <h3 class="text-xl font-bold text-slate-900">تأكيد فتح اليوم</h3>
+                <p class="mt-3 text-sm text-slate-600">
+                    هيبدأ يوم جديد والعداد من الصفر. طلبات اليوم السابق هتفضل موجودة في الأرشيف.
+                </p>
+                <div class="mt-6 flex gap-3">
+                    <button
+                        class="flex-1 rounded-xl bg-blue-600 py-3 font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                        :disabled="actionLoading"
+                        @click="handleOpenDay"
+                    >
+                        {{ actionLoading ? 'جاري فتح اليوم...' : 'فتح اليوم' }}
+                    </button>
+                    <button
+                        class="flex-1 rounded-xl border border-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                        @click="showOpenDayConfirm = false"
                     >
                         إلغاء
                     </button>

@@ -7,7 +7,6 @@ use App\Events\QueueSystemUpdatedEvent;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -60,34 +59,71 @@ class QueueSystemService
         return $status;
     }
 
-    public function resetDay(User $admin): array
+    public function endDay(User $admin): array
     {
         abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
 
-        $deletedTickets = DB::transaction(function () use ($admin): int {
-            $count = QueueTicket::query()->today()->count();
+        $settings = QueueSystemSetting::current();
 
-            QueueTicket::query()->today()->delete();
-            QueueTicket::forgetPublicStatusCache();
-
-            $settings = QueueSystemSetting::current();
-            $settings->update([
-                'last_reset_at' => now(),
-                'last_reset_by' => $admin->id,
+        if (! $settings->isDayOpen()) {
+            throw ValidationException::withMessages([
+                'system' => 'تم إنهاء اليوم بالفعل.',
             ]);
+        }
 
-            return $count;
-        });
+        $archivedTickets = QueueTicket::query()->today()->count();
 
-        $resetAt = now()->toIso8601String();
+        $settings->update([
+            'day_ended_at' => now(),
+            'day_ended_by' => $admin->id,
+        ]);
 
-        $this->broadcastSafely(new QueueDayResetEvent($deletedTickets, $resetAt));
-        $this->broadcastSafely(new QueueSystemUpdatedEvent($this->getStatus()));
+        $status = $this->formatStatus($settings->fresh());
+
+        $this->broadcastSafely(new QueueSystemUpdatedEvent($status));
 
         return [
-            'deleted_tickets' => $deletedTickets,
-            'reset_at' => $resetAt,
-            'system' => $this->getStatus(),
+            'archived_tickets' => $archivedTickets,
+            'ended_at' => $status['day_ended_at'],
+            'system' => $status,
+        ];
+    }
+
+    public function openDay(User $admin): array
+    {
+        abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
+
+        $settings = QueueSystemSetting::current();
+
+        if ($settings->isDayOpen()) {
+            throw ValidationException::withMessages([
+                'system' => 'اليوم مفتوح بالفعل. أنهِ اليوم الحالي أولاً قبل فتح يوم جديد.',
+            ]);
+        }
+
+        QueueTicket::forgetPublicStatusCache();
+
+        $openedAt = now()->startOfSecond();
+
+        $settings->update([
+            'current_session_started_at' => $openedAt,
+            'day_ended_at' => null,
+            'day_ended_by' => null,
+            'last_reset_at' => $openedAt,
+            'last_reset_by' => $admin->id,
+        ]);
+
+        QueueTicket::forgetPublicStatusCache();
+
+        $status = $this->formatStatus($settings->fresh());
+        $openedAtIso = $openedAt->toIso8601String();
+
+        $this->broadcastSafely(new QueueDayResetEvent(0, $openedAtIso));
+        $this->broadcastSafely(new QueueSystemUpdatedEvent($status));
+
+        return [
+            'opened_at' => $openedAtIso,
+            'system' => $status,
         ];
     }
 
@@ -102,18 +138,41 @@ class QueueSystemService
         }
     }
 
+    public function assertAcceptingTickets(): void
+    {
+        $this->assertSystemOpen();
+
+        $settings = QueueSystemSetting::current();
+
+        if (! $settings->isDayOpen()) {
+            throw ValidationException::withMessages([
+                'system' => 'انتهى استقبال الطلبات اليوم.',
+            ]);
+        }
+    }
+
     public function isOpen(): bool
     {
         return QueueSystemSetting::current()->is_open;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function formatStatus(QueueSystemSetting $settings): array
     {
+        $dayOpen = $settings->isDayOpen();
+
         return [
             'is_open' => $settings->is_open,
+            'is_day_open' => $dayOpen,
+            'accepting_tickets' => $settings->is_open && $dayOpen,
             'closed_message' => $settings->closed_message,
             'closed_at' => $settings->closed_at?->toIso8601String(),
+            'day_ended_at' => $settings->day_ended_at?->toIso8601String(),
+            'day_ended_message' => $dayOpen ? null : 'انتهى استقبال الطلبات اليوم. يمكن متابعة الطلبات الحالية.',
             'last_reset_at' => $settings->last_reset_at?->toIso8601String(),
+            'current_session_started_at' => $settings->currentSessionStartedAt()->toIso8601String(),
         ];
     }
 

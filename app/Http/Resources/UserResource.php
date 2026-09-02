@@ -33,6 +33,8 @@ class UserResource extends JsonResource
             'permissions' => [
                 'manage_users' => $this->role->canManageUsers(),
                 'control_system' => $this->role->canControlSystem(),
+                'edit_tickets' => $this->role->canEditTickets(),
+                'delete_tickets' => $this->role->canDeleteTickets(),
             ],
         ];
     }

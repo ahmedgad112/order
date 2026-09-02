@@ -10,6 +10,7 @@ import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
+import TicketEditForm from '../components/TicketEditForm.vue';
 
 const queueStore = useQueueStore();
 
@@ -32,6 +33,7 @@ const stepOptions = [
 const processBusyId = ref(null);
 const busyStep = ref(null);
 const deletingId = ref(null);
+const editingId = ref(null);
 const feedback = ref('');
 const actionError = ref('');
 
@@ -167,6 +169,28 @@ async function handleDelete(ticket) {
     }
 }
 
+async function handleEdit(ticket) {
+    editingId.value = ticket.id;
+    feedback.value = '';
+    actionError.value = '';
+    try {
+        const result = await queueStore.updateTicket(ticket.id, {
+            full_name: ticket.full_name,
+            national_id: ticket.national_id,
+            order_number: ticket.order_number,
+        });
+        feedback.value = result.message;
+        await loadTickets();
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.national_id?.[0]
+            ?? err.response?.data?.errors?.full_name?.[0]
+            ?? 'تعذر تعديل الطلب.';
+    } finally {
+        editingId.value = null;
+    }
+}
+
 function onQueueUpdate() {
     if (isToday.value) {
         loadTickets();
@@ -195,6 +219,7 @@ onMounted(() => {
         TicketAbsent: onQueueUpdate,
         TicketRestored: onQueueUpdate,
         TicketDeleted: onQueueUpdate,
+        TicketUpdated: onQueueUpdate,
         QueueDayReset: onQueueUpdate,
     });
 
@@ -397,8 +422,9 @@ onUnmounted(() => {
                                 <dd class="text-slate-700">{{ formatRegisteredAt(ticket.created_at) }}</dd>
                             </div>
                         </dl>
-                        <div v-if="isToday" class="mt-4 border-t border-slate-200/80 pt-3">
+                        <div class="mt-4 space-y-2 border-t border-slate-200/80 pt-3">
                             <TicketProcessActions
+                                v-if="isToday"
                                 :ticket="ticket"
                                 :busy-id="processBusyId"
                                 :busy-step="busyStep"
@@ -406,8 +432,12 @@ onUnmounted(() => {
                                 compact
                                 @mark="handleProcessMark(ticket, $event)"
                             />
+                            <TicketEditForm
+                                :ticket="ticket"
+                                :busy="editingId === ticket.id"
+                                @save="handleEdit"
+                            />
                             <TicketDeleteButton
-                                class="mt-2"
                                 :ticket="ticket"
                                 :busy="deletingId === ticket.id"
                                 @delete="handleDelete"

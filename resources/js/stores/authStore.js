@@ -16,6 +16,8 @@ export const useAuthStore = defineStore('auth', () => {
     const isTeller = computed(() => user.value?.role === 'teller');
     const canManageUsers = computed(() => user.value?.permissions?.manage_users === true);
     const canControlSystem = computed(() => user.value?.permissions?.control_system === true);
+    const canEditTickets = computed(() => user.value?.permissions?.edit_tickets === true);
+    const canDeleteTickets = computed(() => user.value?.permissions?.delete_tickets === true);
     const homeRoute = computed(() => (isAdmin.value ? 'admin' : 'teller'));
 
     async function bootstrap() {
@@ -91,6 +93,8 @@ export const useAuthStore = defineStore('auth', () => {
         isTeller,
         canManageUsers,
         canControlSystem,
+        canEditTickets,
+        canDeleteTickets,
         homeRoute,
         bootstrap,
         login,

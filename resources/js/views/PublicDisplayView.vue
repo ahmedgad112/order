@@ -90,6 +90,13 @@ onUnmounted(() => {
             <Lock class="mx-auto mb-2 h-6 w-6" />
             {{ queueStore.system.closed_message || 'النظام مغلق حالياً' }}
         </div>
+        <div
+            v-else-if="!queueStore.isDayOpen"
+            class="border-b border-amber-800 bg-amber-900/40 px-8 py-4 text-center text-amber-100"
+        >
+            <Lock class="mx-auto mb-2 h-6 w-6" />
+            {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم' }}
+        </div>
 
         <div class="grid min-h-[calc(100vh-6rem)] grid-cols-1 gap-6 p-6 lg:grid-cols-3">
             <section class="lg:col-span-2">

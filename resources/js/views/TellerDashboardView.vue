@@ -14,6 +14,7 @@ import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
+import TicketEditForm from '../components/TicketEditForm.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -24,6 +25,7 @@ const processBusyId = ref(null);
 const busyStep = ref(null);
 const absentId = ref(null);
 const deletingId = ref(null);
+const editingId = ref(null);
 const search = ref('');
 const stepFilter = ref('all');
 const loading = ref(false);
@@ -221,6 +223,27 @@ async function handleDelete(ticket) {
     }
 }
 
+async function handleEdit(ticket) {
+    editingId.value = ticket.id;
+    actionError.value = '';
+    try {
+        const result = await queueStore.updateTicket(ticket.id, {
+            full_name: ticket.full_name,
+            national_id: ticket.national_id,
+            order_number: ticket.order_number,
+        });
+        actionMessage.value = result.message;
+        await loadTickets();
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.national_id?.[0]
+            ?? err.response?.data?.errors?.full_name?.[0]
+            ?? 'تعذر تعديل الطلب.';
+    } finally {
+        editingId.value = null;
+    }
+}
+
 function tellerLabel(ticket) {
     if (ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name) {
         return `${ticket.teller_name} — ${ticket.counter_name}`;
@@ -275,6 +298,7 @@ onMounted(() => {
         TicketAbsent: () => loadTickets(true),
         TicketRestored: () => loadTickets(true),
         TicketDeleted: () => loadTickets(true),
+        TicketUpdated: () => loadTickets(true),
         QueueDayReset: () => loadTickets(true),
     });
 
@@ -303,6 +327,15 @@ onUnmounted(() => {
                 <div class="flex items-center gap-2 font-semibold">
                     <Lock class="h-4 w-4" />
                     النظام مغلق — يمكن تسليم الملفات للتذاكر اللي دخلت بالفعل فقط.
+                </div>
+            </div>
+            <div
+                v-else-if="!queueStore.isDayOpen"
+                class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
+            >
+                <div class="flex items-center gap-2 font-semibold">
+                    <Lock class="h-4 w-4" />
+                    {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم — النظام شغال لمتابعة الطلبات الحالية.' }}
                 </div>
             </div>
 
@@ -485,6 +518,11 @@ onUnmounted(() => {
                                 <RotateCcw class="h-4 w-4" />
                                 {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
                             </button>
+                            <TicketEditForm
+                                :ticket="ticket"
+                                :busy="editingId === ticket.id"
+                                @save="handleEdit"
+                            />
                             <TicketDeleteButton
                                 :ticket="ticket"
                                 :busy="deletingId === ticket.id"
@@ -548,6 +586,12 @@ onUnmounted(() => {
                             <RotateCcw class="h-4 w-4" />
                             {{ restoringId === ticket.id ? 'جاري الإرجاع...' : 'إرجاع للطابور' }}
                         </button>
+                        <TicketEditForm
+                            class="mt-2"
+                            :ticket="ticket"
+                            :busy="editingId === ticket.id"
+                            @save="handleEdit"
+                        />
                         <TicketDeleteButton
                             class="mt-2"
                             :ticket="ticket"

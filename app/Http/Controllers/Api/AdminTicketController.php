@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateTicketRequest;
 use App\Http\Resources\AdminTicketResource;
 use App\Models\QueueTicket;
 use App\Services\QueueService;
@@ -74,6 +75,20 @@ class AdminTicketController extends Controller
 
         return response()->json([
             'message' => 'تم تسجيل طلب الدخول.',
+            'ticket' => new AdminTicketResource($ticket),
+        ]);
+    }
+
+    public function update(UpdateTicketRequest $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->updateTicket(
+            $ticket,
+            $request->safe()->only(['full_name', 'national_id', 'order_number']),
+            $request->user(),
+        );
+
+        return response()->json([
+            'message' => 'تم تعديل الطلب بنجاح.',
             'ticket' => new AdminTicketResource($ticket),
         ]);
     }

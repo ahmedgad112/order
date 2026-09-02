@@ -27,7 +27,7 @@ function requestDelete() {
 
 <template>
     <button
-        v-if="authStore.isSuperAdmin"
+        v-if="authStore.canDeleteTickets"
         type="button"
         class="flex w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
         :disabled="busy"

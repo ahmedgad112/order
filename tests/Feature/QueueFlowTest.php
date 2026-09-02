@@ -505,7 +505,7 @@ class QueueFlowTest extends TestCase
             ->assertJsonPath('system.closed_message', 'مغلق');
     }
 
-    public function test_admin_can_mark_entered_and_reset_day(): void
+    public function test_admin_can_mark_entered_and_end_day_without_deleting_tickets(): void
     {
         QueueSystemSetting::current();
         $admin = User::factory()->admin()->create();
@@ -522,11 +522,15 @@ class QueueFlowTest extends TestCase
 
         QueueTicket::factory()->waiting()->create(['ticket_number' => 2]);
 
-        $reset = $this->postJson('/api/admin/system/reset-day');
-        $reset->assertOk()
-            ->assertJsonPath('deleted_tickets', 2);
+        $ended = $this->postJson('/api/admin/system/end-day');
+        $ended->assertOk()
+            ->assertJsonPath('archived_tickets', 2)
+            ->assertJsonPath('system.is_open', true)
+            ->assertJsonPath('system.is_day_open', false)
+            ->assertJsonPath('system.accepting_tickets', false);
 
-        $this->assertDatabaseCount('queue_tickets', 0);
+        $this->assertDatabaseCount('queue_tickets', 2);
+        $this->assertNotNull(QueueSystemSetting::query()->first()?->day_ended_at);
     }
 
     public function test_role_middleware_blocks_teller_from_admin_routes(): void
@@ -661,7 +665,9 @@ class QueueFlowTest extends TestCase
         $this->getJson('/api/me')
             ->assertOk()
             ->assertJsonPath('user.permissions.manage_users', false)
-            ->assertJsonPath('user.permissions.control_system', false);
+            ->assertJsonPath('user.permissions.control_system', false)
+            ->assertJsonPath('user.permissions.edit_tickets', true)
+            ->assertJsonPath('user.permissions.delete_tickets', false);
         $this->getJson('/api/admin/dashboard')->assertOk();
         $this->getJson('/api/admin/system/status')->assertOk();
         $this->getJson('/api/admin/tickets')->assertOk();
@@ -670,7 +676,8 @@ class QueueFlowTest extends TestCase
         $this->getJson('/api/admin/users')->assertForbidden();
         $this->postJson('/api/admin/system/close')->assertForbidden();
         $this->postJson('/api/admin/system/open')->assertForbidden();
-        $this->postJson('/api/admin/system/reset-day')->assertForbidden();
+        $this->postJson('/api/admin/system/end-day')->assertForbidden();
+        $this->postJson('/api/admin/system/open-day')->assertForbidden();
         $this->postJson('/api/admin/users', [
             'name' => 'موظف جديد',
             'email' => 'new-teller@queue.local',
@@ -698,7 +705,9 @@ class QueueFlowTest extends TestCase
         $this->getJson('/api/me')
             ->assertOk()
             ->assertJsonPath('user.permissions.manage_users', true)
-            ->assertJsonPath('user.permissions.control_system', true);
+            ->assertJsonPath('user.permissions.control_system', true)
+            ->assertJsonPath('user.permissions.edit_tickets', true)
+            ->assertJsonPath('user.permissions.delete_tickets', true);
     }
 
     public function test_admin_dashboard_returns_metrics_and_teller_performance(): void
@@ -815,5 +824,90 @@ class QueueFlowTest extends TestCase
             TicketDeletedEvent::class,
             fn (TicketDeletedEvent $event): bool => $event->ticketId === $ticket->id && $event->ticketNumber === 7,
         );
+    }
+
+    public function test_returns_401_when_guest_updates_a_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $ticket = QueueTicket::factory()->waiting()->create(['ticket_number' => 1]);
+
+        $this->putJson('/api/admin/tickets/'.$ticket->id, [
+            'full_name' => 'اسم معدل',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-9999',
+        ])->assertUnauthorized();
+    }
+
+    public function test_returns_403_when_teller_updates_a_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'الاسم الأصلي',
+        ]);
+        Sanctum::actingAs($teller);
+
+        $this->putJson('/api/admin/tickets/'.$ticket->id, [
+            'full_name' => 'اسم معدل',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-9999',
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticket->id,
+            'full_name' => 'الاسم الأصلي',
+        ]);
+    }
+
+    public function test_manager_can_update_a_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $manager = User::factory()->manager()->create();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 4,
+            'full_name' => 'الاسم الأصلي',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-1001',
+        ]);
+        Sanctum::actingAs($manager);
+
+        $this->putJson('/api/admin/tickets/'.$ticket->id, [
+            'full_name' => 'محمد المعدل',
+            'national_id' => '29501017654321',
+            'order_number' => 'ORD-2002',
+        ])
+            ->assertOk()
+            ->assertJsonPath('ticket.full_name', 'محمد المعدل')
+            ->assertJsonPath('ticket.national_id', '29501017654321')
+            ->assertJsonPath('ticket.order_number', 'ORD-2002');
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticket->id,
+            'full_name' => 'محمد المعدل',
+            'national_id' => '29501017654321',
+            'order_number' => 'ORD-2002',
+        ]);
+    }
+
+    public function test_super_admin_can_update_a_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $superAdmin = User::factory()->superAdmin()->create();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 5,
+            'full_name' => 'قبل التعديل',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-1001',
+        ]);
+        Sanctum::actingAs($superAdmin);
+
+        $this->putJson('/api/admin/tickets/'.$ticket->id, [
+            'full_name' => 'بعد التعديل',
+            'national_id' => '29501011234567',
+            'order_number' => 'ORD-1001',
+        ])
+            ->assertOk()
+            ->assertJsonPath('ticket.full_name', 'بعد التعديل');
     }
 }

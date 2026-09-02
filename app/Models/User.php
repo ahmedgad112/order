@@ -64,6 +64,16 @@ class User extends Authenticatable
         return $this->role->canControlSystem();
     }
 
+    public function canEditTickets(): bool
+    {
+        return $this->role->canEditTickets();
+    }
+
+    public function canDeleteTickets(): bool
+    {
+        return $this->role->canDeleteTickets();
+    }
+
     public function canAssignRole(UserRole $role): bool
     {
         return $this->role->canAssign($role);

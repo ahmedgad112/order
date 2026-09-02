@@ -139,7 +139,7 @@ onMounted(() => {
         },
         QueueDayReset: () => {
             trackedTicket.value = null;
-            fieldError.value = 'تم تصفير اليوم. يرجى التحقق من تذكرتك مرة أخرى.';
+            fieldError.value = 'تم فتح يوم جديد. تذكرتك أصبحت في الأرشيف.';
         },
     });
 
@@ -312,6 +312,12 @@ watch(searchType, () => {
                 class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-center text-sm text-red-700"
             >
                 {{ queueStore.system.closed_message || 'النظام مغلق حالياً' }}
+            </div>
+            <div
+                v-else-if="!queueStore.isDayOpen"
+                class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-center text-sm text-amber-800"
+            >
+                {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم' }}
             </div>
         </main>
     </div>

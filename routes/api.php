@@ -51,13 +51,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/reports/teller-performance', [AdminReportController::class, 'tellerPerformance']);
         Route::get('/tellers', [AdminReportController::class, 'tellers']);
         Route::get('/tickets', [AdminTicketController::class, 'index']);
+        Route::put('/tickets/{ticket}', [AdminTicketController::class, 'update']);
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
     });
 
     Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
         Route::post('/system/close', [AdminSystemController::class, 'close']);
         Route::post('/system/open', [AdminSystemController::class, 'open']);
-        Route::post('/system/reset-day', [AdminSystemController::class, 'resetDay']);
+        Route::post('/system/end-day', [AdminSystemController::class, 'endDay']);
+        Route::post('/system/open-day', [AdminSystemController::class, 'openDay']);
         Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);
