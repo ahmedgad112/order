@@ -296,7 +296,7 @@ watch(searchType, () => {
 
                 <div class="p-8 text-center">
                     <p class="text-sm text-slate-500">رقم تذكرتك</p>
-                    <p class="my-3 text-7xl font-black text-indigo-600">{{ trackedTicket.ticket_number }}</p>
+                    <p class="my-3 text-7xl font-black text-indigo-600" dir="ltr">{{ trackedTicket.ticket_number }}</p>
                     <p class="text-lg font-semibold text-slate-800">{{ trackedTicket.masked_name }}</p>
                     <span
                         class="mt-4 inline-block rounded-full px-4 py-1.5 text-sm font-bold"

@@ -45,6 +45,7 @@ class QueueTicketFactory extends Factory
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
             'completed_at' => null,
@@ -59,6 +60,7 @@ class QueueTicketFactory extends Factory
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
             'completed_at' => null,
@@ -88,6 +90,7 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now(),
             'entered_at' => now(),
+            'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
             'completed_at' => null,
@@ -102,6 +105,7 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now()->subMinutes(3),
             'entered_at' => now()->subMinutes(3),
+            'documents_reviewed_at' => null,
             'medical_checked_at' => now()->subMinutes(2),
             'face_printed_at' => null,
             'completed_at' => null,
@@ -116,6 +120,7 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now()->subMinutes(4),
             'entered_at' => now()->subMinutes(4),
+            'documents_reviewed_at' => null,
             'medical_checked_at' => now()->subMinutes(3),
             'face_printed_at' => now()->subMinutes(2),
             'completed_at' => null,
@@ -130,10 +135,26 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now()->subMinutes(5),
             'entered_at' => now()->subMinutes(5),
+            'documents_reviewed_at' => null,
             'medical_checked_at' => now()->subMinutes(4),
             'face_printed_at' => now()->subMinutes(3),
             'completed_at' => now(),
             'file_delivered_at' => now()->subMinutes(1),
+        ]);
+    }
+
+    public function documentsReviewed(?User $teller = null): static
+    {
+        return $this->state(fn () => [
+            'status' => TicketStatus::Serving,
+            'user_id' => $teller?->id,
+            'called_at' => now()->subMinutes(3),
+            'entered_at' => now()->subMinutes(3),
+            'documents_reviewed_at' => now()->subMinutes(2),
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
+            'completed_at' => null,
+            'file_delivered_at' => null,
         ]);
     }
 }

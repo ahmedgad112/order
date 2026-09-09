@@ -39,6 +39,7 @@ use Illuminate\Support\Str;
     'user_id',
     'called_at',
     'entered_at',
+    'documents_reviewed_at',
     'medical_checked_at',
     'face_printed_at',
     'completed_at',
@@ -86,6 +87,7 @@ class QueueTicket extends Model
             'session_started_at' => 'datetime',
             'called_at' => 'datetime',
             'entered_at' => 'datetime',
+            'documents_reviewed_at' => 'datetime',
             'medical_checked_at' => 'datetime',
             'face_printed_at' => 'datetime',
             'completed_at' => 'datetime',
@@ -101,6 +103,21 @@ class QueueTicket extends Model
     public function isCurrentStudent(): bool
     {
         return $this->student_kind === StudentKind::CurrentStudent;
+    }
+
+    public function ticketPrefix(): string
+    {
+        return ($this->student_kind ?? StudentKind::NewStudent)->ticketPrefix();
+    }
+
+    public function ticketCode(): string
+    {
+        return $this->ticketPrefix().$this->ticket_number;
+    }
+
+    public function usesAdmissionProcess(): bool
+    {
+        return ! $this->isCurrentStudent();
     }
 
     public function queueLaneValue(): ?string
@@ -227,6 +244,7 @@ class QueueTicket extends Model
      *     waiting: int,
      *     serving: int,
      *     entered: int,
+     *     documents_reviewed: int,
      *     medical_checked: int,
      *     face_printed: int,
      *     file_delivered: int,
@@ -247,6 +265,7 @@ class QueueTicket extends Model
             ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) as waiting', [TicketStatus::Waiting->value])
             ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) as serving', [TicketStatus::Serving->value])
             ->selectRaw('COUNT(CASE WHEN entered_at IS NOT NULL THEN 1 END) as entered')
+            ->selectRaw('COUNT(CASE WHEN documents_reviewed_at IS NOT NULL THEN 1 END) as documents_reviewed')
             ->selectRaw('COUNT(CASE WHEN medical_checked_at IS NOT NULL THEN 1 END) as medical_checked')
             ->selectRaw('COUNT(CASE WHEN face_printed_at IS NOT NULL THEN 1 END) as face_printed')
             ->selectRaw('COUNT(CASE WHEN file_delivered_at IS NOT NULL THEN 1 END) as file_delivered')
@@ -265,6 +284,7 @@ class QueueTicket extends Model
             'waiting' => (int) ($row->waiting ?? 0),
             'serving' => (int) ($row->serving ?? 0),
             'entered' => (int) ($row->entered ?? 0),
+            'documents_reviewed' => (int) ($row->documents_reviewed ?? 0),
             'medical_checked' => (int) ($row->medical_checked ?? 0),
             'face_printed' => (int) ($row->face_printed ?? 0),
             'file_delivered' => (int) ($row->file_delivered ?? 0),
@@ -282,6 +302,7 @@ class QueueTicket extends Model
      *     waiting: int,
      *     serving: int,
      *     entered: int,
+     *     documents_reviewed: int,
      *     medical_checked: int,
      *     face_printed: int,
      *     file_delivered: int,
@@ -358,7 +379,33 @@ class QueueTicket extends Model
      */
     public static function processStepValues(): array
     {
-        return ['entered', 'medical_checked', 'face_printed', 'file_delivered'];
+        return ['entered', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
+    }
+
+    public function scopeForAdmissionProcess(Builder $query): Builder
+    {
+        return $query->where(function (Builder $kindQuery): void {
+            $kindQuery
+                ->where('student_kind', StudentKind::NewStudent)
+                ->orWhereNull('student_kind');
+        });
+    }
+
+    public function scopeForCurrentStudentProcess(Builder $query): Builder
+    {
+        return $query->where('student_kind', StudentKind::CurrentStudent);
+    }
+
+    public function scopeForStudentKindSeries(Builder $query, StudentKind $kind): Builder
+    {
+        return $kind === StudentKind::CurrentStudent
+            ? $query->forCurrentStudentProcess()
+            : $query->forAdmissionProcess();
+    }
+
+    public function scopeInQueueOrder(Builder $query): Builder
+    {
+        return $query->orderBy('id');
     }
 
     public function scopeAtProcessStep(Builder $query, string $step): Builder
@@ -367,18 +414,37 @@ class QueueTicket extends Model
             'entered' => $query
                 ->whereIn('status', TicketStatus::activeValues())
                 ->whereNull('entered_at'),
+            'documents_reviewed' => $query
+                ->forCurrentStudentProcess()
+                ->whereNotNull('entered_at')
+                ->whereNull('documents_reviewed_at')
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
             'medical_checked' => $query
+                ->forAdmissionProcess()
                 ->whereNotNull('entered_at')
                 ->whereNull('medical_checked_at')
                 ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
             'face_printed' => $query
+                ->forAdmissionProcess()
                 ->whereNotNull('medical_checked_at')
                 ->whereNull('face_printed_at')
                 ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
             'file_delivered' => $query
-                ->whereNotNull('face_printed_at')
                 ->whereNull('file_delivered_at')
-                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent])
+                ->where(function (Builder $readyToDeliver): void {
+                    $readyToDeliver
+                        ->where(function (Builder $admission): void {
+                            $admission
+                                ->forAdmissionProcess()
+                                ->whereNotNull('face_printed_at');
+                        })
+                        ->orWhere(function (Builder $current): void {
+                            $current
+                                ->forCurrentStudentProcess()
+                                ->whereNotNull('documents_reviewed_at');
+                        });
+                }),
             default => $query,
         };
     }
@@ -397,7 +463,18 @@ class QueueTicket extends Model
             },
         ));
 
-        return $query->where(function (Builder $q) use ($search, $matchingCollegeValues): void {
+        $ticketCode = strtoupper(trim($search));
+        $ticketCodeKind = null;
+        $ticketCodeNumber = null;
+
+        if (preg_match('/^([NO])(\d+)$/', $ticketCode, $matches) === 1) {
+            $ticketCodeKind = $matches[1] === 'O'
+                ? StudentKind::CurrentStudent
+                : StudentKind::NewStudent;
+            $ticketCodeNumber = (int) $matches[2];
+        }
+
+        return $query->where(function (Builder $q) use ($search, $matchingCollegeValues, $ticketCodeKind, $ticketCodeNumber): void {
             $q->where('full_name', 'like', "%{$search}%")
                 ->orWhere('national_id', 'like', "%{$search}%")
                 ->orWhere('order_number', 'like', "%{$search}%")
@@ -405,6 +482,20 @@ class QueueTicket extends Model
                 ->orWhere('department', 'like', "%{$search}%")
                 ->orWhere('ticket_number', 'like', "%{$search}%")
                 ->orWhere('college', 'like', "%{$search}%")
+                ->when(
+                    $ticketCodeKind instanceof StudentKind && $ticketCodeNumber !== null,
+                    function (Builder $codeQuery) use ($ticketCodeKind, $ticketCodeNumber): void {
+                        if (! $ticketCodeKind instanceof StudentKind || $ticketCodeNumber === null) {
+                            return;
+                        }
+
+                        $codeQuery->orWhere(function (Builder $seriesQuery) use ($ticketCodeKind, $ticketCodeNumber): void {
+                            $seriesQuery
+                                ->forStudentKindSeries($ticketCodeKind)
+                                ->where('ticket_number', $ticketCodeNumber);
+                        });
+                    },
+                )
                 ->when(
                     $matchingCollegeValues !== [],
                     fn (Builder $collegeQuery) => $collegeQuery->orWhereIn('college', $matchingCollegeValues),

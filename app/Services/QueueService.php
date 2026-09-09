@@ -34,12 +34,13 @@ class QueueService
         $this->systemService->assertAcceptingTickets();
         $ticket = DB::transaction(function () use ($data): QueueTicket {
             $sessionStartedAt = QueueTicket::currentSessionStartedAt();
+            $studentKind = StudentKind::from($data['student_kind'] ?? StudentKind::NewStudent->value);
             $maxNumber = QueueTicket::query()
                 ->today()
+                ->forStudentKindSeries($studentKind)
                 ->lockForUpdate()
-                ->max('ticket_number');
-
-            $studentKind = StudentKind::from($data['student_kind'] ?? StudentKind::NewStudent->value);
+                ->orderByDesc('ticket_number')
+                ->value('ticket_number');
 
             $attributes = [
                 'ticket_number' => ($maxNumber ?? 0) + 1,
@@ -101,7 +102,7 @@ class QueueService
             $query = QueueTicket::query()
                 ->today()
                 ->waiting()
-                ->orderBy('ticket_number')
+                ->inQueueOrder()
                 ->lockForUpdate();
 
             $this->constrainToAssignedLanes($query, $teller);
@@ -186,7 +187,7 @@ class QueueService
         abort_unless($admin->canDeleteTickets(), 403, 'ليس لديك صلاحية للوصول.');
 
         $ticketId = $ticket->id;
-        $ticketNumber = $ticket->ticket_number;
+        $ticketNumber = $ticket->ticketCode();
         $documentPath = $ticket->document_path;
 
         $ticket->delete();
@@ -222,7 +223,7 @@ class QueueService
             ]);
         }
 
-        $this->broadcastSafely(new TicketUpdatedEvent($ticket->id, $ticket->ticket_number));
+        $this->broadcastSafely(new TicketUpdatedEvent($ticket->id, $ticket->ticketCode()));
 
         return $ticket->fresh(['teller']);
     }
@@ -289,6 +290,7 @@ class QueueService
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
             'completed_at' => null,
@@ -343,10 +345,37 @@ class QueueService
         return $ticket->fresh(['teller']);
     }
 
+    public function markDocumentsReviewed(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
+
+        if (! $ticket->isCurrentStudent()) {
+            throw ValidationException::withMessages([
+                'ticket' => 'مراجعة الورق متاحة لطلبات الطالب الحالي فقط.',
+            ]);
+        }
+
+        $this->assertCheckpointNotAlreadySet($ticket->documents_reviewed_at, 'تم تسجيل مراجعة الورق لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل مراجعة الورق.');
+
+        $ticket->update([
+            ...$this->servingAssignment($ticket, $teller),
+            'documents_reviewed_at' => now(),
+        ]);
+
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
     public function markMedicalChecked(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
         $this->assertTicketIsProcessable($ticket);
+        $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->medical_checked_at, 'تم تسجيل الكشف الطبي لهذه التذكرة مسبقاً.');
         $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
 
@@ -366,6 +395,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertTicketIsProcessable($ticket);
+        $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->face_printed_at, 'تم تسجيل بصمة الوجه لهذه التذكرة مسبقاً.');
         $this->assertPreviousCheckpoint($ticket->medical_checked_at, 'سجّل الكشف الطبي أولاً قبل بصمة الوجه.');
 
@@ -386,7 +416,12 @@ class QueueService
         $this->assertActiveStaff($teller);
         $this->assertTicketIsProcessable($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->file_delivered_at, 'تم تسليم الملف لهذه التذكرة مسبقاً.');
-        $this->assertPreviousCheckpoint($ticket->face_printed_at, 'سجّل بصمة الوجه أولاً قبل تسليم الملف.');
+
+        if ($ticket->isCurrentStudent()) {
+            $this->assertPreviousCheckpoint($ticket->documents_reviewed_at, 'سجّل مراجعة الورق أولاً قبل تسليم الملف.');
+        } else {
+            $this->assertPreviousCheckpoint($ticket->face_printed_at, 'سجّل بصمة الوجه أولاً قبل تسليم الملف.');
+        }
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -414,7 +449,7 @@ class QueueService
         $query = QueueTicket::query()
             ->today()
             ->with('teller')
-            ->orderBy('ticket_number');
+            ->inQueueOrder();
 
         $this->constrainToAssignedLanes($query, $teller);
 
@@ -499,7 +534,7 @@ class QueueService
             $peopleAhead = QueueTicket::query()
                 ->today()
                 ->waiting()
-                ->where('ticket_number', '<', $ticket->ticket_number)
+                ->where('id', '<', $ticket->id)
                 ->count();
 
             $positionInQueue = $peopleAhead + 1;
@@ -528,7 +563,7 @@ class QueueService
             $waiting = QueueTicket::query()
                 ->today()
                 ->waiting()
-                ->orderBy('ticket_number')
+                ->inQueueOrder()
                 ->limit(10)
                 ->get();
 
@@ -576,6 +611,15 @@ class QueueService
         if (in_array($ticket->status, [TicketStatus::Cancelled, TicketStatus::Absent], true)) {
             throw ValidationException::withMessages([
                 'ticket' => 'لا يمكن تحديث هذه التذكرة.',
+            ]);
+        }
+    }
+
+    private function assertAdmissionProcess(QueueTicket $ticket): void
+    {
+        if (! $ticket->usesAdmissionProcess()) {
+            throw ValidationException::withMessages([
+                'ticket' => 'الكشف الطبي وبصمة الوجه غير مطلوبين للطالب الحالي.',
             ]);
         }
     }

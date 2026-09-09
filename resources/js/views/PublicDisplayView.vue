@@ -29,7 +29,7 @@ function formatDate() {
 }
 
 function formatTicketNumber(number) {
-    return String(number ?? '').padStart(3, '0');
+    return String(number ?? '');
 }
 
 function displayName(ticket) {
@@ -226,6 +226,7 @@ onUnmounted(() => {
 
                             <p
                                 class="my-4 text-center font-black tracking-tight text-blue-700"
+                                dir="ltr"
                                 :class="queueStore.serving.length === 1 ? 'text-8xl sm:text-9xl' : 'text-7xl'"
                             >
                                 {{ formatTicketNumber(ticket.ticket_number) }}
@@ -278,7 +279,7 @@ onUnmounted(() => {
                                     </p>
                                 </div>
                             </div>
-                            <span class="font-mono text-2xl font-black text-amber-600">
+                            <span class="font-mono text-2xl font-black text-amber-600" dir="ltr">
                                 {{ formatTicketNumber(ticket.ticket_number) }}
                             </span>
                         </li>

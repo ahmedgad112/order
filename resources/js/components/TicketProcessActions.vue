@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import {
     CheckCircle2,
+    FileText,
     FolderCheck,
     ScanFace,
     Stethoscope,
@@ -18,7 +19,9 @@ const props = defineProps({
 
 const emit = defineEmits(['mark']);
 
-const steps = [
+const isCurrentStudent = computed(() => props.ticket.student_kind === 'current_student');
+
+const admissionSteps = [
     {
         key: 'entered',
         label: 'طلب دخول',
@@ -62,6 +65,46 @@ const steps = [
     },
 ];
 
+const currentStudentSteps = [
+    {
+        key: 'entered',
+        label: 'دخول',
+        doneLabel: 'تم الدخول',
+        icon: UserCheck,
+        buttonClass: 'bg-blue-600 hover:bg-blue-700 text-white',
+        doneClass: 'text-blue-700',
+        requiresSystem: true,
+    },
+    {
+        key: 'documents_reviewed',
+        label: 'مراجعة ورق',
+        doneLabel: 'تمت المراجعة',
+        icon: FileText,
+        buttonClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',
+        doneClass: 'text-indigo-700',
+    },
+    {
+        key: 'file_delivered',
+        label: 'تسليم',
+        doneLabel: 'تم التسليم',
+        icon: FolderCheck,
+        buttonClass: 'bg-green-600 hover:bg-green-700 text-white',
+        doneClass: 'text-green-700',
+    },
+    {
+        key: 'completed',
+        label: 'اكتمال',
+        doneLabel: 'مكتمل',
+        icon: CheckCircle2,
+        buttonClass: 'bg-emerald-700 hover:bg-emerald-800 text-white',
+        doneClass: 'text-emerald-700',
+    },
+];
+
+const steps = computed(() => (
+    isCurrentStudent.value ? currentStudentSteps : admissionSteps
+));
+
 const isClosed = computed(() => ['cancelled', 'absent'].includes(props.ticket.status));
 const isBusyTicket = computed(() => props.busyId === props.ticket.id);
 
@@ -70,6 +113,9 @@ function isDone(step) {
 
     if (step.key === 'entered') {
         return Boolean(ticket.has_entered);
+    }
+    if (step.key === 'documents_reviewed') {
+        return Boolean(ticket.has_documents_reviewed);
     }
     if (step.key === 'medical_checked') {
         return Boolean(ticket.has_medical_checked);
@@ -96,6 +142,9 @@ function canMark(step) {
     if (step.key === 'entered') {
         return ['waiting', 'serving'].includes(props.ticket.status) && !props.ticket.has_entered;
     }
+    if (step.key === 'documents_reviewed') {
+        return Boolean(props.ticket.has_entered) && !props.ticket.has_documents_reviewed;
+    }
     if (step.key === 'medical_checked') {
         return Boolean(props.ticket.has_entered) && !props.ticket.has_medical_checked;
     }
@@ -103,7 +152,11 @@ function canMark(step) {
         return Boolean(props.ticket.has_medical_checked) && !props.ticket.has_face_printed;
     }
     if (step.key === 'file_delivered') {
-        return Boolean(props.ticket.has_face_printed) && !props.ticket.file_delivered;
+        const previousDone = isCurrentStudent.value
+            ? Boolean(props.ticket.has_documents_reviewed)
+            : Boolean(props.ticket.has_face_printed);
+
+        return previousDone && !props.ticket.file_delivered;
     }
 
     return Boolean(props.ticket.file_delivered);

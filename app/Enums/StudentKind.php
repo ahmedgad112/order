@@ -15,6 +15,14 @@ enum StudentKind: string
         };
     }
 
+    public function ticketPrefix(): string
+    {
+        return match ($this) {
+            self::NewStudent => 'N',
+            self::CurrentStudent => 'O',
+        };
+    }
+
     /**
      * @return list<string>
      */

@@ -80,6 +80,16 @@ class TellerQueueController extends Controller
         ]);
     }
 
+    public function markDocumentsReviewed(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markDocumentsReviewed($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل مراجعة الورق.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
     public function markMedicalChecked(Request $request, QueueTicket $ticket): JsonResponse
     {
         $ticket = $this->queueService->markMedicalChecked($ticket, $request->user());

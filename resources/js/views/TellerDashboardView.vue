@@ -31,7 +31,7 @@ const search = ref('');
 const stepFilter = ref('all');
 const loading = ref(false);
 
-const processStepValues = ['entered', 'medical_checked', 'face_printed', 'file_delivered'];
+const processStepValues = ['entered', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 
 const statusLabel = {
     waiting: 'في الانتظار',
@@ -52,6 +52,7 @@ const statusBadgeClass = {
 const stepOptions = [
     { value: 'all', label: 'الكل' },
     { value: 'entered', label: 'طلب دخول' },
+    { value: 'documents_reviewed', label: 'مراجعة ورق' },
     { value: 'medical_checked', label: 'كشف طبي' },
     { value: 'face_printed', label: 'بصمة وجه' },
     { value: 'file_delivered', label: 'تسليم الملف' },
@@ -366,7 +367,7 @@ onUnmounted(() => {
                 </p>
             </section>
 
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
                 <div class="rounded-2xl bg-white p-4 shadow-sm">
                     <p class="text-xs text-slate-500">الإجمالي</p>
                     <p class="text-2xl font-black text-slate-800">{{ queueStore.tellerTicketStats.total }}</p>
@@ -378,6 +379,10 @@ onUnmounted(() => {
                 <div class="rounded-2xl bg-blue-50 p-4 shadow-sm">
                     <p class="text-xs text-blue-700">طلب دخول</p>
                     <p class="text-2xl font-black text-blue-600">{{ queueStore.tellerTicketStats.entered }}</p>
+                </div>
+                <div class="rounded-2xl bg-indigo-50 p-4 shadow-sm">
+                    <p class="text-xs text-indigo-700">مراجعة ورق</p>
+                    <p class="text-2xl font-black text-indigo-600">{{ queueStore.tellerTicketStats.documents_reviewed }}</p>
                 </div>
                 <div class="rounded-2xl bg-teal-50 p-4 shadow-sm">
                     <p class="text-xs text-teal-700">كشف طبي</p>
@@ -411,9 +416,12 @@ onUnmounted(() => {
                         :key="ticket.id"
                         class="rounded-2xl border border-blue-100 bg-blue-50 p-4"
                     >
-                        <p class="text-xs font-semibold text-blue-600">تذكرة {{ ticket.ticket_number }}</p>
+                        <p class="text-xs font-semibold text-blue-600">تذكرة <span dir="ltr">{{ ticket.ticket_number }}</span></p>
                         <p class="mt-1 text-xl font-black text-slate-900">{{ ticket.full_name || ticket.masked_name }}</p>
                         <p class="mt-2 text-sm text-slate-600">{{ tellerLabel(ticket) }}</p>
+                        <div v-if="ticket.student_kind === 'current_student'" class="mt-3">
+                            <TicketDocumentLink :ticket="ticket" preview />
+                        </div>
                     </article>
                 </div>
             </section>
@@ -494,7 +502,7 @@ onUnmounted(() => {
                     >
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div>
-                                <p class="text-2xl font-black text-indigo-600">{{ ticket.ticket_number }}</p>
+                                <p class="text-2xl font-black text-indigo-600" dir="ltr">{{ ticket.ticket_number }}</p>
                                 <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
                             </div>
                             <span
@@ -529,9 +537,9 @@ onUnmounted(() => {
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>
-                            <div v-if="ticket.student_kind === 'current_student'" class="flex justify-between gap-3 sm:col-span-2">
-                                <dt class="text-slate-500">{{ ticket.document_kind_label ?? 'المستند' }}</dt>
-                                <dd><TicketDocumentLink :ticket="ticket" /></dd>
+                            <div v-if="ticket.student_kind === 'current_student'" class="sm:col-span-2">
+                                <dt class="mb-2 text-slate-500">{{ ticket.document_kind_label ?? 'المستند' }}</dt>
+                                <dd><TicketDocumentLink :ticket="ticket" preview /></dd>
                             </div>
                             <div class="flex justify-between gap-3 sm:col-span-2">
                                 <dt class="text-slate-500">موظف الشباك</dt>
@@ -607,7 +615,7 @@ onUnmounted(() => {
                     >
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div>
-                                <p class="text-2xl font-black text-orange-600">{{ ticket.ticket_number }}</p>
+                                <p class="text-2xl font-black text-orange-600" dir="ltr">{{ ticket.ticket_number }}</p>
                                 <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
                             </div>
                         </div>
@@ -632,9 +640,9 @@ onUnmounted(() => {
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>
-                            <div v-if="ticket.student_kind === 'current_student'" class="flex justify-between gap-3">
-                                <dt class="text-slate-500">المستند</dt>
-                                <dd><TicketDocumentLink :ticket="ticket" /></dd>
+                            <div v-if="ticket.student_kind === 'current_student'">
+                                <dt class="mb-2 text-slate-500">المستند</dt>
+                                <dd><TicketDocumentLink :ticket="ticket" preview /></dd>
                             </div>
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">وقت النداء</dt>

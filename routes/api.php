@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-absent', [TellerQueueController::class, 'markAbsent']);
         Route::post('/tickets/{ticket}/restore', [TellerQueueController::class, 'restoreTicket']);
         Route::post('/tickets/{ticket}/mark-entered', [TellerQueueController::class, 'markEntered']);
+        Route::post('/tickets/{ticket}/mark-documents-reviewed', [TellerQueueController::class, 'markDocumentsReviewed']);
         Route::post('/tickets/{ticket}/mark-medical-checked', [TellerQueueController::class, 'markMedicalChecked']);
         Route::post('/tickets/{ticket}/mark-face-printed', [TellerQueueController::class, 'markFacePrinted']);
         Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);

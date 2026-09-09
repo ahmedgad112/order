@@ -16,7 +16,7 @@ class TicketResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'ticket_number' => $this->ticket_number,
+            'ticket_number' => $this->ticketCode(),
             'full_name' => $this->full_name,
             'student_kind' => $this->studentKindValue(),
             'student_kind_label' => $this->studentKindLabel(),
@@ -40,11 +40,13 @@ class TicketResource extends JsonResource
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'called_at' => $this->called_at?->toIso8601String(),
             'entered_at' => $this->entered_at?->toIso8601String(),
+            'documents_reviewed_at' => $this->documents_reviewed_at?->toIso8601String(),
             'medical_checked_at' => $this->medical_checked_at?->toIso8601String(),
             'face_printed_at' => $this->face_printed_at?->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
             'file_delivered_at' => $this->file_delivered_at?->toIso8601String(),
             'has_entered' => $this->entered_at !== null,
+            'has_documents_reviewed' => $this->documents_reviewed_at !== null,
             'has_medical_checked' => $this->medical_checked_at !== null,
             'has_face_printed' => $this->face_printed_at !== null,
             'file_delivered' => $this->file_delivered_at !== null,

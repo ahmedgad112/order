@@ -42,7 +42,7 @@ class AdminTicketController extends Controller
         $query = QueueTicket::query()
             ->onDate($date)
             ->with('teller')
-            ->orderBy('ticket_number');
+            ->inQueueOrder();
 
         if (filled($status) && $status !== 'all') {
             $query->where('status', $status);

@@ -84,8 +84,10 @@ async function renderTicketToCanvas(ticket) {
     ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 108);
 
     ctx.fillStyle = '#2563eb';
+    ctx.direction = 'ltr';
     ctx.font = `bold 68px ${ticketFontFamily}`;
     ctx.fillText(String(ticket.ticket_number), width / 2, 175);
+    ctx.direction = 'rtl';
 
     ctx.fillStyle = '#1e293b';
     ctx.font = `bold 18px ${ticketFontFamily}`;
@@ -198,7 +200,7 @@ function close() {
                     <Ticket class="h-8 w-8" />
                 </div>
                 <p class="text-sm text-slate-500">تم إصدار تذكرتك بنجاح</p>
-                <p class="my-3 text-6xl font-black text-blue-600">{{ ticket.ticket_number }}</p>
+                <p class="my-3 text-6xl font-black text-blue-600" dir="ltr">{{ ticket.ticket_number }}</p>
                 <p class="text-lg font-semibold text-slate-800">{{ ticket.masked_name }}</p>
                 <div class="mt-5 flex justify-center">
                     <TicketQrCode :value="ticketScanUrl(ticket)" :size="176" />

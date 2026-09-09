@@ -6,6 +6,10 @@ export const useQueueStore = defineStore('queue', () => {
     const serving = ref([]);
     const waiting = ref([]);
     const stats = ref({ waiting: 0, serving: 0, completed: 0 });
+
+    function compareTickets(a, b) {
+        return (a.id ?? 0) - (b.id ?? 0);
+    }
     const currentTicket = ref(null);
     const absentTickets = ref([]);
     const tellerTickets = ref([]);
@@ -14,6 +18,7 @@ export const useQueueStore = defineStore('queue', () => {
         waiting: 0,
         serving: 0,
         entered: 0,
+        documents_reviewed: 0,
         medical_checked: 0,
         face_printed: 0,
         file_delivered: 0,
@@ -36,6 +41,7 @@ export const useQueueStore = defineStore('queue', () => {
         waiting: 0,
         serving: 0,
         entered: 0,
+        documents_reviewed: 0,
         medical_checked: 0,
         face_printed: 0,
         file_delivered: 0,
@@ -248,15 +254,14 @@ export const useQueueStore = defineStore('queue', () => {
         if (index >= 0) {
             tellerTickets.value[index] = ticket;
         } else {
-            tellerTickets.value = [...tellerTickets.value, ticket].sort(
-                (a, b) => a.ticket_number - b.ticket_number,
-            );
+            tellerTickets.value = [...tellerTickets.value, ticket].sort(compareTickets);
         }
     }
 
     async function markProcessStep(ticketId, step) {
         const paths = {
             entered: `/teller/tickets/${ticketId}/mark-entered`,
+            documents_reviewed: `/teller/tickets/${ticketId}/mark-documents-reviewed`,
             medical_checked: `/teller/tickets/${ticketId}/mark-medical-checked`,
             face_printed: `/teller/tickets/${ticketId}/mark-face-printed`,
             file_delivered: `/teller/tickets/${ticketId}/mark-file-delivered`,
@@ -428,6 +433,7 @@ export const useQueueStore = defineStore('queue', () => {
             waiting: 0,
             serving: 0,
             entered: 0,
+            documents_reviewed: 0,
             medical_checked: 0,
             face_printed: 0,
             file_delivered: 0,
@@ -494,6 +500,7 @@ export const useQueueStore = defineStore('queue', () => {
             waiting: 0,
             serving: 0,
             entered: 0,
+            documents_reviewed: 0,
             medical_checked: 0,
             face_printed: 0,
             file_delivered: 0,
@@ -537,7 +544,7 @@ export const useQueueStore = defineStore('queue', () => {
         const ticket = event.ticket;
         removeAbsentTicket(ticket.id);
         waiting.value = [...waiting.value, ticket]
-            .sort((a, b) => a.ticket_number - b.ticket_number)
+            .sort(compareTickets)
             .slice(0, 10);
         stats.value.waiting += 1;
         scheduleDataRefresh();
@@ -613,7 +620,7 @@ export const useQueueStore = defineStore('queue', () => {
     function handleTicketIssued(event) {
         const ticket = event.ticket;
         waiting.value = [...waiting.value, ticket]
-            .sort((a, b) => a.ticket_number - b.ticket_number)
+            .sort(compareTickets)
             .slice(0, 10);
         stats.value.waiting += 1;
         scheduleDataRefresh();

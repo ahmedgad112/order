@@ -14,7 +14,7 @@ class TicketUpdatedEvent implements ShouldBroadcastNow
 
     public function __construct(
         public int $ticketId,
-        public int $ticketNumber,
+        public string $ticketNumber,
     ) {}
 
     /**

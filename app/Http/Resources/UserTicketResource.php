@@ -26,7 +26,7 @@ class UserTicketResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'ticket_number' => $this->ticket_number,
+            'ticket_number' => $this->ticketCode(),
             'masked_name' => NameMasker::mask($this->full_name),
             'status' => $this->status->value,
             'status_label' => $this->statusLabel(),

@@ -198,7 +198,7 @@ onUnmounted(() => {
 
                 <div class="p-6 sm:p-8">
                     <p class="text-center text-sm text-slate-500">رقم التذكرة</p>
-                    <p class="my-3 text-center text-7xl font-black text-blue-600">{{ ticket.ticket_number }}</p>
+                    <p class="my-3 text-center text-7xl font-black text-blue-600" dir="ltr">{{ ticket.ticket_number }}</p>
                     <div class="flex justify-center">
                         <span
                             class="rounded-full px-4 py-1.5 text-sm font-bold"
@@ -266,12 +266,12 @@ onUnmounted(() => {
                             </dt>
                             <dd class="text-base font-bold text-slate-900">{{ ticket.order_number }}</dd>
                         </div>
-                        <div v-if="ticket.student_kind === 'current_student'" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
-                            <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                        <div v-if="ticket.student_kind === 'current_student'" class="rounded-2xl bg-slate-50 px-4 py-4">
+                            <dt class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-500">
                                 <FileText class="h-4 w-4" />
                                 {{ ticket.document_kind_label ?? 'المستند' }}
                             </dt>
-                            <dd><TicketDocumentLink :ticket="ticket" /></dd>
+                            <dd><TicketDocumentLink :ticket="ticket" preview /></dd>
                         </div>
                     </dl>
 

@@ -123,7 +123,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $this->postJson('/api/teller/call-next')
             ->assertOk()
             ->assertJsonPath('ticket.id', $assignedTicket->id)
-            ->assertJsonPath('ticket.ticket_number', 2)
+            ->assertJsonPath('ticket.ticket_number', 'N2')
             ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
     }
 
@@ -187,7 +187,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $this->getJson('/api/teller/tickets')
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
-            ->assertJsonPath('tickets.0.ticket_number', 1)
+            ->assertJsonPath('tickets.0.ticket_number', 'N1')
             ->assertJsonPath('tickets.0.request_type', RequestType::NominationCard->value);
     }
 
