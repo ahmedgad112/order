@@ -2,8 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\College;
+use App\Enums\DocumentKind;
+use App\Enums\Faculty;
+use App\Enums\RequestType;
+use App\Enums\StudentKind;
+use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class IssueTicketRequest extends FormRequest
@@ -18,10 +25,34 @@ class IssueTicketRequest extends FormRequest
      */
     public function rules(): array
     {
+        if ($this->isCurrentStudent()) {
+            return [
+                'student_kind' => ['required', Rule::enum(StudentKind::class)],
+                'full_name' => ['required', 'string', 'min:3', 'max:255'],
+                'college' => ['required', 'string', Rule::in(Faculty::values())],
+                'department' => ['required', 'string', 'min:2', 'max:255'],
+                'seat_number' => ['required', 'digits:7'],
+                'document_kind' => ['required', Rule::enum(DocumentKind::class)],
+                'document' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            ];
+        }
+
         return [
+            'student_kind' => ['required', Rule::enum(StudentKind::class)],
             'full_name' => ['required', 'string', 'min:3', 'max:255'],
             'national_id' => ['required', 'digits:14'],
-            'order_number' => ['required', 'string', 'max:100'],
+            'request_type' => ['required', 'string', Rule::in(QueueSystemSetting::current()->enabledRequestTypeValues())],
+            'college' => [
+                'required',
+                'string',
+                'min:3',
+                'max:255',
+                Rule::when(
+                    $this->input('request_type') === RequestType::NominationCard->value,
+                    [Rule::in(College::values())],
+                ),
+            ],
+            'order_number' => ['required', 'digits:9'],
         ];
     }
 
@@ -35,14 +66,72 @@ class IssueTicketRequest extends FormRequest
             'full_name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل.',
             'national_id.required' => 'الرقم القومي مطلوب.',
             'national_id.digits' => 'يجب أن يتكون الرقم القومي من 14 رقمًا بالضبط.',
+            'request_type.required' => 'يجب اختيار نوع الطلب.',
+            'request_type.in' => 'نوع الطلب غير متاح حالياً.',
+            'college.required' => 'يجب تحديد الكلية.',
+            'college.min' => 'يجب كتابة اسم الكلية.',
+            'college.in' => $this->isCurrentStudent()
+                ? 'يجب اختيار الكلية الصحيحة.'
+                : 'يجب اختيار الكلية الواردة في بطاقة الترشيح.',
             'order_number.required' => 'رقم الطلب مطلوب.',
+            'order_number.digits' => 'يجب أن يتكون رقم الطلب من 9 أرقام بالضبط.',
+            'department.required' => 'يجب كتابة القسم.',
+            'department.min' => 'يجب كتابة اسم القسم.',
+            'seat_number.required' => 'رقم الجلوس مطلوب.',
+            'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.',
+            'document_kind.required' => 'يجب اختيار نوع المستند.',
+            'document_kind.enum' => 'نوع المستند غير صحيح.',
+            'document.required' => 'يجب رفع صورة المستند.',
+            'document.image' => 'يجب أن يكون الملف صورة.',
+            'document.mimes' => 'صيغة الصورة غير مدعومة. استخدم jpg أو png أو webp.',
+            'document.max' => 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.',
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('student_kind')) {
+            $this->merge([
+                'student_kind' => StudentKind::NewStudent->value,
+            ]);
+        }
+
+        if ($this->exists('college') && is_string($this->college)) {
+            $this->merge([
+                'college' => trim($this->college),
+            ]);
+        }
+
+        if ($this->exists('department') && is_string($this->department)) {
+            $this->merge([
+                'department' => trim($this->department),
+            ]);
+        }
     }
 
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
             if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            if ($this->isCurrentStudent()) {
+                $seatNumber = $this->string('seat_number')->toString();
+
+                $hasDuplicate = QueueTicket::query()
+                    ->today()
+                    ->active()
+                    ->where('seat_number', $seatNumber)
+                    ->exists();
+
+                if ($hasDuplicate) {
+                    $validator->errors()->add(
+                        'seat_number',
+                        'يوجد تذكرة نشطة اليوم بنفس رقم الجلوس.',
+                    );
+                }
+
                 return;
             }
 
@@ -65,5 +154,10 @@ class IssueTicketRequest extends FormRequest
                 );
             }
         });
+    }
+
+    private function isCurrentStudent(): bool
+    {
+        return $this->input('student_kind') === StudentKind::CurrentStudent->value;
     }
 }

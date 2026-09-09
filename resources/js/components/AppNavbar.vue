@@ -51,7 +51,7 @@ const isDisplay = computed(() => props.variant === 'display');
 
 const shellClass = computed(() => {
     if (isDisplay.value) {
-        return 'border-b border-slate-800 bg-slate-950 text-white';
+        return 'border-b border-slate-200 bg-white/95 text-slate-900 backdrop-blur-md';
     }
 
     return 'sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md';
@@ -74,7 +74,7 @@ const innerClass = computed(() => {
 
 const logoClass = computed(() => (
     isDisplay.value
-        ? 'h-14 w-auto rounded-xl bg-white p-1.5 object-contain sm:h-16'
+        ? 'h-14 w-auto object-contain sm:h-16'
         : 'h-11 w-auto object-contain sm:h-12'
 ));
 
@@ -107,7 +107,7 @@ const navItems = computed(() => {
     }
 
     const items = [
-        { to: '/', label: 'إصدار تذكرة', icon: Ticket, match: 'kiosk' },
+        { to: '/', label: 'إصدار تذكرة', icon: Ticket, match: 'student-choice' },
         { to: '/track', label: 'متابعة التذكرة', icon: Search, match: 'track' },
     ];
 
@@ -127,6 +127,10 @@ const hasMobileMenu = computed(() => {
 });
 
 function isActive(item) {
+    if (item.match === 'student-choice') {
+        return ['student-choice', 'kiosk', 'current-student'].includes(route.name);
+    }
+
     return route.name === item.match;
 }
 
@@ -135,8 +139,8 @@ function linkClass(item) {
 
     if (isDisplay.value) {
         return active
-            ? 'bg-white text-slate-900'
-            : 'text-slate-200 hover:bg-slate-800';
+            ? 'bg-indigo-600 text-white'
+            : 'border border-slate-200 text-slate-700 hover:bg-slate-50';
     }
 
     return active
@@ -172,16 +176,12 @@ async function logout() {
                     :class="logoClass"
                 />
                 <div class="min-w-0">
-                    <h1
-                        class="truncate text-lg font-bold sm:text-2xl"
-                        :class="isDisplay ? 'text-white' : 'text-slate-900'"
-                    >
+                    <h1 class="truncate text-lg font-bold text-slate-900 sm:text-2xl">
                         {{ title }}
                     </h1>
                     <p
                         v-if="subtitle"
-                        class="truncate text-xs sm:text-sm"
-                        :class="isDisplay ? 'text-slate-400' : 'text-slate-500'"
+                        class="truncate text-xs text-slate-500 sm:text-sm"
                     >
                         {{ subtitle }}
                     </p>
@@ -221,8 +221,7 @@ async function logout() {
                 <button
                     v-if="hasMobileMenu"
                     type="button"
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl border lg:hidden"
-                    :class="isDisplay ? 'border-slate-700 text-white' : 'border-slate-200 text-slate-700'"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 lg:hidden"
                     :aria-expanded="menuOpen"
                     aria-label="فتح القائمة"
                     @click="menuOpen = !menuOpen"
@@ -235,8 +234,7 @@ async function logout() {
 
         <div
             v-if="menuOpen && hasMobileMenu"
-            class="border-t lg:hidden"
-            :class="isDisplay ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white'"
+            class="border-t border-slate-200 bg-white lg:hidden"
         >
             <nav class="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6" aria-label="التنقل للجوال">
                 <RouterLink

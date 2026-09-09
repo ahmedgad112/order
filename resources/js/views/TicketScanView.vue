@@ -6,6 +6,7 @@ import {
     CheckCircle2,
     Clock,
     FileText,
+    GraduationCap,
     Hash,
     RefreshCw,
     User,
@@ -15,6 +16,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
+import TicketDocumentLink from '../components/TicketDocumentLink.vue';
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -220,7 +222,7 @@ onUnmounted(() => {
                             </dt>
                             <dd class="text-base font-bold text-slate-900">{{ ticket.full_name }}</dd>
                         </div>
-                        <div class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                        <div v-if="ticket.student_kind !== 'current_student'" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
                             <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
                                 <Hash class="h-4 w-4" />
                                 الرقم القومي
@@ -232,9 +234,44 @@ onUnmounted(() => {
                         <div class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
                             <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
                                 <FileText class="h-4 w-4" />
+                                نوع الطلب
+                            </dt>
+                            <dd class="text-base font-bold text-slate-900">{{ ticket.request_type_label ?? ticket.student_kind_label ?? '—' }}</dd>
+                        </div>
+                        <div class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                            <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                                <GraduationCap class="h-4 w-4" />
+                                الكلية
+                            </dt>
+                            <dd class="text-base font-bold text-slate-900">{{ ticket.college_label ?? '—' }}</dd>
+                        </div>
+                        <div v-if="ticket.student_kind === 'current_student'" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                            <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                                <FileText class="h-4 w-4" />
+                                القسم
+                            </dt>
+                            <dd class="text-base font-bold text-slate-900">{{ ticket.department ?? '—' }}</dd>
+                        </div>
+                        <div v-if="ticket.student_kind === 'current_student'" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                            <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                                <Hash class="h-4 w-4" />
+                                رقم الجلوس
+                            </dt>
+                            <dd class="font-mono text-base font-bold text-slate-900">{{ ticket.seat_number ?? '—' }}</dd>
+                        </div>
+                        <div v-else class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                            <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                                <FileText class="h-4 w-4" />
                                 رقم الطلب
                             </dt>
                             <dd class="text-base font-bold text-slate-900">{{ ticket.order_number }}</dd>
+                        </div>
+                        <div v-if="ticket.student_kind === 'current_student'" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                            <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                                <FileText class="h-4 w-4" />
+                                {{ ticket.document_kind_label ?? 'المستند' }}
+                            </dt>
+                            <dd><TicketDocumentLink :ticket="ticket" /></dd>
                         </div>
                     </dl>
 

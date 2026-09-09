@@ -24,6 +24,7 @@ export const useQueueStore = defineStore('queue', () => {
     const metrics = ref(null);
     const tellerPerformance = ref([]);
     const tellers = ref([]);
+    const queueLanes = ref([]);
     const users = ref([]);
     const registrations = ref([]);
     const registrationDate = ref('');
@@ -48,6 +49,10 @@ export const useQueueStore = defineStore('queue', () => {
         accepting_tickets: true,
         closed_message: null,
         day_ended_message: null,
+        request_types: [],
+        colleges: [],
+        faculties: [],
+        document_kinds: [],
     });
     const loading = ref(false);
     const error = ref(null);
@@ -295,6 +300,7 @@ export const useQueueStore = defineStore('queue', () => {
         metrics.value = data.metrics;
         tellerPerformance.value = data.teller_performance ?? [];
         tellers.value = data.tellers ?? data.teller_performance ?? [];
+        queueLanes.value = data.queue_lanes ?? [];
         if (data.system) {
             system.value = data.system;
         }
@@ -322,6 +328,9 @@ export const useQueueStore = defineStore('queue', () => {
     async function fetchUsers() {
         const { data } = await axios.get('/admin/users');
         users.value = data.users;
+        if (data.queue_lanes?.length) {
+            queueLanes.value = data.queue_lanes;
+        }
         return data.users;
     }
 
@@ -426,6 +435,22 @@ export const useQueueStore = defineStore('queue', () => {
             cancelled: 0,
             absent: 0,
         };
+        return data;
+    }
+
+    async function updateRequestTypes(enabledRequestTypes) {
+        const { data } = await axios.put('/admin/system/request-types', {
+            enabled_request_types: enabledRequestTypes,
+        });
+        system.value = data.system;
+        return data;
+    }
+
+    async function updateQueueLaneTellers(lane, tellerIds) {
+        const { data } = await axios.put(`/admin/queue-lanes/${lane}/tellers`, {
+            teller_ids: tellerIds,
+        });
+        queueLanes.value = data.queue_lanes ?? [];
         return data;
     }
 
@@ -809,6 +834,7 @@ export const useQueueStore = defineStore('queue', () => {
         metrics,
         tellerPerformance,
         tellers,
+        queueLanes,
         users,
         registrations,
         registrationDate,
@@ -858,6 +884,8 @@ export const useQueueStore = defineStore('queue', () => {
         openSystem,
         endDay,
         openDay,
+        updateRequestTypes,
+        updateQueueLaneTellers,
         handleSystemUpdated,
         handleDayReset,
         handleTicketIssued,

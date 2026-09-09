@@ -2,6 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\College;
+use App\Enums\DocumentKind;
+use App\Enums\Faculty;
+use App\Enums\QueueLane;
+use App\Enums\RequestType;
+use App\Enums\UserRole;
 use App\Events\QueueDayResetEvent;
 use App\Events\QueueSystemUpdatedEvent;
 use App\Models\QueueSystemSetting;
@@ -127,6 +133,86 @@ class QueueSystemService
         ];
     }
 
+    /**
+     * @param  list<string>  $enabledRequestTypes
+     * @return array<string, mixed>
+     */
+    public function updateEnabledRequestTypes(User $admin, array $enabledRequestTypes): array
+    {
+        abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
+
+        $settings = QueueSystemSetting::current();
+
+        $settings->update([
+            'enabled_request_types' => array_values(array_unique($enabledRequestTypes)),
+        ]);
+
+        $status = $this->formatStatus($settings->fresh());
+
+        $this->broadcastSafely(new QueueSystemUpdatedEvent($status));
+
+        return $status;
+    }
+
+    /**
+     * @param  list<int>  $tellerIds
+     * @return list<array{value: string, label: string, teller_ids: list<int>}>
+     */
+    public function assignTellersToLane(QueueLane $lane, array $tellerIds): array
+    {
+        $selected = array_values(array_unique(array_map('intval', $tellerIds)));
+
+        $tellers = User::query()
+            ->where('role', UserRole::Teller)
+            ->orderBy('id')
+            ->get();
+
+        foreach ($tellers as $teller) {
+            $current = $teller->queueLaneValues();
+
+            if (in_array($teller->id, $selected, true)) {
+                $current[] = $lane->value;
+            } else {
+                $current = array_filter(
+                    $current,
+                    fn (string $value): bool => $value !== $lane->value,
+                );
+            }
+
+            $teller->update([
+                'queue_lanes' => array_values(array_unique($current)),
+            ]);
+        }
+
+        return $this->queueLaneAssignments();
+    }
+
+    /**
+     * @return list<array{value: string, label: string, teller_ids: list<int>}>
+     */
+    public function queueLaneAssignments(): array
+    {
+        $tellers = User::query()
+            ->where('role', UserRole::Teller)
+            ->orderBy('name')
+            ->get();
+
+        return array_map(
+            function (QueueLane $lane) use ($tellers): array {
+                $assigned = $tellers
+                    ->filter(fn (User $teller): bool => $teller->servesQueueLane($lane))
+                    ->values();
+
+                return [
+                    'value' => $lane->value,
+                    'label' => $lane->label(),
+                    'teller_ids' => $assigned->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+                ];
+            },
+            QueueLane::cases(),
+        );
+    }
+
     public function assertSystemOpen(): void
     {
         $settings = QueueSystemSetting::current();
@@ -173,6 +259,10 @@ class QueueSystemService
             'day_ended_message' => $dayOpen ? null : 'انتهى استقبال الطلبات اليوم. يمكن متابعة الطلبات الحالية.',
             'last_reset_at' => $settings->last_reset_at?->toIso8601String(),
             'current_session_started_at' => $settings->currentSessionStartedAt()->toIso8601String(),
+            'request_types' => RequestType::payload($settings->enabledRequestTypeValues()),
+            'colleges' => College::payload(),
+            'faculties' => Faculty::payload(),
+            'document_kinds' => DocumentKind::payload(),
         ];
     }
 

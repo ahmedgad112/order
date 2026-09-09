@@ -22,21 +22,22 @@ const trackedTicket = ref(null);
 const fieldError = ref('');
 const isRefreshing = ref(false);
 
-const nationalIdInput = computed({
-    get: () => (searchType.value === 'national_id' ? searchValue.value : ''),
-    set: (value) => {
-        searchType.value = 'national_id';
-        searchValue.value = value.replace(/\D/g, '').slice(0, 14);
-    },
-});
+function restrictDigitInput(event, maxLength) {
+    const digits = event.target.value.replace(/\D/g, '').slice(0, maxLength);
+    event.target.value = digits;
 
-const orderNumberInput = computed({
-    get: () => (searchType.value === 'order_number' ? searchValue.value : ''),
-    set: (value) => {
-        searchType.value = 'order_number';
-        searchValue.value = value;
-    },
-});
+    return digits;
+}
+
+function onNationalIdInput(event) {
+    searchType.value = 'national_id';
+    searchValue.value = restrictDigitInput(event, 14);
+}
+
+function onSeatNumberInput(event) {
+    searchType.value = 'seat_number';
+    searchValue.value = restrictDigitInput(event, 7);
+}
 
 const statusConfig = computed(() => {
     if (!trackedTicket.value) {
@@ -87,8 +88,13 @@ async function trackTicket(silent = false) {
         return;
     }
 
-    if (searchType.value === 'order_number' && !searchValue.value.trim()) {
-        fieldError.value = 'رقم الطلب مطلوب.';
+    if (searchType.value === 'order_number' && !/^\d{9}$/.test(searchValue.value)) {
+        fieldError.value = 'يجب أن يتكون رقم الطلب من 9 أرقام.';
+        return;
+    }
+
+    if (searchType.value === 'seat_number' && !/^\d{7}$/.test(searchValue.value)) {
+        fieldError.value = 'يجب أن يتكون رقم الجلوس من 7 أرقام.';
         return;
     }
 
@@ -101,7 +107,9 @@ async function trackTicket(silent = false) {
     try {
         const payload = searchType.value === 'national_id'
             ? { national_id: searchValue.value }
-            : { order_number: searchValue.value.trim() };
+            : searchType.value === 'seat_number'
+                ? { seat_number: searchValue.value }
+                : { order_number: searchValue.value.trim() };
 
         trackedTicket.value = await queueStore.trackTicket(payload);
     } catch {
@@ -170,10 +178,10 @@ watch(searchType, () => {
             <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
                 <h2 class="mb-6 text-center text-2xl font-bold text-slate-800">ابحث عن تذكرتك</h2>
 
-                <div class="mb-6 flex rounded-2xl bg-slate-100 p-1">
+                <div class="mb-6 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
                     <button
                         type="button"
-                        class="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
+                        class="rounded-xl py-2.5 text-xs font-semibold transition sm:text-sm"
                         :class="searchType === 'national_id' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'"
                         @click="searchType = 'national_id'"
                     >
@@ -181,11 +189,19 @@ watch(searchType, () => {
                     </button>
                     <button
                         type="button"
-                        class="flex-1 rounded-xl py-2.5 text-sm font-semibold transition"
+                        class="rounded-xl py-2.5 text-xs font-semibold transition sm:text-sm"
                         :class="searchType === 'order_number' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'"
                         @click="searchType = 'order_number'"
                     >
                         برقم الطلب
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-xl py-2.5 text-xs font-semibold transition sm:text-sm"
+                        :class="searchType === 'seat_number' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'"
+                        @click="searchType = 'seat_number'"
+                    >
+                        برقم الجلوس
                     </button>
                 </div>
 
@@ -196,24 +212,51 @@ watch(searchType, () => {
                             الرقم القومي
                         </label>
                         <input
-                            v-model="nationalIdInput"
+                            :value="searchType === 'national_id' ? searchValue : ''"
                             inputmode="numeric"
                             type="text"
+                            maxlength="14"
+                            pattern="[0-9]*"
+                            autocomplete="off"
                             class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                             placeholder="14 رقم"
+                            @input="onNationalIdInput"
                         />
                     </div>
 
-                    <div v-else>
+                    <div v-else-if="searchType === 'order_number'">
                         <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <FileText class="h-4 w-4" />
                             رقم الطلب
                         </label>
                         <input
-                            v-model="orderNumberInput"
+                            :value="searchValue"
+                            inputmode="numeric"
                             type="text"
-                            class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                            placeholder="أدخل رقم الطلب"
+                            maxlength="9"
+                            pattern="[0-9]*"
+                            autocomplete="off"
+                            class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            placeholder="9 أرقام"
+                            @input="onOrderNumberInput"
+                        />
+                    </div>
+
+                    <div v-else>
+                        <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <Hash class="h-4 w-4" />
+                            رقم الجلوس
+                        </label>
+                        <input
+                            :value="searchValue"
+                            inputmode="numeric"
+                            type="text"
+                            maxlength="7"
+                            pattern="[0-9]*"
+                            autocomplete="off"
+                            class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            placeholder="7 أرقام"
+                            @input="onSeatNumberInput"
                         />
                     </div>
 

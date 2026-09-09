@@ -11,6 +11,7 @@ import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 import TicketEditForm from '../components/TicketEditForm.vue';
+import TicketDocumentLink from '../components/TicketDocumentLink.vue';
 
 const queueStore = useQueueStore();
 
@@ -177,7 +178,11 @@ async function handleEdit(ticket) {
         const result = await queueStore.updateTicket(ticket.id, {
             full_name: ticket.full_name,
             national_id: ticket.national_id,
+            request_type: ticket.request_type,
+            college: ticket.college,
             order_number: ticket.order_number,
+            department: ticket.department,
+            seat_number: ticket.seat_number,
         });
         feedback.value = result.message;
         await loadTickets();
@@ -185,6 +190,7 @@ async function handleEdit(ticket) {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.national_id?.[0]
             ?? err.response?.data?.errors?.full_name?.[0]
+            ?? err.response?.data?.errors?.college?.[0]
             ?? 'تعذر تعديل الطلب.';
     } finally {
         editingId.value = null;
@@ -381,13 +387,33 @@ onUnmounted(() => {
                             </span>
                         </div>
                         <dl class="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
-                            <div class="flex justify-between gap-3">
+                            <div v-if="ticket.student_kind !== 'current_student'" class="flex justify-between gap-3">
                                 <dt class="text-slate-500">الرقم القومي</dt>
                                 <dd class="font-mono text-slate-700">{{ ticket.national_id }}</dd>
                             </div>
                             <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">نوع الطلب</dt>
+                                <dd class="text-slate-700">{{ ticket.request_type_label ?? ticket.student_kind_label ?? '—' }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-slate-500">الكلية</dt>
+                                <dd class="text-slate-700">{{ ticket.college_label ?? '—' }}</dd>
+                            </div>
+                            <div v-if="ticket.student_kind === 'current_student'" class="flex justify-between gap-3">
+                                <dt class="text-slate-500">القسم</dt>
+                                <dd class="text-slate-700">{{ ticket.department ?? '—' }}</dd>
+                            </div>
+                            <div v-if="ticket.student_kind === 'current_student'" class="flex justify-between gap-3">
+                                <dt class="text-slate-500">رقم الجلوس</dt>
+                                <dd class="font-mono text-slate-700">{{ ticket.seat_number ?? '—' }}</dd>
+                            </div>
+                            <div v-else class="flex justify-between gap-3">
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
+                            </div>
+                            <div v-if="ticket.student_kind === 'current_student'" class="flex justify-between gap-3 sm:col-span-2">
+                                <dt class="text-slate-500">{{ ticket.document_kind_label ?? 'المستند' }}</dt>
+                                <dd><TicketDocumentLink :ticket="ticket" /></dd>
                             </div>
                             <div class="flex justify-between gap-3">
                                 <dt class="text-slate-500">طلب دخول</dt>

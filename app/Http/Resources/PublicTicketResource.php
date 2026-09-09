@@ -18,7 +18,10 @@ class PublicTicketResource extends JsonResource
         return [
             'id' => $this->id,
             'ticket_number' => $this->ticket_number,
+            'full_name' => $this->full_name,
             'masked_name' => NameMasker::mask($this->full_name),
+            'request_type_label' => $this->requestTypeLabel(),
+            'college_label' => $this->collegeLabel(),
             'status' => $this->status->value,
             'counter_name' => $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),

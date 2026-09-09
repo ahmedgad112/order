@@ -83,7 +83,15 @@ class AdminTicketController extends Controller
     {
         $ticket = $this->queueService->updateTicket(
             $ticket,
-            $request->safe()->only(['full_name', 'national_id', 'order_number']),
+            $request->safe()->only([
+                'full_name',
+                'national_id',
+                'request_type',
+                'college',
+                'order_number',
+                'department',
+                'seat_number',
+            ]),
             $request->user(),
         );
 

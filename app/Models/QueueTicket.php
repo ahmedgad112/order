@@ -2,6 +2,12 @@
 
 namespace App\Models;
 
+use App\Enums\College;
+use App\Enums\DocumentKind;
+use App\Enums\Faculty;
+use App\Enums\QueueLane;
+use App\Enums\RequestType;
+use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use Database\Factories\QueueTicketFactory;
 use DateTimeInterface;
@@ -20,8 +26,15 @@ use Illuminate\Support\Str;
     'session_started_at',
     'public_token',
     'full_name',
+    'student_kind',
     'national_id',
+    'request_type',
+    'college',
+    'department',
     'order_number',
+    'seat_number',
+    'document_kind',
+    'document_path',
     'status',
     'user_id',
     'called_at',
@@ -31,7 +44,7 @@ use Illuminate\Support\Str;
     'completed_at',
     'file_delivered_at',
 ])]
-#[Hidden(['national_id', 'order_number', 'public_token'])]
+#[Hidden(['national_id', 'order_number', 'seat_number', 'public_token', 'document_path'])]
 class QueueTicket extends Model
 {
     /** @use HasFactory<QueueTicketFactory> */
@@ -67,6 +80,9 @@ class QueueTicket extends Model
     {
         return [
             'status' => TicketStatus::class,
+            'student_kind' => StudentKind::class,
+            'request_type' => RequestType::class,
+            'document_kind' => DocumentKind::class,
             'session_started_at' => 'datetime',
             'called_at' => 'datetime',
             'entered_at' => 'datetime',
@@ -80,6 +96,101 @@ class QueueTicket extends Model
     public function teller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function isCurrentStudent(): bool
+    {
+        return $this->student_kind === StudentKind::CurrentStudent;
+    }
+
+    public function queueLaneValue(): ?string
+    {
+        if ($this->isCurrentStudent()) {
+            return QueueLane::CurrentStudent->value;
+        }
+
+        return $this->request_type?->value;
+    }
+
+    /**
+     * @param  list<string>  $lanes
+     */
+    public function scopeForQueueLanes(Builder $query, array $lanes): Builder
+    {
+        $lanes = array_values(array_intersect($lanes, QueueLane::values()));
+
+        if ($lanes === []) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where(function (Builder $laneQuery) use ($lanes): void {
+            $requestTypes = array_values(array_filter(
+                $lanes,
+                fn (string $lane): bool => $lane !== QueueLane::CurrentStudent->value,
+            ));
+
+            if (in_array(QueueLane::CurrentStudent->value, $lanes, true)) {
+                $laneQuery->orWhere('student_kind', StudentKind::CurrentStudent);
+            }
+
+            if ($requestTypes !== []) {
+                $laneQuery->orWhere(function (Builder $newStudentQuery) use ($requestTypes): void {
+                    $newStudentQuery
+                        ->where(function (Builder $kindQuery): void {
+                            $kindQuery
+                                ->where('student_kind', StudentKind::NewStudent)
+                                ->orWhereNull('student_kind');
+                        })
+                        ->whereIn('request_type', $requestTypes);
+                });
+            }
+        });
+    }
+
+    public function studentKindValue(): string
+    {
+        return $this->student_kind?->value ?? StudentKind::NewStudent->value;
+    }
+
+    public function studentKindLabel(): string
+    {
+        return $this->student_kind?->label() ?? StudentKind::NewStudent->label();
+    }
+
+    public function requestTypeLabel(): ?string
+    {
+        if ($this->isCurrentStudent()) {
+            return $this->studentKindLabel();
+        }
+
+        return $this->request_type?->label();
+    }
+
+    public function collegeLabel(): ?string
+    {
+        if (blank($this->college)) {
+            return null;
+        }
+
+        if ($this->isCurrentStudent()) {
+            return Faculty::tryFrom($this->college)?->label() ?? $this->college;
+        }
+
+        if ($this->request_type === RequestType::NominationCard) {
+            return College::tryFrom($this->college)?->label() ?? $this->college;
+        }
+
+        return $this->college;
+    }
+
+    public function documentKindLabel(): ?string
+    {
+        return $this->document_kind?->label();
+    }
+
+    public function hasDocument(): bool
+    {
+        return filled($this->document_path);
     }
 
     public static function currentSessionStartedAt(): Carbon
@@ -274,11 +385,30 @@ class QueueTicket extends Model
 
     public function scopeMatchingSearch(Builder $query, string $search): Builder
     {
-        return $query->where(function (Builder $q) use ($search): void {
+        $matchingCollegeValues = array_values(array_filter(
+            [...College::values(), ...Faculty::values()],
+            function (string $value) use ($search): bool {
+                $college = College::tryFrom($value);
+                $faculty = Faculty::tryFrom($value);
+                $label = $college?->label() ?? $faculty?->label() ?? '';
+
+                return str_contains($label, $search)
+                    || str_contains($value, $search);
+            },
+        ));
+
+        return $query->where(function (Builder $q) use ($search, $matchingCollegeValues): void {
             $q->where('full_name', 'like', "%{$search}%")
                 ->orWhere('national_id', 'like', "%{$search}%")
                 ->orWhere('order_number', 'like', "%{$search}%")
-                ->orWhere('ticket_number', 'like', "%{$search}%");
+                ->orWhere('seat_number', 'like', "%{$search}%")
+                ->orWhere('department', 'like', "%{$search}%")
+                ->orWhere('ticket_number', 'like', "%{$search}%")
+                ->orWhere('college', 'like', "%{$search}%")
+                ->when(
+                    $matchingCollegeValues !== [],
+                    fn (Builder $collegeQuery) => $collegeQuery->orWhereIn('college', $matchingCollegeValues),
+                );
         });
     }
 }

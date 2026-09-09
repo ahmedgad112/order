@@ -2,6 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Enums\College;
+use App\Enums\DocumentKind;
+use App\Enums\Faculty;
+use App\Enums\RequestType;
+use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -19,12 +24,23 @@ class QueueTicketFactory extends Factory
      */
     public function definition(): array
     {
+        $requestType = fake()->randomElement(RequestType::cases());
+
         return [
             'ticket_number' => fake()->unique()->numberBetween(1, 9999),
             'public_token' => fake()->uuid(),
             'full_name' => fake()->name(),
+            'student_kind' => StudentKind::NewStudent,
             'national_id' => fake()->numerify('##############'),
-            'order_number' => 'ORD-'.fake()->unique()->numerify('######'),
+            'request_type' => $requestType,
+            'college' => $requestType === RequestType::NominationCard
+                ? fake()->randomElement(College::values())
+                : 'كلية الهندسة',
+            'department' => null,
+            'order_number' => fake()->unique()->numerify('#########'),
+            'seat_number' => null,
+            'document_kind' => null,
+            'document_path' => null,
             'status' => TicketStatus::Waiting,
             'user_id' => null,
             'called_at' => null,
@@ -47,6 +63,21 @@ class QueueTicketFactory extends Factory
             'face_printed_at' => null,
             'completed_at' => null,
             'file_delivered_at' => null,
+        ]);
+    }
+
+    public function currentStudent(): static
+    {
+        return $this->state(fn () => [
+            'student_kind' => StudentKind::CurrentStudent,
+            'national_id' => null,
+            'request_type' => null,
+            'college' => fake()->randomElement(Faculty::values()),
+            'department' => 'تكنولوجيا المعلومات',
+            'order_number' => null,
+            'seat_number' => fake()->unique()->numerify('#######'),
+            'document_kind' => DocumentKind::StudentCard,
+            'document_path' => 'current-student-documents/card.jpg',
         ]);
     }
 

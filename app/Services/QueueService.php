@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
@@ -12,11 +13,13 @@ use App\Events\TicketRestoredEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Models\QueueTicket;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class QueueService
@@ -24,7 +27,7 @@ class QueueService
     public function __construct(private readonly QueueSystemService $systemService) {}
 
     /**
-     * @param  array{full_name: string, national_id: string, order_number: string}  $data
+     * @param  array<string, mixed>  $data
      */
     public function issueTicket(array $data): QueueTicket
     {
@@ -36,14 +39,41 @@ class QueueService
                 ->lockForUpdate()
                 ->max('ticket_number');
 
-            return QueueTicket::query()->create([
+            $studentKind = StudentKind::from($data['student_kind'] ?? StudentKind::NewStudent->value);
+
+            $attributes = [
                 'ticket_number' => ($maxNumber ?? 0) + 1,
                 'session_started_at' => $sessionStartedAt,
                 'full_name' => $data['full_name'],
-                'national_id' => $data['national_id'],
-                'order_number' => $data['order_number'],
+                'student_kind' => $studentKind,
                 'status' => TicketStatus::Waiting,
-            ]);
+            ];
+
+            if ($studentKind === StudentKind::CurrentStudent) {
+                $document = $data['document'] ?? null;
+                $documentPath = $document instanceof UploadedFile
+                    ? $document->store('current-student-documents')
+                    : null;
+
+                $attributes = [
+                    ...$attributes,
+                    'college' => $data['college'],
+                    'department' => $data['department'],
+                    'seat_number' => $data['seat_number'],
+                    'document_kind' => $data['document_kind'],
+                    'document_path' => $documentPath,
+                ];
+            } else {
+                $attributes = [
+                    ...$attributes,
+                    'national_id' => $data['national_id'],
+                    'request_type' => $data['request_type'],
+                    'college' => $data['college'],
+                    'order_number' => $data['order_number'],
+                ];
+            }
+
+            return QueueTicket::query()->create($attributes);
         });
 
         $this->broadcastSafely(new TicketIssuedEvent($ticket));
@@ -61,17 +91,30 @@ class QueueService
             ]);
         }
 
+        if ($teller->constrainsTicketsToAssignedLanes() && $teller->queueLaneValues() === []) {
+            throw ValidationException::withMessages([
+                'queue' => 'لم يتم تخصيص أي نوع طلب لحسابك.',
+            ]);
+        }
+
         return DB::transaction(function () use ($teller): QueueTicket {
-            $nextTicket = QueueTicket::query()
+            $query = QueueTicket::query()
                 ->today()
                 ->waiting()
                 ->orderBy('ticket_number')
-                ->lockForUpdate()
-                ->first();
+                ->lockForUpdate();
+
+            $this->constrainToAssignedLanes($query, $teller);
+
+            $nextTicket = $query->first();
 
             if (! $nextTicket) {
+                $hasAnyWaiting = QueueTicket::query()->today()->waiting()->exists();
+
                 throw ValidationException::withMessages([
-                    'queue' => 'لا توجد تذاكر في الانتظار.',
+                    'queue' => $hasAnyWaiting && $teller->constrainsTicketsToAssignedLanes()
+                        ? 'لا توجد تذاكر في الانتظار لنوع الطلب المخصص لك.'
+                        : 'لا توجد تذاكر في الانتظار.',
                 ]);
             }
 
@@ -144,24 +187,40 @@ class QueueService
 
         $ticketId = $ticket->id;
         $ticketNumber = $ticket->ticket_number;
+        $documentPath = $ticket->document_path;
 
         $ticket->delete();
+
+        if (filled($documentPath)) {
+            Storage::delete($documentPath);
+        }
 
         $this->broadcastSafely(new TicketDeletedEvent($ticketId, $ticketNumber));
     }
 
     /**
-     * @param  array{full_name: string, national_id: string, order_number: string}  $data
+     * @param  array<string, mixed>  $data
      */
     public function updateTicket(QueueTicket $ticket, array $data, User $admin): QueueTicket
     {
         abort_unless($admin->canEditTickets(), 403, 'ليس لديك صلاحية للوصول.');
 
-        $ticket->update([
-            'full_name' => $data['full_name'],
-            'national_id' => $data['national_id'],
-            'order_number' => $data['order_number'],
-        ]);
+        if ($ticket->isCurrentStudent()) {
+            $ticket->update([
+                'full_name' => $data['full_name'],
+                'college' => $data['college'],
+                'department' => $data['department'],
+                'seat_number' => $data['seat_number'],
+            ]);
+        } else {
+            $ticket->update([
+                'full_name' => $data['full_name'],
+                'national_id' => $data['national_id'],
+                'request_type' => $data['request_type'],
+                'college' => $data['college'],
+                'order_number' => $data['order_number'],
+            ]);
+        }
 
         $this->broadcastSafely(new TicketUpdatedEvent($ticket->id, $ticket->ticket_number));
 
@@ -357,6 +416,8 @@ class QueueService
             ->with('teller')
             ->orderBy('ticket_number');
 
+        $this->constrainToAssignedLanes($query, $teller);
+
         if ($status && $status !== 'all') {
             $query->where('status', $status);
         }
@@ -373,19 +434,22 @@ class QueueService
             ->today()
             ->serving()
             ->with('teller')
-            ->orderBy('called_at')
-            ->get();
+            ->orderBy('called_at');
+        $this->constrainToAssignedLanes($serving, $teller);
+        $serving = $serving->get();
+
+        $absent = QueueTicket::query()
+            ->today()
+            ->absent()
+            ->with('teller')
+            ->latest('updated_at');
+        $this->constrainToAssignedLanes($absent, $teller);
 
         return [
             'tickets' => $query->get(),
             'stats' => QueueTicket::todayStatCounts(),
             'serving' => $serving,
-            'absent' => QueueTicket::query()
-                ->today()
-                ->absent()
-                ->with('teller')
-                ->latest('updated_at')
-                ->get(),
+            'absent' => $absent->get(),
             'current' => $serving->firstWhere('user_id', $teller->id),
         ];
     }
@@ -393,12 +457,13 @@ class QueueService
     /**
      * @return array{ticket: QueueTicket, people_ahead: int|null, position_in_queue: int|null}
      */
-    public function trackTicket(?string $nationalId, ?string $orderNumber): array
+    public function trackTicket(?string $nationalId, ?string $orderNumber, ?string $seatNumber = null): array
     {
         $ticket = QueueTicket::query()
             ->today()
             ->when($nationalId, fn ($query) => $query->where('national_id', $nationalId))
             ->when($orderNumber, fn ($query) => $query->where('order_number', $orderNumber))
+            ->when($seatNumber, fn ($query) => $query->where('seat_number', $seatNumber))
             ->with('teller')
             ->latest()
             ->first();
@@ -477,6 +542,15 @@ class QueueService
 
             return compact('serving', 'waiting', 'stats');
         });
+    }
+
+    private function constrainToAssignedLanes(mixed $query, User $user): void
+    {
+        if (! $user->constrainsTicketsToAssignedLanes()) {
+            return;
+        }
+
+        $query->forQueueLanes($user->queueLaneValues());
     }
 
     private function assertTicketOwnedByTeller(QueueTicket $ticket, User $teller): void

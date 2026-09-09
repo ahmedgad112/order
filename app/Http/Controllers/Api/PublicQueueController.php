@@ -34,6 +34,7 @@ class PublicQueueController extends Controller
         $result = $this->queueService->trackTicket(
             $request->input('national_id'),
             $request->input('order_number'),
+            $request->input('seat_number'),
         );
 
         return response()->json([

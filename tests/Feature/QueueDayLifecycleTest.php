@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\College;
+use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Models\QueueSystemSetting;
@@ -26,7 +28,9 @@ class QueueDayLifecycleTest extends TestCase
         $this->postJson('/api/public/tickets', [
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
-            'order_number' => 'ORD-1001',
+            'request_type' => RequestType::NominationCard->value,
+            'college' => College::InformationTechnology->value,
+            'order_number' => '123456789',
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['system']);
@@ -77,7 +81,9 @@ class QueueDayLifecycleTest extends TestCase
         $this->postJson('/api/public/tickets', [
             'full_name' => 'عميل اليوم الجديد',
             'national_id' => '29501017654321',
-            'order_number' => 'ORD-2002',
+            'request_type' => RequestType::NominationCard->value,
+            'college' => College::InformationTechnology->value,
+            'order_number' => '987654321',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 1);

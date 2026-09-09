@@ -37,9 +37,11 @@ return new class extends Migration
 
         $startOfToday = now()->startOfDay();
 
-        DB::table('queue_system_settings')->update([
-            'current_session_started_at' => $startOfToday,
-        ]);
+        DB::table('queue_system_settings')
+            ->whereNull('current_session_started_at')
+            ->update([
+                'current_session_started_at' => $startOfToday,
+            ]);
 
         DB::table('queue_tickets')
             ->whereNull('session_started_at')

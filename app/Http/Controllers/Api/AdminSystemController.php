@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\QueueLane;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateEnabledRequestTypesRequest;
+use App\Http\Requests\UpdateQueueLaneTellersRequest;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,6 +70,32 @@ class AdminSystemController extends Controller
             'message' => 'تم فتح يوم جديد. العداد يبدأ من الصفر.',
             'opened_at' => $result['opened_at'],
             'system' => $result['system'],
+        ]);
+    }
+
+    public function updateRequestTypes(UpdateEnabledRequestTypesRequest $request): JsonResponse
+    {
+        $system = $this->systemService->updateEnabledRequestTypes(
+            $request->user(),
+            $request->validated('enabled_request_types'),
+        );
+
+        return response()->json([
+            'message' => 'تم تحديث أنواع الطلبات المتاحة.',
+            'system' => $system,
+        ]);
+    }
+
+    public function updateLaneTellers(UpdateQueueLaneTellersRequest $request, QueueLane $lane): JsonResponse
+    {
+        $queueLanes = $this->systemService->assignTellersToLane(
+            $lane,
+            $request->validated('teller_ids'),
+        );
+
+        return response()->json([
+            'message' => 'تم تحديث موظفي نوع الطلب.',
+            'queue_lanes' => $queueLanes,
         ]);
     }
 }

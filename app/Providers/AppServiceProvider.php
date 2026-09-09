@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\PendingMigrationRunner;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,5 +23,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Fix for older MySQL/MariaDB: utf8mb4 index max length is 1000 bytes.
         Schema::defaultStringLength(191);
+
+        $this->app->make(PendingMigrationRunner::class)->run();
     }
 }

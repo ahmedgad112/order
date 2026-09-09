@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\College;
+use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
@@ -22,7 +24,9 @@ class TicketQrScanTest extends TestCase
         $response = $this->postJson('/api/public/tickets', [
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
-            'order_number' => 'ORD-1001',
+            'request_type' => RequestType::NominationCard->value,
+            'college' => College::InformationTechnology->value,
+            'order_number' => '123456789',
         ]);
 
         $response->assertCreated()
@@ -35,7 +39,7 @@ class TicketQrScanTest extends TestCase
         $token = $response->json('ticket.public_token');
         $this->assertTrue(Str::isUuid($token));
         $this->assertDatabaseHas('queue_tickets', [
-            'order_number' => 'ORD-1001',
+            'order_number' => '123456789',
             'public_token' => $token,
         ]);
     }
@@ -61,6 +65,8 @@ class TicketQrScanTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'order_number' => 'ORD-1001',
+            'request_type' => RequestType::NominationCard,
+            'college' => College::InformationTechnology->value,
         ]);
 
         Sanctum::actingAs($teller);
@@ -71,6 +77,8 @@ class TicketQrScanTest extends TestCase
             ->assertJsonPath('ticket.full_name', 'محمد أحمد علي')
             ->assertJsonPath('ticket.national_id', '29501011234567')
             ->assertJsonPath('ticket.order_number', 'ORD-1001')
+            ->assertJsonPath('ticket.college', College::InformationTechnology->value)
+            ->assertJsonPath('ticket.college_label', 'تكنولوجيا المعلومات')
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value)
             ->assertJsonPath('ticket.has_entered', false)
             ->assertJsonPath('ticket.position_in_queue', 1)
@@ -100,16 +108,18 @@ class TicketQrScanTest extends TestCase
     public function test_public_queue_status_does_not_include_public_token(): void
     {
         QueueSystemSetting::current();
-        QueueTicket::factory()->waiting()->create();
+        QueueTicket::factory()->waiting()->create([
+            'full_name' => 'محمد أحمد علي',
+        ]);
 
         $waiting = $this->getJson('/api/public/queue-status')
             ->assertOk()
             ->json('waiting.0');
 
         $this->assertIsArray($waiting);
+        $this->assertSame('محمد أحمد علي', $waiting['full_name']);
         $this->assertArrayNotHasKey('public_token', $waiting);
         $this->assertArrayNotHasKey('national_id', $waiting);
         $this->assertArrayNotHasKey('order_number', $waiting);
-        $this->assertArrayNotHasKey('full_name', $waiting);
     }
 }

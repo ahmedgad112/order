@@ -4,6 +4,7 @@ import { Pencil, Plus, Shield, UserCog, UserX } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import PasswordInput from './PasswordInput.vue';
+import QueueLaneSelect from './QueueLaneSelect.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -12,6 +13,7 @@ const showForm = ref(false);
 const editingUser = ref(null);
 const formError = ref('');
 const saving = ref(false);
+const savingLaneUserId = ref(null);
 
 const emptyForm = () => ({
     name: '',
@@ -19,6 +21,7 @@ const emptyForm = () => ({
     password: '',
     role: 'teller',
     counter_name: '',
+    queue_lanes: [],
     is_active: true,
 });
 
@@ -58,10 +61,18 @@ const canManageUser = (user) => {
 
 const isEditing = computed(() => Boolean(editingUser.value));
 const formTitle = computed(() => (isEditing.value ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'));
+const availableQueueLanes = computed(() => queueStore.queueLanes ?? []);
+
+function laneValues(user) {
+    return (user?.queue_lanes ?? []).map((lane) => lane.value ?? lane);
+}
 
 function openCreate() {
     editingUser.value = null;
-    form.value = emptyForm();
+    form.value = {
+        ...emptyForm(),
+        queue_lanes: availableQueueLanes.value.map((lane) => lane.value),
+    };
     formError.value = '';
     showForm.value = true;
 }
@@ -74,6 +85,7 @@ function openEdit(user) {
         password: '',
         role: user.role,
         counter_name: user.counter_name ?? '',
+        queue_lanes: laneValues(user),
         is_active: user.is_active,
     };
     formError.value = '';
@@ -96,6 +108,7 @@ async function submitForm() {
         email: form.value.email.trim(),
         role: form.value.role,
         counter_name: form.value.role === 'teller' ? form.value.counter_name.trim() : null,
+        queue_lanes: form.value.role === 'teller' ? form.value.queue_lanes : [],
         is_active: form.value.is_active,
     };
 
@@ -117,6 +130,26 @@ async function submitForm() {
             : err.response?.data?.message ?? 'تعذر حفظ المستخدم.';
     } finally {
         saving.value = false;
+    }
+}
+
+async function saveUserLanes(user, lanes) {
+    if (!canManageUser(user) || user.role !== 'teller') {
+        return;
+    }
+
+    savingLaneUserId.value = user.id;
+    formError.value = '';
+
+    try {
+        await queueStore.updateUser(user.id, { queue_lanes: lanes });
+    } catch (err) {
+        const errors = err.response?.data?.errors;
+        formError.value = errors
+            ? Object.values(errors).flat()[0]
+            : err.response?.data?.message ?? 'تعذر تحديث أنواع الطلب.';
+    } finally {
+        savingLaneUserId.value = null;
     }
 }
 
@@ -164,7 +197,7 @@ async function handleDeactivate(user) {
             <article
                 v-for="user in queueStore.users"
                 :key="user.id"
-                class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4"
+                class="relative z-0 overflow-visible rounded-2xl border border-slate-100 bg-slate-50/60 p-4 hover:z-20 focus-within:z-20"
             >
                 <div class="mb-3 flex items-start justify-between gap-3">
                     <div class="min-w-0">
@@ -194,6 +227,17 @@ async function handleDeactivate(user) {
                     <div class="flex justify-between gap-3">
                         <dt class="text-slate-500">الشباك</dt>
                         <dd class="text-slate-700">{{ user.counter_name ?? '—' }}</dd>
+                    </div>
+                    <div v-if="user.role === 'teller'" class="space-y-2">
+                        <dt class="text-slate-500">أنواع الطلب</dt>
+                        <dd>
+                            <QueueLaneSelect
+                                :model-value="laneValues(user)"
+                                :options="availableQueueLanes"
+                                :disabled="!canManageUser(user) || savingLaneUserId === user.id"
+                                @update:model-value="saveUserLanes(user, $event)"
+                            />
+                        </dd>
                     </div>
                 </dl>
                 <div class="flex gap-2 border-t border-slate-200/80 pt-3">
@@ -225,7 +269,7 @@ async function handleDeactivate(user) {
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
             @click.self="closeForm"
         >
-            <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
                 <h3 class="text-xl font-bold text-slate-900">{{ formTitle }}</h3>
 
                 <form class="mt-6 space-y-4" @submit.prevent="submitForm">
@@ -288,6 +332,12 @@ async function handleDeactivate(user) {
                             class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                             placeholder="مثال: شباك 3"
                         />
+                    </div>
+
+                    <div v-if="form.role === 'teller'" class="space-y-2">
+                        <label class="block text-sm font-semibold text-slate-700">أنواع الطلب المخصصة</label>
+                        <QueueLaneSelect v-model="form.queue_lanes" :options="availableQueueLanes" />
+                        <p class="text-xs text-slate-500">يمكن اختيار أكثر من نوع من القائمة.</p>
                     </div>
 
                     <label class="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">

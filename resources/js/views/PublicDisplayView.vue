@@ -1,15 +1,40 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
-import { Clock, Users, Lock } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { CheckCircle2, Clock, Lock, Ticket, Users, Volume2 } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 
 const queueStore = useQueueStore();
-const clock = ref(new Date().toLocaleTimeString('ar-EG'));
+const clock = ref(formatClock());
+const today = ref(formatDate());
 const lastCalledId = ref(null);
 let clockTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
+
+function formatClock() {
+    return new Date().toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+}
+
+function formatDate() {
+    return new Date().toLocaleDateString('ar-EG', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+    });
+}
+
+function formatTicketNumber(number) {
+    return String(number ?? '').padStart(3, '0');
+}
+
+function displayName(ticket) {
+    return ticket.full_name || ticket.masked_name || '';
+}
 
 function playChime() {
     try {
@@ -39,11 +64,30 @@ function onTicketCalled(event) {
     }
 }
 
+const remainingWaitingCount = computed(() => (
+    Math.max(0, (queueStore.stats.waiting ?? 0) - queueStore.waiting.length)
+));
+
+const servingGridClass = computed(() => {
+    const count = queueStore.serving.length;
+
+    if (count <= 1) {
+        return 'grid-cols-1';
+    }
+
+    if (count === 2) {
+        return 'grid-cols-1 md:grid-cols-2';
+    }
+
+    return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
+});
+
 onMounted(() => {
     queueStore.fetchPublicStatus();
 
     clockTimer = setInterval(() => {
-        clock.value = new Date().toLocaleTimeString('ar-EG');
+        clock.value = formatClock();
+        today.value = formatDate();
     }, 1000);
 
     unsubscribeEcho = queueStore.subscribeEcho({
@@ -63,82 +107,197 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-950 text-white">
+    <div class="flex min-h-screen flex-col bg-gradient-to-br from-blue-50 via-white to-indigo-50 text-slate-900">
         <AppNavbar
             title="شاشة عرض الطابور"
-            subtitle="متابعة مباشرة للتذاكر"
+            subtitle="جامعة برج العرب التكنولوجية"
             variant="display"
             max-width="full"
             :show-nav="false"
         >
-            <div class="flex flex-wrap items-center gap-4 text-slate-300 sm:gap-6">
-                <div class="flex items-center gap-2">
-                    <Users class="h-5 w-5" />
-                    <span>بالانتظار: {{ queueStore.stats.waiting }}</span>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <div class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+                    <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+                    <span class="text-sm font-bold">مباشر</span>
                 </div>
-                <div class="flex items-center gap-2 font-mono text-xl sm:text-2xl">
-                    <Clock class="h-5 w-5" />
-                    <span>{{ clock }}</span>
+                <div class="rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500">{{ today }}</p>
+                    <p class="flex items-center gap-2 font-mono text-xl font-black text-slate-900 sm:text-2xl">
+                        <Clock class="h-5 w-5 text-blue-600" />
+                        {{ clock }}
+                    </p>
                 </div>
             </div>
         </AppNavbar>
 
         <div
             v-if="!queueStore.isSystemOpen"
-            class="border-b border-red-800 bg-red-900/50 px-8 py-4 text-center text-red-200"
+            class="border-b border-red-200 bg-red-50 px-8 py-4 text-center text-red-800"
         >
             <Lock class="mx-auto mb-2 h-6 w-6" />
             {{ queueStore.system.closed_message || 'النظام مغلق حالياً' }}
         </div>
         <div
             v-else-if="!queueStore.isDayOpen"
-            class="border-b border-amber-800 bg-amber-900/40 px-8 py-4 text-center text-amber-100"
+            class="border-b border-amber-200 bg-amber-50 px-8 py-4 text-center text-amber-800"
         >
             <Lock class="mx-auto mb-2 h-6 w-6" />
             {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم' }}
         </div>
 
-        <div class="grid min-h-[calc(100vh-6rem)] grid-cols-1 gap-6 p-6 lg:grid-cols-3">
-            <section class="lg:col-span-2">
-                <h2 class="mb-4 text-xl font-semibold text-slate-300">يتم الخدمة الآن</h2>
-
-                <div v-if="queueStore.serving.length === 0" class="flex h-80 items-center justify-center rounded-3xl border border-dashed border-slate-700 text-slate-500">
-                    لا يوجد عملاء قيد الخدمة حالياً
+        <main class="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            <section class="grid gap-3 sm:grid-cols-3">
+                <div class="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3 shadow-sm">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                        <Users class="h-6 w-6" />
+                    </span>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-500">بالانتظار</p>
+                        <p class="text-3xl font-black text-amber-600">{{ queueStore.stats.waiting }}</p>
+                    </div>
                 </div>
-
-                <div v-else class="grid gap-4 sm:grid-cols-2">
-                    <article
-                        v-for="ticket in queueStore.serving"
-                        :key="ticket.id"
-                        class="pulse-badge rounded-3xl border border-blue-500/40 bg-gradient-to-br from-blue-600/30 to-indigo-900/40 p-8"
-                    >
-                        <p class="text-sm text-blue-200">{{ ticket.teller_name || ticket.counter_name || 'الشباك' }}</p>
-                        <p v-if="ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name" class="text-xs text-blue-300">
-                            {{ ticket.counter_name }}
-                        </p>
-                        <p class="my-3 text-7xl font-black text-white">{{ ticket.ticket_number }}</p>
-                        <p class="text-2xl font-semibold text-blue-100">{{ ticket.masked_name }}</p>
-                    </article>
+                <div class="flex items-center gap-3 rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-sm">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+                        <Volume2 class="h-6 w-6" />
+                    </span>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-500">قيد الخدمة</p>
+                        <p class="text-3xl font-black text-blue-700">{{ queueStore.stats.serving }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-sm">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                        <CheckCircle2 class="h-6 w-6" />
+                    </span>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-500">مكتمل اليوم</p>
+                        <p class="text-3xl font-black text-emerald-700">{{ queueStore.stats.completed }}</p>
+                    </div>
                 </div>
             </section>
 
-            <aside class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-                <h2 class="mb-4 text-xl font-semibold text-slate-300">التالي في الانتظار</h2>
+            <div class="grid flex-1 gap-6 lg:grid-cols-3">
+                <section class="flex flex-col lg:col-span-2">
+                    <div class="mb-4 flex items-center gap-3">
+                        <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-white">
+                            <Volume2 class="h-5 w-5" />
+                        </span>
+                        <div>
+                            <h2 class="text-2xl font-black text-slate-900">يتم الخدمة الآن</h2>
+                            <p class="text-sm text-slate-500">توجه إلى الشباك المعلن عند سماع رقمك</p>
+                        </div>
+                    </div>
 
-                <ul class="space-y-3">
-                    <li
-                        v-for="ticket in queueStore.waiting"
-                        :key="ticket.id"
-                        class="flex items-center justify-between rounded-2xl bg-slate-800/80 px-4 py-3"
+                    <div
+                        v-if="queueStore.serving.length === 0"
+                        class="flex flex-1 items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white/80 px-6 py-16 text-center text-lg text-slate-500"
                     >
-                        <span class="text-2xl font-bold text-amber-400">{{ ticket.ticket_number }}</span>
-                        <span class="text-slate-300">{{ ticket.masked_name }}</span>
-                    </li>
-                    <li v-if="queueStore.waiting.length === 0" class="py-8 text-center text-slate-500">
-                        لا توجد تذاكر في الانتظار
-                    </li>
-                </ul>
-            </aside>
-        </div>
+                        لا يوجد عملاء قيد الخدمة حالياً
+                    </div>
+
+                    <div v-else class="grid flex-1 gap-4" :class="servingGridClass">
+                        <article
+                            v-for="ticket in queueStore.serving"
+                            :key="ticket.id"
+                            class="flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-lg sm:p-8"
+                            :class="ticket.id === lastCalledId
+                                ? 'pulse-badge border-blue-400 ring-4 ring-blue-100'
+                                : 'border-slate-200'"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="inline-flex rounded-full bg-blue-600 px-4 py-1.5 text-sm font-bold text-white">
+                                        {{ ticket.counter_name || ticket.teller_name || 'الشباك' }}
+                                    </p>
+                                    <p
+                                        v-if="ticket.teller_name && ticket.counter_name && ticket.teller_name !== ticket.counter_name"
+                                        class="mt-2 text-sm text-slate-500"
+                                    >
+                                        {{ ticket.teller_name }}
+                                    </p>
+                                </div>
+                                <span
+                                    v-if="ticket.id === lastCalledId"
+                                    class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700"
+                                >
+                                    تم النداء
+                                </span>
+                            </div>
+
+                            <p
+                                class="my-4 text-center font-black tracking-tight text-blue-700"
+                                :class="queueStore.serving.length === 1 ? 'text-8xl sm:text-9xl' : 'text-7xl'"
+                            >
+                                {{ formatTicketNumber(ticket.ticket_number) }}
+                            </p>
+
+                            <div class="text-center">
+                                <p class="text-3xl font-black text-slate-800 sm:text-4xl">{{ displayName(ticket) }}</p>
+                                <p v-if="ticket.request_type_label" class="mt-2 text-sm font-semibold text-slate-500">
+                                    {{ ticket.request_type_label }}
+                                </p>
+                                <p v-if="ticket.college_label" class="text-sm text-slate-400">
+                                    {{ ticket.college_label }}
+                                </p>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <aside class="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div class="mb-4 flex items-center gap-3">
+                        <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500 text-white">
+                            <Ticket class="h-5 w-5" />
+                        </span>
+                        <div>
+                            <h2 class="text-xl font-black text-slate-900">التالي في الانتظار</h2>
+                            <p class="text-sm text-slate-500">{{ queueStore.stats.waiting }} تذكرة</p>
+                        </div>
+                    </div>
+
+                    <ul class="flex flex-1 flex-col gap-3 overflow-y-auto">
+                        <li
+                            v-for="(ticket, index) in queueStore.waiting"
+                            :key="ticket.id"
+                            class="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+                            :class="index === 0
+                                ? 'border-amber-200 bg-amber-50'
+                                : 'border-slate-100 bg-slate-50'"
+                        >
+                            <div class="flex min-w-0 items-center gap-3">
+                                <span
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+                                    :class="index === 0 ? 'bg-amber-500 text-white' : 'bg-white text-slate-500'"
+                                >
+                                    {{ index + 1 }}
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="truncate font-semibold text-slate-700">{{ displayName(ticket) }}</p>
+                                    <p v-if="ticket.request_type_label" class="truncate text-xs text-slate-500">
+                                        {{ ticket.request_type_label }}
+                                    </p>
+                                </div>
+                            </div>
+                            <span class="font-mono text-2xl font-black text-amber-600">
+                                {{ formatTicketNumber(ticket.ticket_number) }}
+                            </span>
+                        </li>
+                        <li
+                            v-if="remainingWaitingCount > 0"
+                            class="rounded-2xl border border-dashed border-slate-200 py-3 text-center text-sm font-semibold text-slate-500"
+                        >
+                            و {{ remainingWaitingCount }} تذاكر أخرى في الانتظار
+                        </li>
+                        <li
+                            v-if="queueStore.waiting.length === 0"
+                            class="flex flex-1 flex-col items-center justify-center gap-3 py-12 text-center text-slate-400"
+                        >
+                            <Ticket class="h-10 w-10 text-slate-300" />
+                            لا توجد تذاكر في الانتظار
+                        </li>
+                    </ul>
+                </aside>
+            </div>
+        </main>
     </div>
 </template>

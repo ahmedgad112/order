@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/queue-status', [TellerQueueController::class, 'queueStatus']);
         Route::get('/tickets', [TellerQueueController::class, 'tickets']);
         Route::get('/tickets/scan/{ticket:public_token}', [TellerQueueController::class, 'showScannedTicket']);
+        Route::get('/tickets/{ticket}/document', [TellerQueueController::class, 'showDocument']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
         Route::post('/call-next', [TellerQueueController::class, 'callNext']);
         Route::post('/tickets/{ticket}/complete', [TellerQueueController::class, 'completeTicket']);
@@ -53,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/tickets', [AdminTicketController::class, 'index']);
         Route::put('/tickets/{ticket}', [AdminTicketController::class, 'update']);
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
+        Route::put('/queue-lanes/{lane}/tellers', [AdminSystemController::class, 'updateLaneTellers']);
     });
 
     Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
@@ -60,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/system/open', [AdminSystemController::class, 'open']);
         Route::post('/system/end-day', [AdminSystemController::class, 'endDay']);
         Route::post('/system/open-day', [AdminSystemController::class, 'openDay']);
+        Route::put('/system/request-types', [AdminSystemController::class, 'updateRequestTypes']);
         Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);

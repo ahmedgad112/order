@@ -4,9 +4,21 @@ import { useAuthStore } from '../stores/authStore';
 const routes = [
     {
         path: '/',
+        name: 'student-choice',
+        component: () => import('../views/StudentChoiceView.vue'),
+        meta: { title: 'اختيار نوع الطالب' },
+    },
+    {
+        path: '/new-student',
         name: 'kiosk',
         component: () => import('../views/PublicKioskView.vue'),
         meta: { title: 'إصدار تذكرة' },
+    },
+    {
+        path: '/current-student',
+        name: 'current-student',
+        component: () => import('../views/CurrentStudentKioskView.vue'),
+        meta: { title: 'طالب حالي' },
     },
     {
         path: '/display',
@@ -91,8 +103,10 @@ router.beforeEach(async (to) => {
 });
 
 const prefetchByRoute = {
-    kiosk: ['track', 'login'],
-    track: ['kiosk'],
+    'student-choice': ['kiosk', 'current-student', 'track', 'login'],
+    kiosk: ['student-choice', 'track', 'login'],
+    'current-student': ['student-choice', 'track', 'login'],
+    track: ['student-choice'],
     login: ['teller', 'admin'],
     teller: ['admin', 'admin-registrations'],
     admin: ['teller', 'admin-registrations'],

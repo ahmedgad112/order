@@ -20,16 +20,13 @@ body {
 
 @keyframes pulse-ring {
     0% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45);
     }
     70% {
-        transform: scale(1);
-        box-shadow: 0 0 0 12px rgba(59, 130, 246, 0);
+        box-shadow: 0 0 0 16px rgba(37, 99, 235, 0);
     }
     100% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
     }
 }
 

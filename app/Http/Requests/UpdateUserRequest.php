@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\QueueLane;
 use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -27,6 +28,8 @@ class UpdateUserRequest extends FormRequest
             'password' => ['nullable', 'string', Password::min(8)],
             'role' => ['sometimes', Rule::enum(UserRole::class)],
             'counter_name' => ['nullable', 'string', 'max:100'],
+            'queue_lanes' => ['sometimes', 'array'],
+            'queue_lanes.*' => ['required', 'string', 'distinct', Rule::enum(QueueLane::class)],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -40,6 +43,9 @@ class UpdateUserRequest extends FormRequest
             'name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل.',
             'email.email' => 'يرجى إدخال بريد إلكتروني صالح.',
             'email.unique' => 'البريد الإلكتروني مستخدم بالفعل.',
+            'queue_lanes.array' => 'أنواع الطلب المخصصة غير صحيحة.',
+            'queue_lanes.*.distinct' => 'لا يمكن تكرار نوع الطلب.',
+            'queue_lanes.*.enum' => 'نوع الطلب غير صحيح.',
         ];
     }
 }

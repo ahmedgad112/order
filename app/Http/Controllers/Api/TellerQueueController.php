@@ -11,7 +11,9 @@ use App\Services\QueueService;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TellerQueueController extends Controller
 {
@@ -59,6 +61,13 @@ class TellerQueueController extends Controller
             ),
             'system' => $this->systemService->getStatus(),
         ]);
+    }
+
+    public function showDocument(QueueTicket $ticket): StreamedResponse
+    {
+        abort_if(! $ticket->hasDocument() || ! Storage::exists((string) $ticket->document_path), 404);
+
+        return Storage::response((string) $ticket->document_path);
     }
 
     public function markEntered(Request $request, QueueTicket $ticket): JsonResponse

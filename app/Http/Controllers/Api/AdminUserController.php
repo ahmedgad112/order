@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\QueueLane;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
@@ -27,6 +28,7 @@ class AdminUserController extends Controller
 
         return response()->json([
             'users' => UserResource::collection($query->get()),
+            'queue_lanes' => QueueLane::payload(),
         ]);
     }
 
@@ -47,6 +49,9 @@ class AdminUserController extends Controller
             'password' => Hash::make($data['password']),
             'role' => $role,
             'counter_name' => $role === UserRole::Teller ? ($data['counter_name'] ?? null) : null,
+            'queue_lanes' => $role === UserRole::Teller
+                ? array_values(array_unique($data['queue_lanes'] ?? QueueLane::values()))
+                : null,
             'is_active' => $data['is_active'] ?? true,
         ]);
 
@@ -103,11 +108,19 @@ class AdminUserController extends Controller
             unset($data['password']);
         }
 
+        $nextRole = isset($data['role']) ? UserRole::from($data['role']) : $user->role;
+
         if (isset($data['role'])) {
-            $data['role'] = UserRole::from($data['role']);
-            if ($data['role'] !== UserRole::Teller) {
-                $data['counter_name'] = null;
-            }
+            $data['role'] = $nextRole;
+        }
+
+        if ($nextRole !== UserRole::Teller) {
+            $data['counter_name'] = null;
+            $data['queue_lanes'] = null;
+        } elseif (array_key_exists('queue_lanes', $data)) {
+            $data['queue_lanes'] = array_values(array_unique($data['queue_lanes']));
+        } else {
+            unset($data['queue_lanes']);
         }
 
         $user->update($data);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QueueLane;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,7 +13,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'counter_name', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'role', 'counter_name', 'queue_lanes', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -25,6 +26,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'queue_lanes' => 'array',
             'is_active' => 'boolean',
         ];
     }
@@ -82,5 +84,35 @@ class User extends Authenticatable
     public function canManageUser(User $user): bool
     {
         return $this->role->canManage($user->role);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function queueLaneValues(): array
+    {
+        if (! $this->isTeller()) {
+            return QueueLane::values();
+        }
+
+        $stored = $this->queue_lanes;
+
+        if (! is_array($stored)) {
+            return QueueLane::values();
+        }
+
+        return array_values(array_intersect($stored, QueueLane::values()));
+    }
+
+    public function servesQueueLane(QueueLane|string $lane): bool
+    {
+        $value = $lane instanceof QueueLane ? $lane->value : $lane;
+
+        return in_array($value, $this->queueLaneValues(), true);
+    }
+
+    public function constrainsTicketsToAssignedLanes(): bool
+    {
+        return $this->isTeller();
     }
 }

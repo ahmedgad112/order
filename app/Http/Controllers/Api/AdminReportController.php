@@ -25,6 +25,7 @@ class AdminReportController extends Controller
             'metrics' => $this->dailyMetricsPayload(),
             'teller_performance' => $performance,
             'tellers' => $performance,
+            'queue_lanes' => $this->systemService->queueLaneAssignments(),
             'system' => $this->systemService->getStatus(),
         ]);
     }
