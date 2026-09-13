@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\QueueLane;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateEnabledRequestTypesRequest;
+use App\Http\Requests\UpdateEnabledStudentKindsRequest;
 use App\Http\Requests\UpdateQueueLaneTellersRequest;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
@@ -82,6 +83,19 @@ class AdminSystemController extends Controller
 
         return response()->json([
             'message' => 'تم تحديث أنواع الطلبات المتاحة.',
+            'system' => $system,
+        ]);
+    }
+
+    public function updateStudentKinds(UpdateEnabledStudentKindsRequest $request): JsonResponse
+    {
+        $system = $this->systemService->updateEnabledStudentKinds(
+            $request->user(),
+            $request->validated('enabled_student_kinds'),
+        );
+
+        return response()->json([
+            'message' => 'تم تحديث أنواع الطلاب في شاشة الاختيار.',
             'system' => $system,
         ]);
     }

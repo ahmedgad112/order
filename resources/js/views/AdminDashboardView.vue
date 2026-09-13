@@ -6,6 +6,7 @@ import {
     CheckCircle,
     ClipboardList,
     Clock3,
+    GraduationCap,
     Lock,
     Power,
     Timer,
@@ -50,6 +51,18 @@ const avgHandlingMinutes = computed(() => {
 
 const requestTypes = computed(() => queueStore.system.request_types ?? []);
 const enabledRequestTypeCount = computed(() => requestTypes.value.filter((type) => type.enabled).length);
+const studentKinds = computed(() => {
+    const kinds = queueStore.system.student_kinds ?? [];
+
+    if (kinds.length) {
+        return kinds;
+    }
+
+    return [
+        { value: 'new_student', label: 'طالب جديد', enabled: true },
+        { value: 'current_student', label: 'طالب حالي (فرقة ثانية)', enabled: true },
+    ];
+});
 
 async function refresh() {
     const tasks = [queueStore.fetchAdminDashboard()];
@@ -145,6 +158,25 @@ async function toggleRequestType(typeValue, enabled) {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.enabled_request_types?.[0]
             ?? 'تعذر تحديث أنواع الطلبات.';
+    } finally {
+        actionLoading.value = false;
+    }
+}
+
+async function toggleStudentKind(kindValue, enabled) {
+    actionLoading.value = true;
+    actionError.value = '';
+    actionFeedback.value = '';
+    try {
+        const next = studentKinds.value
+            .filter((kind) => (kind.value === kindValue ? enabled : kind.enabled))
+            .map((kind) => kind.value);
+        const result = await queueStore.updateStudentKinds(next);
+        actionFeedback.value = result.message;
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.enabled_student_kinds?.[0]
+            ?? 'تعذر تحديث أنواع الطلاب في شاشة الاختيار.';
     } finally {
         actionLoading.value = false;
     }
@@ -265,13 +297,51 @@ onUnmounted(() => {
 
             <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div class="mb-4 flex items-center gap-2">
+                    <GraduationCap class="h-5 w-5 text-indigo-600" />
+                    <h2 class="text-lg font-bold text-slate-900">اختر نوع الطالب للمتابعة</h2>
+                </div>
+                <p class="mb-4 text-sm text-slate-600">
+                    فعّل أو ألغِ الخيارات اللي تظهر للطالب في شاشة البداية. الخيار الملغي مش هيظهر خالص.
+                </p>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label
+                        v-for="kind in studentKinds"
+                        :key="kind.value"
+                        class="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+                        :class="kind.enabled ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'"
+                    >
+                        <span>
+                            <span class="block text-sm font-semibold text-slate-800">{{ kind.label }}</span>
+                            <span
+                                class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                :class="kind.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'"
+                            >
+                                {{ kind.enabled ? 'مفعّل' : 'ملغي' }}
+                            </span>
+                        </span>
+                        <input
+                            type="checkbox"
+                            class="h-4 w-4 accent-indigo-600"
+                            :checked="kind.enabled"
+                            :disabled="!authStore.canControlSystem || actionLoading"
+                            @change="toggleStudentKind(kind.value, $event.target.checked)"
+                        />
+                    </label>
+                </div>
+                <p v-if="!authStore.canControlSystem" class="mt-3 text-sm font-semibold text-slate-500">
+                    تفعيل أنواع الطلاب وإلغاؤها متاح للسوبر أدمن فقط.
+                </p>
+            </section>
+
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="mb-4 flex items-center gap-2">
                     <ClipboardList class="h-5 w-5 text-indigo-600" />
                     <h2 class="text-lg font-bold text-slate-900">أنواع الطلب الظاهرة للطالب</h2>
                 </div>
                 <p class="mb-4 text-sm text-slate-600">
                     تحكم في الأنواع التي تظهر في شاشة إصدار التذكرة. رقم الطلب يظهر للطالب بعد اختيار النوع.
                 </p>
-                <div class="grid gap-3 sm:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <label
                         v-for="type in requestTypes"
                         :key="type.value"

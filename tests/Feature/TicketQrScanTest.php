@@ -30,7 +30,7 @@ class TicketQrScanTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('ticket.ticket_number', 'N1')
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
             ->assertJsonPath('ticket.masked_name', 'محمد أ***')
             ->assertJsonMissingPath('ticket.national_id')
             ->assertJsonMissingPath('ticket.order_number')
@@ -73,7 +73,7 @@ class TicketQrScanTest extends TestCase
 
         $this->getJson('/api/teller/tickets/scan/'.$ticket->public_token)
             ->assertOk()
-            ->assertJsonPath('ticket.ticket_number', 'N4')
+            ->assertJsonPath('ticket.ticket_number', 'OT4')
             ->assertJsonPath('ticket.full_name', 'محمد أحمد علي')
             ->assertJsonPath('ticket.national_id', '29501011234567')
             ->assertJsonPath('ticket.order_number', 'ORD-1001')

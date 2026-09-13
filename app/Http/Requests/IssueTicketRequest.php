@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\College;
 use App\Enums\DocumentKind;
 use App\Enums\Faculty;
+use App\Enums\ProcessStep;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Models\QueueSystemSetting;
@@ -31,7 +32,7 @@ class IssueTicketRequest extends FormRequest
                 'full_name' => ['required', 'string', 'min:3', 'max:255'],
                 'college' => ['required', 'string', Rule::in(Faculty::values())],
                 'department' => ['required', 'string', 'min:2', 'max:255'],
-                'seat_number' => ['required', 'digits:7'],
+                'seat_number' => ['required', ...Faculty::seatNumberRulesFor($this->input('college'))],
                 'document_kind' => ['required', Rule::enum(DocumentKind::class)],
                 'document' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             ];
@@ -42,6 +43,12 @@ class IssueTicketRequest extends FormRequest
             'full_name' => ['required', 'string', 'min:3', 'max:255'],
             'national_id' => ['required', 'digits:14'],
             'request_type' => ['required', 'string', Rule::in(QueueSystemSetting::current()->enabledRequestTypeValues())],
+            'completion_step' => [
+                'exclude_unless:request_type,'.RequestType::DocumentCompletion->value,
+                'required',
+                'string',
+                Rule::in(ProcessStep::admissionCompletionValues()),
+            ],
             'college' => [
                 'required',
                 'string',
@@ -66,8 +73,12 @@ class IssueTicketRequest extends FormRequest
             'full_name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل.',
             'national_id.required' => 'الرقم القومي مطلوب.',
             'national_id.digits' => 'يجب أن يتكون الرقم القومي من 14 رقمًا بالضبط.',
+            'student_kind.required' => 'يجب اختيار نوع الطالب.',
+            'student_kind.enum' => 'نوع الطالب غير صحيح.',
             'request_type.required' => 'يجب اختيار نوع الطلب.',
             'request_type.in' => 'نوع الطلب غير متاح حالياً.',
+            'completion_step.required' => 'يجب اختيار الخدمة المراد استكمال أوراقها.',
+            'completion_step.in' => 'الخدمة المراد استكمال أوراقها غير صحيحة.',
             'college.required' => 'يجب تحديد الكلية.',
             'college.min' => 'يجب كتابة اسم الكلية.',
             'college.in' => $this->isCurrentStudent()
@@ -79,6 +90,7 @@ class IssueTicketRequest extends FormRequest
             'department.min' => 'يجب كتابة اسم القسم.',
             'seat_number.required' => 'رقم الجلوس مطلوب.',
             'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.',
+            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.',
             'document_kind.required' => 'يجب اختيار نوع المستند.',
             'document_kind.enum' => 'نوع المستند غير صحيح.',
             'document.required' => 'يجب رفع صورة المستند.',
@@ -112,6 +124,19 @@ class IssueTicketRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if (
+                $this->filled('student_kind')
+                && StudentKind::tryFrom((string) $this->input('student_kind')) !== null
+                && ! QueueSystemSetting::current()->isStudentKindEnabled($this->input('student_kind'))
+            ) {
+                $validator->errors()->add(
+                    'student_kind',
+                    $this->isCurrentStudent()
+                        ? 'تقديم الطلاب الحاليين غير متاح حالياً.'
+                        : 'تقديم الطلاب الجدد غير متاح حالياً.',
+                );
+            }
+
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }

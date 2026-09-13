@@ -87,6 +87,7 @@ class AdminTicketController extends Controller
                 'full_name',
                 'national_id',
                 'request_type',
+                'completion_step',
                 'college',
                 'order_number',
                 'department',

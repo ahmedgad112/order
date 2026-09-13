@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\College;
+use App\Enums\ProcessStep;
 use App\Enums\QueueLane;
 use App\Enums\RequestType;
 use App\Enums\TicketStatus;
@@ -123,7 +124,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $this->postJson('/api/teller/call-next')
             ->assertOk()
             ->assertJsonPath('ticket.id', $assignedTicket->id)
-            ->assertJsonPath('ticket.ticket_number', 'N2')
+            ->assertJsonPath('ticket.ticket_number', 'OT2')
             ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
     }
 
@@ -187,8 +188,37 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $this->getJson('/api/teller/tickets')
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
-            ->assertJsonPath('tickets.0.ticket_number', 'N1')
+            ->assertJsonPath('tickets.0.ticket_number', 'OT1')
             ->assertJsonPath('tickets.0.request_type', RequestType::NominationCard->value);
+    }
+
+    public function test_teller_call_next_serves_document_completion_tickets_on_their_own_lane(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->forQueueLanes([QueueLane::DocumentCompletion])->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'request_type' => RequestType::NominationCard,
+            'college' => College::InformationTechnology->value,
+            'national_id' => '29501011234567',
+            'order_number' => '111111111',
+        ]);
+        $assignedTicket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'request_type' => RequestType::DocumentCompletion,
+            'completion_step' => ProcessStep::MedicalChecked,
+            'college' => 'كلية الهندسة',
+            'national_id' => '29501011234568',
+            'order_number' => '222222222',
+        ]);
+        Sanctum::actingAs($teller);
+
+        $this->postJson('/api/teller/call-next')
+            ->assertOk()
+            ->assertJsonPath('ticket.id', $assignedTicket->id)
+            ->assertJsonPath('ticket.request_type', RequestType::DocumentCompletion->value)
+            ->assertJsonPath('ticket.completion_step', ProcessStep::MedicalChecked->value)
+            ->assertJsonPath('ticket.request_type_label', 'استكمال أوراق — كشف طبي');
     }
 
     public function test_admin_dashboard_includes_queue_lane_assignments(): void
@@ -202,7 +232,8 @@ class TellerQueueLaneAssignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('queue_lanes.0.value', QueueLane::NominationCard->value)
             ->assertJsonPath('queue_lanes.0.teller_ids.0', $teller->id)
-            ->assertJsonPath('queue_lanes.3.value', QueueLane::CurrentStudent->value);
+            ->assertJsonPath('queue_lanes.3.value', QueueLane::DocumentCompletion->value)
+            ->assertJsonPath('queue_lanes.4.value', QueueLane::CurrentStudent->value);
     }
 
     public function test_public_queue_status_does_not_include_queue_lane_assignments(): void
@@ -228,7 +259,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
             'counter_name' => 'شباك 9',
         ])
             ->assertCreated()
-            ->assertJsonCount(4, 'user.queue_lanes')
+            ->assertJsonCount(5, 'user.queue_lanes')
             ->assertJsonPath('user.queue_lanes.0.value', QueueLane::NominationCard->value);
     }
 
@@ -240,8 +271,9 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $this->getJson('/api/admin/users')
             ->assertOk()
             ->assertJsonPath('queue_lanes.0.value', QueueLane::NominationCard->value)
-            ->assertJsonPath('queue_lanes.3.value', QueueLane::CurrentStudent->value)
-            ->assertJsonCount(4, 'queue_lanes');
+            ->assertJsonPath('queue_lanes.3.value', QueueLane::DocumentCompletion->value)
+            ->assertJsonPath('queue_lanes.4.value', QueueLane::CurrentStudent->value)
+            ->assertJsonCount(5, 'queue_lanes');
     }
 
     public function test_super_admin_updates_teller_queue_lanes_from_user_management(): void

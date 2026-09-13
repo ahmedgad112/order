@@ -23,6 +23,15 @@ enum StudentKind: string
         };
     }
 
+    public static function tryFromTicketPrefix(string $prefix): ?self
+    {
+        return match (strtoupper($prefix)) {
+            'N' => self::NewStudent,
+            'O' => self::CurrentStudent,
+            default => null,
+        };
+    }
+
     /**
      * @return list<string>
      */
@@ -32,14 +41,18 @@ enum StudentKind: string
     }
 
     /**
-     * @return list<array{value: string, label: string}>
+     * @param  list<string>|null  $enabledValues
+     * @return list<array{value: string, label: string, enabled: bool}>
      */
-    public static function payload(): array
+    public static function payload(?array $enabledValues = null): array
     {
+        $enabled = $enabledValues ?? self::values();
+
         return array_map(
             fn (self $kind): array => [
                 'value' => $kind->value,
                 'label' => $kind->label(),
+                'enabled' => in_array($kind->value, $enabled, true),
             ],
             self::cases(),
         );

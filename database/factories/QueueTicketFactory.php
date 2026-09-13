@@ -24,18 +24,15 @@ class QueueTicketFactory extends Factory
      */
     public function definition(): array
     {
-        $requestType = fake()->randomElement(RequestType::cases());
-
         return [
             'ticket_number' => fake()->unique()->numberBetween(1, 9999),
             'public_token' => fake()->uuid(),
             'full_name' => fake()->name(),
             'student_kind' => StudentKind::NewStudent,
             'national_id' => fake()->numerify('##############'),
-            'request_type' => $requestType,
-            'college' => $requestType === RequestType::NominationCard
-                ? fake()->randomElement(College::values())
-                : 'كلية الهندسة',
+            'request_type' => RequestType::NominationCard,
+            'completion_step' => null,
+            'college' => fake()->randomElement(College::values()),
             'department' => null,
             'order_number' => fake()->unique()->numerify('#########'),
             'seat_number' => null,
@@ -74,6 +71,7 @@ class QueueTicketFactory extends Factory
             'student_kind' => StudentKind::CurrentStudent,
             'national_id' => null,
             'request_type' => null,
+            'completion_step' => null,
             'college' => fake()->randomElement(Faculty::values()),
             'department' => 'تكنولوجيا المعلومات',
             'order_number' => null,

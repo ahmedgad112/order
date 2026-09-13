@@ -84,7 +84,7 @@ class CurrentStudentTicketTest extends TestCase
             'order_number' => '123456789',
         ])
             ->assertCreated()
-            ->assertJsonPath('ticket.ticket_number', 'N1');
+            ->assertJsonPath('ticket.ticket_number', 'OT1');
 
         $this->post('/api/public/tickets', $this->currentStudentPayload(), [
             'Accept' => 'application/json',
@@ -101,7 +101,7 @@ class CurrentStudentTicketTest extends TestCase
             'order_number' => '123456788',
         ])
             ->assertCreated()
-            ->assertJsonPath('ticket.ticket_number', 'N2');
+            ->assertJsonPath('ticket.ticket_number', 'OT2');
 
         $this->post('/api/public/tickets', $this->currentStudentPayload([
             'full_name' => 'منى سعيد',
@@ -144,6 +144,7 @@ class CurrentStudentTicketTest extends TestCase
         ]);
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
+            'request_type' => RequestType::NominationCard,
             'full_name' => 'طالب جديد بنفس الرقم',
         ]);
         Sanctum::actingAs(User::factory()->superAdmin()->create());
@@ -206,6 +207,71 @@ class CurrentStudentTicketTest extends TestCase
         ];
     }
 
+    #[DataProvider('healthSciencesSeatNumbers')]
+    public function test_guest_can_issue_health_sciences_ticket_with_seven_to_nine_digit_seat_number(string $seatNumber): void
+    {
+        Storage::fake();
+        QueueSystemSetting::current();
+
+        $this->post('/api/public/tickets', $this->currentStudentPayload([
+            'college' => Faculty::HealthSciences->value,
+            'department' => 'علوم المختبرات',
+            'seat_number' => $seatNumber,
+        ]), [
+            'Accept' => 'application/json',
+        ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'college' => Faculty::HealthSciences->value,
+            'department' => 'علوم المختبرات',
+            'seat_number' => $seatNumber,
+        ]);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function healthSciencesSeatNumbers(): array
+    {
+        return [
+            'seven_digits' => ['1234567'],
+            'eight_digits' => ['12345678'],
+            'nine_digits' => ['123456789'],
+        ];
+    }
+
+    #[DataProvider('invalidHealthSciencesSeatNumbers')]
+    public function test_returns_422_when_health_sciences_seat_number_is_outside_seven_to_nine_digits(string $seatNumber): void
+    {
+        Storage::fake();
+        QueueSystemSetting::current();
+
+        $this->post('/api/public/tickets', $this->currentStudentPayload([
+            'college' => Faculty::HealthSciences->value,
+            'seat_number' => $seatNumber,
+        ]), [
+            'Accept' => 'application/json',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['seat_number'])
+            ->assertJsonPath('errors.seat_number.0', 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidHealthSciencesSeatNumbers(): array
+    {
+        return [
+            'too_short' => ['123456'],
+            'too_long' => ['1234567890'],
+            'letters' => ['1234567a'],
+        ];
+    }
+
     public function test_returns_422_when_faculty_is_not_listed(): void
     {
         Storage::fake();
@@ -250,7 +316,11 @@ class CurrentStudentTicketTest extends TestCase
             ->assertOk()
             ->assertJsonPath('system.faculties.0.value', Faculty::IndustryEnergy->value)
             ->assertJsonPath('system.faculties.0.label', 'صناعة وطاقة')
+            ->assertJsonPath('system.faculties.0.seat_number_min_digits', 7)
+            ->assertJsonPath('system.faculties.0.seat_number_max_digits', 7)
             ->assertJsonPath('system.faculties.1.value', Faculty::HealthSciences->value)
+            ->assertJsonPath('system.faculties.1.seat_number_min_digits', 7)
+            ->assertJsonPath('system.faculties.1.seat_number_max_digits', 9)
             ->assertJsonPath('system.document_kinds.0.value', DocumentKind::StatusStatement->value)
             ->assertJsonPath('system.document_kinds.1.value', DocumentKind::StudentCard->value);
     }
@@ -271,6 +341,48 @@ class CurrentStudentTicketTest extends TestCase
             ->assertJsonPath('ticket.ticket_number', 'O8')
             ->assertJsonPath('ticket.position_in_queue', 1)
             ->assertJsonMissingPath('ticket.seat_number');
+    }
+
+    public function test_guest_can_track_current_student_ticket_by_nine_digit_seat_number(): void
+    {
+        QueueSystemSetting::current();
+        QueueTicket::factory()->currentStudent()->waiting()->create([
+            'ticket_number' => 9,
+            'college' => Faculty::HealthSciences->value,
+            'seat_number' => '123456789',
+            'full_name' => 'سارة أحمد',
+        ]);
+
+        $this->postJson('/api/public/tickets/track', [
+            'seat_number' => '123456789',
+        ])
+            ->assertOk()
+            ->assertJsonPath('ticket.ticket_number', 'O9')
+            ->assertJsonMissingPath('ticket.seat_number');
+    }
+
+    #[DataProvider('invalidTrackedSeatNumbers')]
+    public function test_returns_422_when_tracked_seat_number_is_outside_seven_to_nine_digits(string $seatNumber): void
+    {
+        QueueSystemSetting::current();
+
+        $this->postJson('/api/public/tickets/track', [
+            'seat_number' => $seatNumber,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['seat_number'])
+            ->assertJsonPath('errors.seat_number.0', 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.');
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidTrackedSeatNumbers(): array
+    {
+        return [
+            'too_short' => ['123456'],
+            'too_long' => ['1234567890'],
+        ];
     }
 
     public function test_returns_401_when_guest_views_current_student_document(): void
@@ -494,13 +606,38 @@ class CurrentStudentTicketTest extends TestCase
             'full_name' => 'سارة المعدلة',
             'college' => Faculty::HealthSciences->value,
             'department' => 'الرعاية الصحية',
-            'seat_number' => '7654321',
+            'seat_number' => '765432198',
         ])
             ->assertOk()
             ->assertJsonPath('ticket.full_name', 'سارة المعدلة')
             ->assertJsonPath('ticket.college', Faculty::HealthSciences->value)
             ->assertJsonPath('ticket.college_label', 'علوم صحية')
             ->assertJsonPath('ticket.department', 'الرعاية الصحية')
-            ->assertJsonPath('ticket.seat_number', '7654321');
+            ->assertJsonPath('ticket.seat_number', '765432198');
+    }
+
+    public function test_returns_422_when_updated_industry_energy_seat_number_is_not_seven_digits(): void
+    {
+        QueueSystemSetting::current();
+        $manager = User::factory()->manager()->create();
+        $ticket = QueueTicket::factory()->currentStudent()->waiting()->create([
+            'ticket_number' => 14,
+            'college' => Faculty::IndustryEnergy->value,
+            'department' => 'تكنولوجيا المعلومات',
+            'seat_number' => '1234567',
+        ]);
+        Sanctum::actingAs($manager);
+
+        $this->putJson('/api/admin/tickets/'.$ticket->id, [
+            'full_name' => $ticket->full_name,
+            'college' => Faculty::IndustryEnergy->value,
+            'department' => $ticket->department,
+            'seat_number' => '12345678',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['seat_number'])
+            ->assertJsonPath('errors.seat_number.0', 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.');
+
+        $this->assertSame('1234567', $ticket->fresh()->seat_number);
     }
 }

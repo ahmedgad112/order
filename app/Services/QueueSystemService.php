@@ -7,6 +7,7 @@ use App\Enums\DocumentKind;
 use App\Enums\Faculty;
 use App\Enums\QueueLane;
 use App\Enums\RequestType;
+use App\Enums\StudentKind;
 use App\Enums\UserRole;
 use App\Events\QueueDayResetEvent;
 use App\Events\QueueSystemUpdatedEvent;
@@ -155,6 +156,27 @@ class QueueSystemService
     }
 
     /**
+     * @param  list<string>  $enabledStudentKinds
+     * @return array<string, mixed>
+     */
+    public function updateEnabledStudentKinds(User $admin, array $enabledStudentKinds): array
+    {
+        abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
+
+        $settings = QueueSystemSetting::current();
+
+        $settings->update([
+            'enabled_student_kinds' => array_values(array_unique($enabledStudentKinds)),
+        ]);
+
+        $status = $this->formatStatus($settings->fresh());
+
+        $this->broadcastSafely(new QueueSystemUpdatedEvent($status));
+
+        return $status;
+    }
+
+    /**
      * @param  list<int>  $tellerIds
      * @return list<array{value: string, label: string, teller_ids: list<int>}>
      */
@@ -260,6 +282,7 @@ class QueueSystemService
             'last_reset_at' => $settings->last_reset_at?->toIso8601String(),
             'current_session_started_at' => $settings->currentSessionStartedAt()->toIso8601String(),
             'request_types' => RequestType::payload($settings->enabledRequestTypeValues()),
+            'student_kinds' => StudentKind::payload($settings->enabledStudentKindValues()),
             'colleges' => College::payload(),
             'faculties' => Faculty::payload(),
             'document_kinds' => DocumentKind::payload(),

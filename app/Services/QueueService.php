@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\ProcessStep;
+use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Events\TicketAbsentEvent;
@@ -35,9 +37,12 @@ class QueueService
         $ticket = DB::transaction(function () use ($data): QueueTicket {
             $sessionStartedAt = QueueTicket::currentSessionStartedAt();
             $studentKind = StudentKind::from($data['student_kind'] ?? StudentKind::NewStudent->value);
+            $requestType = $studentKind === StudentKind::CurrentStudent
+                ? null
+                : RequestType::from($data['request_type']);
             $maxNumber = QueueTicket::query()
                 ->today()
-                ->forStudentKindSeries($studentKind)
+                ->forTicketSeries($studentKind, $requestType)
                 ->lockForUpdate()
                 ->orderByDesc('ticket_number')
                 ->value('ticket_number');
@@ -69,9 +74,19 @@ class QueueService
                     ...$attributes,
                     'national_id' => $data['national_id'],
                     'request_type' => $data['request_type'],
+                    'completion_step' => $data['completion_step'] ?? null,
                     'college' => $data['college'],
                     'order_number' => $data['order_number'],
                 ];
+
+                $completionStep = ProcessStep::tryFrom((string) ($data['completion_step'] ?? ''));
+
+                if ($completionStep instanceof ProcessStep) {
+                    $attributes = [
+                        ...$attributes,
+                        ...$completionStep->priorCheckpointAttributes(),
+                    ];
+                }
             }
 
             return QueueTicket::query()->create($attributes);
@@ -214,10 +229,17 @@ class QueueService
                 'seat_number' => $data['seat_number'],
             ]);
         } else {
+            $requestType = $data['request_type'] instanceof RequestType
+                ? $data['request_type']
+                : RequestType::from($data['request_type']);
+
             $ticket->update([
                 'full_name' => $data['full_name'],
                 'national_id' => $data['national_id'],
-                'request_type' => $data['request_type'],
+                'request_type' => $requestType,
+                'completion_step' => $requestType === RequestType::DocumentCompletion
+                    ? ($data['completion_step'] ?? null)
+                    : null,
                 'college' => $data['college'],
                 'order_number' => $data['order_number'],
             ]);

@@ -36,7 +36,7 @@ function onNationalIdInput(event) {
 
 function onSeatNumberInput(event) {
     searchType.value = 'seat_number';
-    searchValue.value = restrictDigitInput(event, 7);
+    searchValue.value = restrictDigitInput(event, 9);
 }
 
 const statusConfig = computed(() => {
@@ -93,8 +93,8 @@ async function trackTicket(silent = false) {
         return;
     }
 
-    if (searchType.value === 'seat_number' && !/^\d{7}$/.test(searchValue.value)) {
-        fieldError.value = 'يجب أن يتكون رقم الجلوس من 7 أرقام.';
+    if (searchType.value === 'seat_number' && !/^\d{7,9}$/.test(searchValue.value)) {
+        fieldError.value = 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.';
         return;
     }
 
@@ -251,11 +251,11 @@ watch(searchType, () => {
                             :value="searchValue"
                             inputmode="numeric"
                             type="text"
-                            maxlength="7"
+                            maxlength="9"
                             pattern="[0-9]*"
                             autocomplete="off"
                             class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                            placeholder="7 أرقام"
+                            placeholder="7 إلى 9 أرقام"
                             @input="onSeatNumberInput"
                         />
                     </div>

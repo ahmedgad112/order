@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\College;
 use App\Enums\Faculty;
+use App\Enums\ProcessStep;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Models\QueueTicket;
@@ -28,7 +29,7 @@ class UpdateTicketRequest extends FormRequest
                 'full_name' => ['required', 'string', 'min:3', 'max:255'],
                 'college' => ['required', 'string', Rule::in(Faculty::values())],
                 'department' => ['required', 'string', 'min:2', 'max:255'],
-                'seat_number' => ['required', 'digits:7'],
+                'seat_number' => ['required', ...Faculty::seatNumberRulesFor($this->input('college'))],
             ];
         }
 
@@ -36,6 +37,11 @@ class UpdateTicketRequest extends FormRequest
             'full_name' => ['required', 'string', 'min:3', 'max:255'],
             'national_id' => ['required', 'digits:14'],
             'request_type' => ['required', Rule::enum(RequestType::class)],
+            'completion_step' => [
+                'exclude_unless:request_type,'.RequestType::DocumentCompletion->value,
+                'required',
+                Rule::in(ProcessStep::admissionCompletionValues()),
+            ],
             'college' => [
                 'required',
                 'string',
@@ -62,6 +68,8 @@ class UpdateTicketRequest extends FormRequest
             'national_id.digits' => 'يجب أن يتكون الرقم القومي من 14 رقمًا بالضبط.',
             'request_type.required' => 'يجب اختيار نوع الطلب.',
             'request_type.enum' => 'نوع الطلب غير صحيح.',
+            'completion_step.required' => 'يجب اختيار الخدمة المراد استكمال أوراقها.',
+            'completion_step.in' => 'الخدمة المراد استكمال أوراقها غير صحيحة.',
             'college.required' => 'يجب تحديد الكلية.',
             'college.min' => 'يجب كتابة اسم الكلية.',
             'college.in' => $this->isCurrentStudentTicket()
@@ -73,6 +81,7 @@ class UpdateTicketRequest extends FormRequest
             'department.min' => 'يجب كتابة اسم القسم.',
             'seat_number.required' => 'رقم الجلوس مطلوب.',
             'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.',
+            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.',
         ];
     }
 

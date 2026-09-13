@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RequestType;
+use App\Enums\StudentKind;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'is_open',
     'enabled_request_types',
+    'enabled_student_kinds',
     'current_session_started_at',
     'closed_message',
     'closed_at',
@@ -27,6 +29,7 @@ class QueueSystemSetting extends Model
         return [
             'is_open' => 'boolean',
             'enabled_request_types' => 'array',
+            'enabled_student_kinds' => 'array',
             'current_session_started_at' => 'datetime',
             'closed_at' => 'datetime',
             'last_reset_at' => 'datetime',
@@ -78,6 +81,27 @@ class QueueSystemSetting extends Model
         $value = $type instanceof RequestType ? $type->value : $type;
 
         return in_array($value, $this->enabledRequestTypeValues(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function enabledStudentKindValues(): array
+    {
+        $stored = $this->enabled_student_kinds;
+
+        if (! is_array($stored)) {
+            return StudentKind::values();
+        }
+
+        return array_values(array_intersect($stored, StudentKind::values()));
+    }
+
+    public function isStudentKindEnabled(StudentKind|string $kind): bool
+    {
+        $value = $kind instanceof StudentKind ? $kind->value : $kind;
+
+        return in_array($value, $this->enabledStudentKindValues(), true);
     }
 
     public function closedByUser(): BelongsTo

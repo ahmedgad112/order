@@ -180,6 +180,7 @@ async function handleEdit(ticket) {
             full_name: ticket.full_name,
             national_id: ticket.national_id,
             request_type: ticket.request_type,
+            completion_step: ticket.completion_step ?? null,
             college: ticket.college,
             order_number: ticket.order_number,
             department: ticket.department,

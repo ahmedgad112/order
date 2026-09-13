@@ -7,6 +7,7 @@ enum QueueLane: string
     case NominationCard = 'nomination_card';
     case DirectApplication = 'direct_application';
     case Transfer = 'transfer';
+    case DocumentCompletion = 'document_completion';
     case CurrentStudent = 'current_student';
 
     public function label(): string
@@ -15,6 +16,7 @@ enum QueueLane: string
             self::NominationCard => RequestType::NominationCard->label(),
             self::DirectApplication => RequestType::DirectApplication->label(),
             self::Transfer => RequestType::Transfer->label(),
+            self::DocumentCompletion => RequestType::DocumentCompletion->label(),
             self::CurrentStudent => StudentKind::CurrentStudent->label(),
         };
     }

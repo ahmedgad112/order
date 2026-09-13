@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\College;
 use App\Enums\DocumentKind;
 use App\Enums\Faculty;
+use App\Enums\ProcessStep;
 use App\Enums\QueueLane;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
@@ -29,6 +30,7 @@ use Illuminate\Support\Str;
     'student_kind',
     'national_id',
     'request_type',
+    'completion_step',
     'college',
     'department',
     'order_number',
@@ -83,6 +85,7 @@ class QueueTicket extends Model
             'status' => TicketStatus::class,
             'student_kind' => StudentKind::class,
             'request_type' => RequestType::class,
+            'completion_step' => ProcessStep::class,
             'document_kind' => DocumentKind::class,
             'session_started_at' => 'datetime',
             'called_at' => 'datetime',
@@ -107,12 +110,68 @@ class QueueTicket extends Model
 
     public function ticketPrefix(): string
     {
-        return ($this->student_kind ?? StudentKind::NewStudent)->ticketPrefix();
+        if ($this->isCurrentStudent()) {
+            return StudentKind::CurrentStudent->ticketPrefix();
+        }
+
+        return $this->request_type?->ticketPrefix()
+            ?? StudentKind::NewStudent->ticketPrefix();
     }
 
     public function ticketCode(): string
     {
         return $this->ticketPrefix().$this->ticket_number;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function ticketCodePrefixes(): array
+    {
+        $prefixes = [
+            ...array_map(
+                fn (RequestType $type): string => $type->ticketPrefix(),
+                RequestType::cases(),
+            ),
+            StudentKind::NewStudent->ticketPrefix(),
+            StudentKind::CurrentStudent->ticketPrefix(),
+        ];
+
+        usort($prefixes, fn (string $left, string $right): int => strlen($right) <=> strlen($left));
+
+        return array_values(array_unique($prefixes));
+    }
+
+    /**
+     * @return array{0: StudentKind, 1: RequestType|null, 2: int}|null
+     */
+    public static function parseTicketCode(string $search): ?array
+    {
+        $ticketCode = strtoupper(trim($search));
+        $pattern = '/^('.implode('|', array_map(
+            fn (string $prefix): string => preg_quote($prefix, '/'),
+            self::ticketCodePrefixes(),
+        )).')(\d+)$/';
+
+        if (preg_match($pattern, $ticketCode, $matches) !== 1) {
+            return null;
+        }
+
+        $prefix = $matches[1];
+        $number = (int) $matches[2];
+        $requestType = RequestType::tryFromTicketPrefix($prefix);
+
+        if ($requestType instanceof RequestType) {
+            return [StudentKind::NewStudent, $requestType, $number];
+        }
+
+        $kind = StudentKind::tryFromTicketPrefix($prefix);
+
+        if (! $kind instanceof StudentKind) {
+            return null;
+        }
+
+        return [$kind, null, $number];
     }
 
     public function usesAdmissionProcess(): bool
@@ -180,7 +239,20 @@ class QueueTicket extends Model
             return $this->studentKindLabel();
         }
 
+        if ($this->request_type === RequestType::DocumentCompletion) {
+            $stepLabel = $this->completion_step?->label();
+
+            return $stepLabel
+                ? $this->request_type->label().' — '.$stepLabel
+                : $this->request_type->label();
+        }
+
         return $this->request_type?->label();
+    }
+
+    public function completionStepLabel(): ?string
+    {
+        return $this->completion_step?->label();
     }
 
     public function collegeLabel(): ?string
@@ -396,11 +468,17 @@ class QueueTicket extends Model
         return $query->where('student_kind', StudentKind::CurrentStudent);
     }
 
-    public function scopeForStudentKindSeries(Builder $query, StudentKind $kind): Builder
+    public function scopeForTicketSeries(Builder $query, StudentKind $kind, ?RequestType $requestType = null): Builder
     {
-        return $kind === StudentKind::CurrentStudent
-            ? $query->forCurrentStudentProcess()
-            : $query->forAdmissionProcess();
+        if ($kind === StudentKind::CurrentStudent) {
+            return $query->forCurrentStudentProcess();
+        }
+
+        $query->forAdmissionProcess();
+
+        return $requestType instanceof RequestType
+            ? $query->where('request_type', $requestType)
+            : $query->whereNull('request_type');
     }
 
     public function scopeInQueueOrder(Builder $query): Builder
@@ -463,18 +541,9 @@ class QueueTicket extends Model
             },
         ));
 
-        $ticketCode = strtoupper(trim($search));
-        $ticketCodeKind = null;
-        $ticketCodeNumber = null;
+        $parsedTicketCode = self::parseTicketCode($search);
 
-        if (preg_match('/^([NO])(\d+)$/', $ticketCode, $matches) === 1) {
-            $ticketCodeKind = $matches[1] === 'O'
-                ? StudentKind::CurrentStudent
-                : StudentKind::NewStudent;
-            $ticketCodeNumber = (int) $matches[2];
-        }
-
-        return $query->where(function (Builder $q) use ($search, $matchingCollegeValues, $ticketCodeKind, $ticketCodeNumber): void {
+        return $query->where(function (Builder $q) use ($search, $matchingCollegeValues, $parsedTicketCode): void {
             $q->where('full_name', 'like', "%{$search}%")
                 ->orWhere('national_id', 'like', "%{$search}%")
                 ->orWhere('order_number', 'like', "%{$search}%")
@@ -483,15 +552,17 @@ class QueueTicket extends Model
                 ->orWhere('ticket_number', 'like', "%{$search}%")
                 ->orWhere('college', 'like', "%{$search}%")
                 ->when(
-                    $ticketCodeKind instanceof StudentKind && $ticketCodeNumber !== null,
-                    function (Builder $codeQuery) use ($ticketCodeKind, $ticketCodeNumber): void {
-                        if (! $ticketCodeKind instanceof StudentKind || $ticketCodeNumber === null) {
+                    $parsedTicketCode !== null,
+                    function (Builder $codeQuery) use ($parsedTicketCode): void {
+                        if ($parsedTicketCode === null) {
                             return;
                         }
 
-                        $codeQuery->orWhere(function (Builder $seriesQuery) use ($ticketCodeKind, $ticketCodeNumber): void {
+                        [$ticketCodeKind, $ticketCodeRequestType, $ticketCodeNumber] = $parsedTicketCode;
+
+                        $codeQuery->orWhere(function (Builder $seriesQuery) use ($ticketCodeKind, $ticketCodeRequestType, $ticketCodeNumber): void {
                             $seriesQuery
-                                ->forStudentKindSeries($ticketCodeKind)
+                                ->forTicketSeries($ticketCodeKind, $ticketCodeRequestType)
                                 ->where('ticket_number', $ticketCodeNumber);
                         });
                     },

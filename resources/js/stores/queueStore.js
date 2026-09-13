@@ -56,6 +56,7 @@ export const useQueueStore = defineStore('queue', () => {
         closed_message: null,
         day_ended_message: null,
         request_types: [],
+        student_kinds: [],
         colleges: [],
         faculties: [],
         document_kinds: [],
@@ -83,6 +84,20 @@ export const useQueueStore = defineStore('queue', () => {
     const isSystemOpen = computed(() => system.value.is_open !== false);
     const isDayOpen = computed(() => system.value.is_day_open !== false);
     const isAcceptingTickets = computed(() => system.value.accepting_tickets !== false);
+    const isNewStudentOpen = computed(() => isStudentKindEnabled('new_student'));
+    const isCurrentStudentOpen = computed(() => isStudentKindEnabled('current_student'));
+
+    function isStudentKindEnabled(kind) {
+        const kinds = system.value.student_kinds;
+
+        if (!Array.isArray(kinds) || kinds.length === 0) {
+            return true;
+        }
+
+        const match = kinds.find((item) => item.value === kind);
+
+        return match ? match.enabled !== false : true;
+    }
 
     function applyQueuePayload(data) {
         serving.value = data.serving ?? [];
@@ -447,6 +462,14 @@ export const useQueueStore = defineStore('queue', () => {
     async function updateRequestTypes(enabledRequestTypes) {
         const { data } = await axios.put('/admin/system/request-types', {
             enabled_request_types: enabledRequestTypes,
+        });
+        system.value = data.system;
+        return data;
+    }
+
+    async function updateStudentKinds(enabledStudentKinds) {
+        const { data } = await axios.put('/admin/system/student-kinds', {
+            enabled_student_kinds: enabledStudentKinds,
         });
         system.value = data.system;
         return data;
@@ -857,6 +880,8 @@ export const useQueueStore = defineStore('queue', () => {
         isSystemOpen,
         isDayOpen,
         isAcceptingTickets,
+        isNewStudentOpen,
+        isCurrentStudentOpen,
         fetchPublicStatus,
         trackTicket,
         fetchScannedTicket,
@@ -892,6 +917,7 @@ export const useQueueStore = defineStore('queue', () => {
         endDay,
         openDay,
         updateRequestTypes,
+        updateStudentKinds,
         updateQueueLaneTellers,
         handleSystemUpdated,
         handleDayReset,

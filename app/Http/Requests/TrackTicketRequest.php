@@ -19,7 +19,7 @@ class TrackTicketRequest extends FormRequest
         return [
             'national_id' => ['nullable', 'required_without_all:order_number,seat_number', 'digits:14'],
             'order_number' => ['nullable', 'required_without_all:national_id,seat_number', 'string', 'max:100'],
-            'seat_number' => ['nullable', 'required_without_all:national_id,order_number', 'digits:7'],
+            'seat_number' => ['nullable', 'required_without_all:national_id,order_number', 'digits_between:7,9'],
         ];
     }
 
@@ -33,7 +33,7 @@ class TrackTicketRequest extends FormRequest
             'national_id.digits' => 'يجب أن يتكون الرقم القومي من 14 رقمًا بالضبط.',
             'order_number.required_without_all' => 'أدخل الرقم القومي أو رقم الطلب أو رقم الجلوس.',
             'seat_number.required_without_all' => 'أدخل الرقم القومي أو رقم الطلب أو رقم الجلوس.',
-            'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.',
+            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.',
         ];
     }
 }

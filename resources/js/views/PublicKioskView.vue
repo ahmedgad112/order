@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Ticket, User, Hash, FileText, Lock, Search, ExternalLink, FilePlus, ClipboardList, GraduationCap, ArrowRight } from 'lucide-vue-next';
+import { Ticket, User, Hash, FileText, Lock, Search, ExternalLink, FilePlus, ClipboardList, GraduationCap, ArrowRight, Files } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 import IssuedTicketModal from '../components/IssuedTicketModal.vue';
@@ -12,6 +12,7 @@ const form = ref({
     full_name: '',
     national_id: '',
     request_type: '',
+    completion_step: '',
     college: '',
     order_number: '',
 });
@@ -47,15 +48,19 @@ const selectedRequestType = computed(() => (
     enabledRequestTypes.value.find((type) => type.value === form.value.request_type) ?? null
 ));
 
+const canIssueTicket = computed(() => queueStore.isAcceptingTickets && queueStore.isNewStudentOpen);
+
 watch(enabledRequestTypes, (types) => {
     if (form.value.request_type && !types.some((type) => type.value === form.value.request_type)) {
         form.value.request_type = '';
+        form.value.completion_step = '';
         form.value.college = '';
         form.value.order_number = '';
     }
 });
 
 watch(() => form.value.request_type, () => {
+    form.value.completion_step = '';
     form.value.college = '';
 });
 
@@ -64,6 +69,7 @@ function emptyForm() {
         full_name: '',
         national_id: '',
         request_type: '',
+        completion_step: '',
         college: '',
         order_number: '',
     };
@@ -83,15 +89,21 @@ function validateClient() {
     if (!form.value.request_type) {
         errors.request_type = 'يجب اختيار نوع الطلب.';
     } else {
-        if (!form.value.college || form.value.college.trim().length < 3) {
-            errors.college = selectedRequestType.value?.college_mode === 'select'
-                ? 'يجب اختيار الكلية الواردة في بطاقة الترشيح.'
-                : 'يجب كتابة الكلية المراد الالتحاق بها.';
-        } else if (
-            selectedRequestType.value?.college_mode === 'select'
-            && !colleges.value.some((college) => college.value === form.value.college)
-        ) {
-            errors.college = 'يجب اختيار الكلية الواردة في بطاقة الترشيح.';
+        if (selectedRequestType.value?.requires_completion_service && !form.value.completion_step) {
+            errors.completion_step = 'يجب اختيار الخدمة المراد استكمال أوراقها.';
+        }
+
+        if (selectedRequestType.value) {
+            if (!form.value.college || form.value.college.trim().length < 3) {
+                errors.college = selectedRequestType.value.college_mode === 'select'
+                    ? 'يجب اختيار الكلية الواردة في بطاقة الترشيح.'
+                    : 'يجب كتابة الكلية المراد الالتحاق بها.';
+            } else if (
+                selectedRequestType.value.college_mode === 'select'
+                && !colleges.value.some((college) => college.value === form.value.college)
+            ) {
+                errors.college = 'يجب اختيار الكلية الواردة في بطاقة الترشيح.';
+            }
         }
 
         if (!/^\d{9}$/.test(form.value.order_number)) {
@@ -109,14 +121,20 @@ async function submitForm() {
     }
 
     try {
-        const ticket = await queueStore.issueTicket({
+        const payload = {
             student_kind: 'new_student',
             full_name: form.value.full_name.trim(),
             national_id: form.value.national_id,
             request_type: form.value.request_type,
             college: form.value.college.trim(),
             order_number: form.value.order_number,
-        });
+        };
+
+        if (selectedRequestType.value?.requires_completion_service) {
+            payload.completion_step = form.value.completion_step;
+        }
+
+        const ticket = await queueStore.issueTicket(payload);
 
         issuedTicket.value = ticket;
         showModal.value = true;
@@ -181,8 +199,16 @@ onUnmounted(() => {
                 <h2 class="text-xl font-bold text-amber-800">انتهى استقبال الطلبات اليوم</h2>
                 <p class="mt-2 text-amber-700">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
             </div>
+            <div
+                v-else-if="!queueStore.isNewStudentOpen"
+                class="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center"
+            >
+                <Lock class="mx-auto mb-3 h-10 w-10 text-amber-500" />
+                <h2 class="text-xl font-bold text-amber-800">تقديم الطلاب الجدد مغلق حالياً</h2>
+                <p class="mt-2 text-amber-700">لا يمكن إصدار تذاكر للطلاب الجدد في الوقت الحالي.</p>
+            </div>
 
-            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl" :class="{ 'opacity-60': !queueStore.isAcceptingTickets }">
+            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl" :class="{ 'opacity-60': !canIssueTicket }">
                 <h2 class="mb-8 text-center text-3xl font-bold text-slate-800">احصل على تذكرتك</h2>
 
                 <p v-if="fieldErrors.general" class="mb-6 rounded-xl bg-red-50 px-4 py-3 text-center text-red-700">
@@ -190,7 +216,7 @@ onUnmounted(() => {
                 </p>
 
                 <form class="space-y-6" @submit.prevent="submitForm">
-                    <fieldset :disabled="!queueStore.isAcceptingTickets" class="space-y-6">
+                    <fieldset :disabled="!canIssueTicket" class="space-y-6">
                     <div>
                         <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <User class="h-4 w-4" />
@@ -253,6 +279,32 @@ onUnmounted(() => {
                         <p v-if="fieldErrors.request_type" class="mt-2 text-sm text-red-600">{{ fieldErrors.request_type }}</p>
                     </div>
 
+                    <div v-if="selectedRequestType?.requires_completion_service">
+                        <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <Files class="h-4 w-4" />
+                            الخدمة المراد استكمال أوراقها
+                        </label>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label
+                                v-for="service in selectedRequestType.completion_services"
+                                :key="service.value"
+                                class="flex cursor-pointer items-center gap-3 rounded-2xl border px-5 py-4 transition"
+                                :class="form.completion_step === service.value
+                                    ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-100'
+                                    : 'border-slate-200 hover:border-indigo-300'"
+                            >
+                                <input
+                                    v-model="form.completion_step"
+                                    type="radio"
+                                    :value="service.value"
+                                    class="h-4 w-4 accent-indigo-600"
+                                />
+                                <span class="text-base font-semibold text-slate-800">{{ service.label }}</span>
+                            </label>
+                        </div>
+                        <p v-if="fieldErrors.completion_step" class="mt-2 text-sm text-red-600">{{ fieldErrors.completion_step }}</p>
+                    </div>
+
                     <div v-if="selectedRequestType">
                         <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <GraduationCap class="h-4 w-4" />
@@ -278,7 +330,7 @@ onUnmounted(() => {
                         <p v-if="fieldErrors.college" class="mt-2 text-sm text-red-600">{{ fieldErrors.college }}</p>
                     </div>
 
-                    <div v-if="form.request_type">
+                    <div v-if="selectedRequestType">
                         <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <FileText class="h-4 w-4" />
                             رقم الطلب (9 أرقام)
@@ -299,12 +351,14 @@ onUnmounted(() => {
 
                     <button
                         type="submit"
-                        :disabled="queueStore.loading || !queueStore.isAcceptingTickets"
+                        :disabled="queueStore.loading || !canIssueTicket"
                         class="flex w-full items-center justify-center gap-3 rounded-2xl bg-blue-600 px-6 py-5 text-xl font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <Ticket class="h-6 w-6" />
-                        {{ !queueStore.isAcceptingTickets
-                            ? (queueStore.isSystemOpen ? 'انتهى استقبال الطلبات' : 'النظام مغلق')
+                        {{ !canIssueTicket
+                            ? (!queueStore.isSystemOpen
+                                ? 'النظام مغلق'
+                                : (!queueStore.isAcceptingTickets ? 'انتهى استقبال الطلبات' : 'التقديم مغلق حالياً'))
                             : (queueStore.loading ? 'جاري الإصدار...' : 'إصدار التذكرة') }}
                     </button>
                     </fieldset>

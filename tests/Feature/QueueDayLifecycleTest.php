@@ -56,7 +56,7 @@ class QueueDayLifecycleTest extends TestCase
         Sanctum::actingAs($teller);
         $this->postJson('/api/teller/call-next')
             ->assertOk()
-            ->assertJsonPath('ticket.ticket_number', 'N1')
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
             ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
     }
 
@@ -86,7 +86,7 @@ class QueueDayLifecycleTest extends TestCase
             'order_number' => '987654321',
         ])
             ->assertCreated()
-            ->assertJsonPath('ticket.ticket_number', 'N1');
+            ->assertJsonPath('ticket.ticket_number', 'OT1');
 
         $this->assertDatabaseCount('queue_tickets', 2);
         $this->assertDatabaseHas('queue_tickets', [

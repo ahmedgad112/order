@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/system/end-day', [AdminSystemController::class, 'endDay']);
         Route::post('/system/open-day', [AdminSystemController::class, 'openDay']);
         Route::put('/system/request-types', [AdminSystemController::class, 'updateRequestTypes']);
+        Route::put('/system/student-kinds', [AdminSystemController::class, 'updateStudentKinds']);
         Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);

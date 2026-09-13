@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\College;
 use App\Enums\RequestType;
+use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Events\TicketDeletedEvent;
@@ -33,7 +34,7 @@ class QueueFlowTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('ticket.ticket_number', 'N1')
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
 
         $this->assertDatabaseHas('queue_tickets', [
@@ -78,7 +79,7 @@ class QueueFlowTest extends TestCase
         $this->getJson('/api/public/queue-status')
             ->assertOk()
             ->assertJsonPath('stats.waiting', 1)
-            ->assertJsonPath('waiting.0.ticket_number', 'N1')
+            ->assertJsonPath('waiting.0.ticket_number', 'OT1')
             ->assertJsonPath('waiting.0.full_name', 'محمد أحمد علي')
             ->assertJsonPath('waiting.0.request_type_label', 'حاصل على بطاقة ترشيح')
             ->assertJsonPath('waiting.0.college_label', 'تكنولوجيا المعلومات')
@@ -144,7 +145,7 @@ class QueueFlowTest extends TestCase
         $call = $this->postJson('/api/teller/call-next');
         $call->assertOk()
             ->assertJsonPath('ticket.status', TicketStatus::Serving->value)
-            ->assertJsonPath('ticket.ticket_number', 'N1')
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
             ->assertJsonPath('ticket.teller_name', $teller->name)
             ->assertJsonPath('ticket.counter_name', 'شباك 1');
 
@@ -198,7 +199,7 @@ class QueueFlowTest extends TestCase
 
         $this->postJson('/api/teller/call-next')
             ->assertOk()
-            ->assertJsonPath('ticket.ticket_number', 'N2');
+            ->assertJsonPath('ticket.ticket_number', 'OT2');
     }
 
     public function test_teller_can_list_tickets_and_mark_entry_then_file_delivery(): void
@@ -572,7 +573,7 @@ class QueueFlowTest extends TestCase
             'national_id' => '29501011234567',
         ])
             ->assertOk()
-            ->assertJsonPath('ticket.ticket_number', 'N3')
+            ->assertJsonPath('ticket.ticket_number', 'OT3')
             ->assertJsonPath('ticket.position_in_queue', 1);
     }
 
@@ -696,6 +697,9 @@ class QueueFlowTest extends TestCase
         $this->postJson('/api/admin/system/open-day')->assertForbidden();
         $this->putJson('/api/admin/system/request-types', [
             'enabled_request_types' => [RequestType::NominationCard->value],
+        ])->assertForbidden();
+        $this->putJson('/api/admin/system/student-kinds', [
+            'enabled_student_kinds' => [StudentKind::NewStudent->value],
         ])->assertForbidden();
         $this->postJson('/api/admin/users', [
             'name' => 'موظف جديد',
@@ -841,7 +845,7 @@ class QueueFlowTest extends TestCase
         $this->assertModelMissing($ticket);
         Event::assertDispatched(
             TicketDeletedEvent::class,
-            fn (TicketDeletedEvent $event): bool => $event->ticketId === $ticket->id && $event->ticketNumber === 'N7',
+            fn (TicketDeletedEvent $event): bool => $event->ticketId === $ticket->id && $event->ticketNumber === 'OT7',
         );
     }
 

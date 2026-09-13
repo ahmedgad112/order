@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import {
     ArrowRight,
@@ -38,9 +38,22 @@ const faculties = computed(() => (
     (queueStore.system.faculties ?? []).length
         ? queueStore.system.faculties
         : [
-            { value: 'industry_energy', label: 'صناعة وطاقة' },
-            { value: 'health_sciences', label: 'علوم صحية' },
+            { value: 'industry_energy', label: 'صناعة وطاقة', seat_number_min_digits: 7, seat_number_max_digits: 7 },
+            { value: 'health_sciences', label: 'علوم صحية', seat_number_min_digits: 7, seat_number_max_digits: 9 },
         ]
+));
+const seatNumberLimits = computed(() => {
+    const faculty = faculties.value.find((item) => item.value === form.value.college);
+
+    return {
+        min: faculty?.seat_number_min_digits ?? 7,
+        max: faculty?.seat_number_max_digits ?? 9,
+    };
+});
+const seatNumberHint = computed(() => (
+    seatNumberLimits.value.min === seatNumberLimits.value.max
+        ? `${seatNumberLimits.value.min} أرقام`
+        : `${seatNumberLimits.value.min} إلى ${seatNumberLimits.value.max} أرقام`
 ));
 const documentKinds = computed(() => (
     (queueStore.system.document_kinds ?? []).length
@@ -50,6 +63,7 @@ const documentKinds = computed(() => (
             { value: 'student_card', label: 'الكارنيه' },
         ]
 ));
+const canIssueTicket = computed(() => queueStore.isAcceptingTickets && queueStore.isCurrentStudentOpen);
 
 function restrictDigitInput(event, maxLength) {
     const digits = event.target.value.replace(/\D/g, '').slice(0, maxLength);
@@ -59,8 +73,12 @@ function restrictDigitInput(event, maxLength) {
 }
 
 function onSeatNumberInput(event) {
-    form.value.seat_number = restrictDigitInput(event, 7);
+    form.value.seat_number = restrictDigitInput(event, seatNumberLimits.value.max);
 }
+
+watch(() => form.value.college, () => {
+    form.value.seat_number = form.value.seat_number.slice(0, seatNumberLimits.value.max);
+});
 
 function onDocumentChange(event) {
     const file = event.target.files?.[0] ?? null;
@@ -94,8 +112,11 @@ function validateClient() {
         errors.department = 'يجب كتابة القسم.';
     }
 
-    if (!/^\d{7}$/.test(form.value.seat_number)) {
-        errors.seat_number = 'يجب أن يتكون رقم الجلوس من 7 أرقام.';
+    const seatNumberPattern = new RegExp(`^\\d{${seatNumberLimits.value.min},${seatNumberLimits.value.max}}$`);
+    if (!seatNumberPattern.test(form.value.seat_number)) {
+        errors.seat_number = seatNumberLimits.value.min === seatNumberLimits.value.max
+            ? `يجب أن يتكون رقم الجلوس من ${seatNumberLimits.value.min} أرقام.`
+            : `يجب أن يتكون رقم الجلوس من ${seatNumberLimits.value.min} إلى ${seatNumberLimits.value.max} أرقام.`;
     }
 
     if (!form.value.document_kind) {
@@ -191,8 +212,16 @@ onUnmounted(() => {
                 <h2 class="text-xl font-bold text-amber-800">انتهى استقبال الطلبات اليوم</h2>
                 <p class="mt-2 text-amber-700">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
             </div>
+            <div
+                v-else-if="!queueStore.isCurrentStudentOpen"
+                class="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center"
+            >
+                <Lock class="mx-auto mb-3 h-10 w-10 text-amber-500" />
+                <h2 class="text-xl font-bold text-amber-800">تقديم الطلاب الحاليين مغلق حالياً</h2>
+                <p class="mt-2 text-amber-700">لا يمكن إصدار تذاكر للطلاب الحاليين في الوقت الحالي.</p>
+            </div>
 
-            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl" :class="{ 'opacity-60': !queueStore.isAcceptingTickets }">
+            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl" :class="{ 'opacity-60': !canIssueTicket }">
                 <h2 class="mb-8 text-center text-3xl font-bold text-slate-800">بيانات الطالب الحالي</h2>
 
                 <p v-if="fieldErrors.general" class="mb-6 rounded-xl bg-red-50 px-4 py-3 text-center text-red-700">
@@ -200,7 +229,7 @@ onUnmounted(() => {
                 </p>
 
                 <form class="space-y-6" @submit.prevent="submitForm">
-                    <fieldset :disabled="!queueStore.isAcceptingTickets" class="space-y-6">
+                    <fieldset :disabled="!canIssueTicket" class="space-y-6">
                         <div>
                             <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                 <User class="h-4 w-4" />
@@ -258,13 +287,13 @@ onUnmounted(() => {
                         <div>
                             <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                 <Hash class="h-4 w-4" />
-                                رقم الجلوس (7 أرقام)
+                                رقم الجلوس ({{ seatNumberHint }})
                             </label>
                             <input
                                 :value="form.seat_number"
                                 inputmode="numeric"
                                 type="text"
-                                maxlength="7"
+                                :maxlength="seatNumberLimits.max"
                                 pattern="[0-9]*"
                                 autocomplete="off"
                                 class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
@@ -317,12 +346,14 @@ onUnmounted(() => {
 
                         <button
                             type="submit"
-                            :disabled="queueStore.loading || !queueStore.isAcceptingTickets"
+                            :disabled="queueStore.loading || !canIssueTicket"
                             class="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-6 py-5 text-xl font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <Ticket class="h-6 w-6" />
-                            {{ !queueStore.isAcceptingTickets
-                                ? (queueStore.isSystemOpen ? 'انتهى استقبال الطلبات' : 'النظام مغلق')
+                            {{ !canIssueTicket
+                                ? (!queueStore.isSystemOpen
+                                    ? 'النظام مغلق'
+                                    : (!queueStore.isAcceptingTickets ? 'انتهى استقبال الطلبات' : 'التقديم مغلق حالياً'))
                                 : (queueStore.loading ? 'جاري الإصدار...' : 'إصدار التذكرة') }}
                         </button>
                     </fieldset>
