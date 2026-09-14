@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\DocumentKind;
-use App\Enums\Faculty;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -31,7 +31,7 @@ class CurrentStudentTicketTest extends TestCase
         return array_merge([
             'student_kind' => StudentKind::CurrentStudent->value,
             'full_name' => 'سارة أحمد علي',
-            'college' => Faculty::IndustryEnergy->value,
+            'college' => Faculty::IndustryEnergy,
             'department' => 'تكنولوجيا المعلومات',
             'seat_number' => '1234567',
             'document_kind' => DocumentKind::StudentCard->value,
@@ -59,7 +59,7 @@ class CurrentStudentTicketTest extends TestCase
         $this->assertNotNull($ticket);
         $this->assertSame(StudentKind::CurrentStudent, $ticket->student_kind);
         $this->assertSame('سارة أحمد علي', $ticket->full_name);
-        $this->assertSame(Faculty::IndustryEnergy->value, $ticket->college);
+        $this->assertSame(Faculty::IndustryEnergy, $ticket->college);
         $this->assertSame('تكنولوجيا المعلومات', $ticket->department);
         $this->assertSame('1234567', $ticket->seat_number);
         $this->assertSame(DocumentKind::StudentCard, $ticket->document_kind);
@@ -80,7 +80,7 @@ class CurrentStudentTicketTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ])
             ->assertCreated()
@@ -97,7 +97,7 @@ class CurrentStudentTicketTest extends TestCase
             'full_name' => 'علي محمود حسن',
             'national_id' => '29501011234568',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456788',
         ])
             ->assertCreated()
@@ -214,7 +214,7 @@ class CurrentStudentTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->post('/api/public/tickets', $this->currentStudentPayload([
-            'college' => Faculty::HealthSciences->value,
+            'college' => Faculty::HealthSciences,
             'department' => 'علوم المختبرات',
             'seat_number' => $seatNumber,
         ]), [
@@ -223,7 +223,7 @@ class CurrentStudentTicketTest extends TestCase
             ->assertCreated();
 
         $this->assertDatabaseHas('queue_tickets', [
-            'college' => Faculty::HealthSciences->value,
+            'college' => Faculty::HealthSciences,
             'department' => 'علوم المختبرات',
             'seat_number' => $seatNumber,
         ]);
@@ -248,7 +248,7 @@ class CurrentStudentTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->post('/api/public/tickets', $this->currentStudentPayload([
-            'college' => Faculty::HealthSciences->value,
+            'college' => Faculty::HealthSciences,
             'seat_number' => $seatNumber,
         ]), [
             'Accept' => 'application/json',
@@ -314,11 +314,11 @@ class CurrentStudentTicketTest extends TestCase
 
         $this->getJson('/api/public/queue-status')
             ->assertOk()
-            ->assertJsonPath('system.faculties.0.value', Faculty::IndustryEnergy->value)
+            ->assertJsonPath('system.faculties.0.value', Faculty::IndustryEnergy)
             ->assertJsonPath('system.faculties.0.label', 'صناعة وطاقة')
             ->assertJsonPath('system.faculties.0.seat_number_min_digits', 7)
             ->assertJsonPath('system.faculties.0.seat_number_max_digits', 7)
-            ->assertJsonPath('system.faculties.1.value', Faculty::HealthSciences->value)
+            ->assertJsonPath('system.faculties.1.value', Faculty::HealthSciences)
             ->assertJsonPath('system.faculties.1.seat_number_min_digits', 7)
             ->assertJsonPath('system.faculties.1.seat_number_max_digits', 9)
             ->assertJsonPath('system.document_kinds.0.value', DocumentKind::StatusStatement->value)
@@ -348,7 +348,7 @@ class CurrentStudentTicketTest extends TestCase
         QueueSystemSetting::current();
         QueueTicket::factory()->currentStudent()->waiting()->create([
             'ticket_number' => 9,
-            'college' => Faculty::HealthSciences->value,
+            'college' => Faculty::HealthSciences,
             'seat_number' => '123456789',
             'full_name' => 'سارة أحمد',
         ]);
@@ -431,7 +431,7 @@ class CurrentStudentTicketTest extends TestCase
         $ticket = QueueTicket::factory()->currentStudent()->waiting()->create([
             'ticket_number' => 5,
             'full_name' => 'سارة أحمد علي',
-            'college' => Faculty::HealthSciences->value,
+            'college' => Faculty::HealthSciences,
             'department' => 'علوم المختبرات',
             'seat_number' => '1112223',
             'document_kind' => DocumentKind::StatusStatement,
@@ -450,6 +450,8 @@ class CurrentStudentTicketTest extends TestCase
             ->assertJsonPath('ticket.has_document', true)
             ->assertJsonPath('ticket.document_url', '/teller/tickets/'.$ticket->id.'/document')
             ->assertJsonPath('ticket.has_entered', false)
+            ->assertJsonPath('ticket.has_paid', false)
+            ->assertJsonPath('ticket.has_file_withdrawn', false)
             ->assertJsonPath('ticket.has_documents_reviewed', false)
             ->assertJsonPath('ticket.has_medical_checked', false)
             ->assertJsonPath('ticket.has_face_printed', false)
@@ -490,7 +492,7 @@ class CurrentStudentTicketTest extends TestCase
             ->assertJsonPath('ticket.status', TicketStatus::Completed->value);
     }
 
-    public function test_returns_422_when_current_student_uses_medical_or_face_steps(): void
+    public function test_returns_422_when_current_student_uses_admission_steps(): void
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()->create();
@@ -499,16 +501,28 @@ class CurrentStudentTicketTest extends TestCase
         ]);
         Sanctum::actingAs($teller);
 
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-paid')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket'])
+            ->assertJsonPath('errors.ticket.0', 'هذه الخطوة غير مطلوبة للطالب الحالي.');
+
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-file-withdrawn')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket'])
+            ->assertJsonPath('errors.ticket.0', 'هذه الخطوة غير مطلوبة للطالب الحالي.');
+
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-medical-checked')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'الكشف الطبي وبصمة الوجه غير مطلوبين للطالب الحالي.');
+            ->assertJsonPath('errors.ticket.0', 'هذه الخطوة غير مطلوبة للطالب الحالي.');
 
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-face-printed')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'الكشف الطبي وبصمة الوجه غير مطلوبين للطالب الحالي.');
+            ->assertJsonPath('errors.ticket.0', 'هذه الخطوة غير مطلوبة للطالب الحالي.');
 
+        $this->assertNull($ticket->fresh()->paid_at);
+        $this->assertNull($ticket->fresh()->file_withdrawn_at);
         $this->assertNull($ticket->fresh()->medical_checked_at);
         $this->assertNull($ticket->fresh()->face_printed_at);
     }
@@ -572,7 +586,7 @@ class CurrentStudentTicketTest extends TestCase
             'ticket_number' => 11,
             'full_name' => 'في انتظار مراجعة الورق',
         ]);
-        QueueTicket::factory()->serving($teller)->create([
+        QueueTicket::factory()->fileWithdrawn($teller)->create([
             'ticket_number' => 12,
             'full_name' => 'في انتظار الكشف',
         ]);
@@ -596,7 +610,7 @@ class CurrentStudentTicketTest extends TestCase
         $ticket = QueueTicket::factory()->currentStudent()->waiting()->create([
             'ticket_number' => 6,
             'full_name' => 'الاسم الأصلي',
-            'college' => Faculty::IndustryEnergy->value,
+            'college' => Faculty::IndustryEnergy,
             'department' => 'تكنولوجيا المعلومات',
             'seat_number' => '1234567',
         ]);
@@ -604,13 +618,13 @@ class CurrentStudentTicketTest extends TestCase
 
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => 'سارة المعدلة',
-            'college' => Faculty::HealthSciences->value,
+            'college' => Faculty::HealthSciences,
             'department' => 'الرعاية الصحية',
             'seat_number' => '765432198',
         ])
             ->assertOk()
             ->assertJsonPath('ticket.full_name', 'سارة المعدلة')
-            ->assertJsonPath('ticket.college', Faculty::HealthSciences->value)
+            ->assertJsonPath('ticket.college', Faculty::HealthSciences)
             ->assertJsonPath('ticket.college_label', 'علوم صحية')
             ->assertJsonPath('ticket.department', 'الرعاية الصحية')
             ->assertJsonPath('ticket.seat_number', '765432198');
@@ -622,7 +636,7 @@ class CurrentStudentTicketTest extends TestCase
         $manager = User::factory()->manager()->create();
         $ticket = QueueTicket::factory()->currentStudent()->waiting()->create([
             'ticket_number' => 14,
-            'college' => Faculty::IndustryEnergy->value,
+            'college' => Faculty::IndustryEnergy,
             'department' => 'تكنولوجيا المعلومات',
             'seat_number' => '1234567',
         ]);
@@ -630,7 +644,7 @@ class CurrentStudentTicketTest extends TestCase
 
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => $ticket->full_name,
-            'college' => Faculty::IndustryEnergy->value,
+            'college' => Faculty::IndustryEnergy,
             'department' => $ticket->department,
             'seat_number' => '12345678',
         ])

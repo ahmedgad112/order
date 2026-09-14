@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\College;
-use App\Enums\Faculty;
 use App\Enums\ProcessStep;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueTicket;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -27,7 +27,7 @@ class UpdateTicketRequest extends FormRequest
         if ($this->isCurrentStudentTicket()) {
             return [
                 'full_name' => ['required', 'string', 'min:3', 'max:255'],
-                'college' => ['required', 'string', Rule::in(Faculty::values())],
+                'college' => ['required', 'string', Rule::in($this->allowedFacultySlugs())],
                 'department' => ['required', 'string', 'min:2', 'max:255'],
                 'seat_number' => ['required', ...Faculty::seatNumberRulesFor($this->input('college'))],
             ];
@@ -49,7 +49,7 @@ class UpdateTicketRequest extends FormRequest
                 'max:255',
                 Rule::when(
                     $this->input('request_type') === RequestType::NominationCard->value,
-                    [Rule::in(College::values())],
+                    [Rule::in($this->allowedCollegeSlugs())],
                 ),
             ],
             'order_number' => ['required', 'digits:9'],
@@ -80,8 +80,8 @@ class UpdateTicketRequest extends FormRequest
             'department.required' => 'يجب كتابة القسم.',
             'department.min' => 'يجب كتابة اسم القسم.',
             'seat_number.required' => 'رقم الجلوس مطلوب.',
-            'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.',
-            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.',
+            'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من :digits أرقام بالضبط.',
+            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من :min إلى :max أرقام.',
         ];
     }
 
@@ -169,5 +169,36 @@ class UpdateTicketRequest extends FormRequest
 
         return $ticket instanceof QueueTicket
             && $ticket->studentKindValue() === StudentKind::CurrentStudent->value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allowedFacultySlugs(): array
+    {
+        return $this->allowedCatalogSlugs(Faculty::activeSlugs());
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allowedCollegeSlugs(): array
+    {
+        return $this->allowedCatalogSlugs(College::activeSlugs());
+    }
+
+    /**
+     * @param  list<string>  $activeSlugs
+     * @return list<string>
+     */
+    private function allowedCatalogSlugs(array $activeSlugs): array
+    {
+        $ticket = $this->route('ticket');
+
+        if ($ticket instanceof QueueTicket && filled($ticket->college)) {
+            $activeSlugs[] = $ticket->college;
+        }
+
+        return array_values(array_unique($activeSlugs));
     }
 }

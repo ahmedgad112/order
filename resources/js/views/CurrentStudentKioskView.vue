@@ -34,14 +34,18 @@ const fieldErrors = ref({});
 let stopAutoRefresh = null;
 let unsubscribeEcho = null;
 
-const faculties = computed(() => (
-    (queueStore.system.faculties ?? []).length
-        ? queueStore.system.faculties
-        : [
-            { value: 'industry_energy', label: 'صناعة وطاقة', seat_number_min_digits: 7, seat_number_max_digits: 7 },
-            { value: 'health_sciences', label: 'علوم صحية', seat_number_min_digits: 7, seat_number_max_digits: 9 },
-        ]
-));
+const faculties = computed(() => {
+    const items = (queueStore.system.faculties ?? []).filter((faculty) => faculty.is_active !== false);
+
+    if (items.length) {
+        return items;
+    }
+
+    return [
+        { value: 'industry_energy', label: 'صناعة وطاقة', seat_number_min_digits: 7, seat_number_max_digits: 7 },
+        { value: 'health_sciences', label: 'علوم صحية', seat_number_min_digits: 7, seat_number_max_digits: 9 },
+    ];
+});
 const seatNumberLimits = computed(() => {
     const faculty = faculties.value.find((item) => item.value === form.value.college);
 

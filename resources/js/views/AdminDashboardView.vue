@@ -16,6 +16,7 @@ import {
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
+import AdminCatalogManagement from '../components/AdminCatalogManagement.vue';
 import AdminUserManagement from '../components/AdminUserManagement.vue';
 import AppNavbar from '../components/AppNavbar.vue';
 
@@ -362,6 +363,8 @@ onUnmounted(() => {
                     إظهار أنواع الطلب وإخفاؤها متاح للسوبر أدمن فقط.
                 </p>
             </section>
+
+            <AdminCatalogManagement />
 
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <article class="rounded-3xl bg-white p-5 shadow-sm">

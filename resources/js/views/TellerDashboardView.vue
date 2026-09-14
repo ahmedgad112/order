@@ -16,6 +16,7 @@ import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 import TicketEditForm from '../components/TicketEditForm.vue';
 import TicketDocumentLink from '../components/TicketDocumentLink.vue';
+import TicketPrintButton from '../components/TicketPrintButton.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -31,7 +32,7 @@ const search = ref('');
 const stepFilter = ref('all');
 const loading = ref(false);
 
-const processStepValues = ['entered', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
+const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 
 const statusLabel = {
     waiting: 'في الانتظار',
@@ -52,6 +53,8 @@ const statusBadgeClass = {
 const stepOptions = [
     { value: 'all', label: 'الكل' },
     { value: 'entered', label: 'طلب دخول' },
+    { value: 'paid', label: 'دفع' },
+    { value: 'file_withdrawn', label: 'سحب ملف' },
     { value: 'documents_reviewed', label: 'مراجعة ورق' },
     { value: 'medical_checked', label: 'كشف طبي' },
     { value: 'face_printed', label: 'بصمة وجه' },
@@ -368,7 +371,7 @@ onUnmounted(() => {
                 </p>
             </section>
 
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 <div class="rounded-2xl bg-white p-4 shadow-sm">
                     <p class="text-xs text-slate-500">الإجمالي</p>
                     <p class="text-2xl font-black text-slate-800">{{ queueStore.tellerTicketStats.total }}</p>
@@ -380,6 +383,14 @@ onUnmounted(() => {
                 <div class="rounded-2xl bg-blue-50 p-4 shadow-sm">
                     <p class="text-xs text-blue-700">طلب دخول</p>
                     <p class="text-2xl font-black text-blue-600">{{ queueStore.tellerTicketStats.entered }}</p>
+                </div>
+                <div class="rounded-2xl bg-cyan-50 p-4 shadow-sm">
+                    <p class="text-xs text-cyan-700">دفع</p>
+                    <p class="text-2xl font-black text-cyan-600">{{ queueStore.tellerTicketStats.paid }}</p>
+                </div>
+                <div class="rounded-2xl bg-orange-50 p-4 shadow-sm">
+                    <p class="text-xs text-orange-700">سحب ملف</p>
+                    <p class="text-2xl font-black text-orange-600">{{ queueStore.tellerTicketStats.file_withdrawn }}</p>
                 </div>
                 <div class="rounded-2xl bg-indigo-50 p-4 shadow-sm">
                     <p class="text-xs text-indigo-700">مراجعة ورق</p>
@@ -423,6 +434,7 @@ onUnmounted(() => {
                         <div v-if="ticket.student_kind === 'current_student'" class="mt-3">
                             <TicketDocumentLink :ticket="ticket" preview />
                         </div>
+                        <TicketPrintButton class="mt-3" :ticket="ticket" />
                     </article>
                 </div>
             </section>
@@ -548,6 +560,7 @@ onUnmounted(() => {
                             </div>
                         </dl>
                         <div class="mt-4 space-y-2 border-t border-slate-200/80 pt-3">
+                            <TicketPrintButton :ticket="ticket" />
                             <TicketProcessActions
                                 :ticket="ticket"
                                 :busy-id="processBusyId"
@@ -654,6 +667,7 @@ onUnmounted(() => {
                                 <dd class="text-slate-700">{{ tellerLabel(ticket) }}</dd>
                             </div>
                         </dl>
+                        <TicketPrintButton class="mb-2" :ticket="ticket" />
                         <button
                             class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
                             :disabled="restoringId === ticket.id"

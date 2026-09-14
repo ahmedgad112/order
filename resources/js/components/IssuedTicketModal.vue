@@ -1,5 +1,5 @@
 <script setup>
-import { defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { ImageDown, Printer, Ticket } from 'lucide-vue-next';
 
 const TicketQrCode = defineAsyncComponent(() => import('./TicketQrCode.vue'));
@@ -9,54 +9,52 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    allowPrint: {
+        type: Boolean,
+        default: false,
+    },
+    allowDownload: {
+        type: Boolean,
+        default: true,
+    },
+    showAdmissionLinks: {
+        type: Boolean,
+        default: true,
+    },
+    heading: {
+        type: String,
+        default: 'تم إصدار تذكرتك بنجاح',
+    },
 });
 
 const emit = defineEmits(['close']);
+
+const displayName = computed(() => props.ticket.masked_name || props.ticket.full_name || '');
+const hasBothActions = computed(() => props.allowPrint && props.allowDownload);
 
 const savingImage = ref(false);
 const imageSaveError = ref('');
 const ticketCaptureRef = ref(null);
 
 const ticketFontFamily = '"Segoe UI", Tahoma, Arial, sans-serif';
+const universityName = 'جامعة برج العرب التكنولوجية';
+const universityWelcome = 'ترحب بكم';
 const admissionApplyUrl = 'https://batechu.com/admission';
 const admissionTrackUrl = 'https://batechu.com/admission/track';
 
 function ticketScanUrl(ticket) {
-    return `${window.location.origin}/t/${ticket.public_token}`;
-}
-
-function drawAdmissionLinkBox(ctx, width, y, label, url, background, labelColor) {
-    const boxX = 28;
-    const boxW = width - 56;
-    const boxH = 68;
-
-    ctx.fillStyle = background;
-    ctx.beginPath();
-    if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(boxX, y, boxW, boxH, 14);
-    } else {
-        ctx.rect(boxX, y, boxW, boxH);
+    if (!ticket?.public_token) {
+        return '';
     }
-    ctx.fill();
 
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = labelColor;
-    ctx.font = `bold 14px ${ticketFontFamily}`;
-    ctx.fillText(label, width / 2, y + 24);
-
-    ctx.direction = 'ltr';
-    ctx.fillStyle = '#334155';
-    ctx.font = `11px ${ticketFontFamily}`;
-    ctx.fillText(url, width / 2, y + 46);
+    return `${window.location.origin}/t/${ticket.public_token}`;
 }
 
 async function renderTicketToCanvas(ticket) {
     const width = 400;
-    const height = 720;
+    const height = 620;
     const scale = 2;
-    const qrSize = 168;
+    const qrSize = 200;
     const canvas = document.createElement('canvas');
     canvas.width = width * scale;
     canvas.height = height * scale;
@@ -70,28 +68,25 @@ async function renderTicketToCanvas(ticket) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = '#dcfce7';
-    ctx.beginPath();
-    ctx.arc(width / 2, 48, 36, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#16a34a';
-    ctx.font = `bold 28px ${ticketFontFamily}`;
-    ctx.fillText('✓', width / 2, 50);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `bold 18px ${ticketFontFamily}`;
+    ctx.fillText(universityName, width / 2, 32);
+    ctx.font = `bold 16px ${ticketFontFamily}`;
+    ctx.fillText(universityWelcome, width / 2, 56);
 
     ctx.fillStyle = '#64748b';
     ctx.font = `14px ${ticketFontFamily}`;
-    ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 108);
+    ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 96);
 
     ctx.fillStyle = '#2563eb';
     ctx.direction = 'ltr';
     ctx.font = `bold 68px ${ticketFontFamily}`;
-    ctx.fillText(String(ticket.ticket_number), width / 2, 175);
+    ctx.fillText(String(ticket.ticket_number), width / 2, 160);
     ctx.direction = 'rtl';
 
-    ctx.fillStyle = '#1e293b';
-    ctx.font = `bold 18px ${ticketFontFamily}`;
-    ctx.fillText(ticket.masked_name, width / 2, 228);
+    ctx.fillStyle = '#334155';
+    ctx.font = `bold 16px ${ticketFontFamily}`;
+    ctx.fillText(displayName.value, width / 2, 214);
 
     const qrCanvas = document.createElement('canvas');
     const QRCode = (await import('qrcode')).default;
@@ -101,32 +96,22 @@ async function renderTicketToCanvas(ticket) {
         color: { dark: '#0f172a', light: '#ffffff' },
     });
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.drawImage(qrCanvas, (width - qrSize) / 2, 252, qrSize, qrSize);
+    ctx.drawImage(qrCanvas, (width - qrSize) / 2, 240, qrSize, qrSize);
 
     ctx.direction = 'rtl';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#64748b';
     ctx.font = `13px ${ticketFontFamily}`;
-    ctx.fillText('امسح الرمز لعرض بياناتك', width / 2, 448);
+    ctx.fillText('امسح الرمز لعرض بياناتك', width / 2, 470);
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = `12px ${ticketFontFamily}`;
-    ctx.fillText('يرجى الانتظار حتى يتم نداؤك', width / 2, 478);
+    ctx.fillText('يرجى الانتظار حتى يتم نداؤك', width / 2, 496);
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = `12px ${ticketFontFamily}`;
-    ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 508);
-
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(36, 528);
-    ctx.lineTo(width - 36, 528);
-    ctx.stroke();
-
-    drawAdmissionLinkBox(ctx, width, 542, 'تقدم الطلب', admissionApplyUrl, '#ecfdf5', '#047857');
-    drawAdmissionLinkBox(ctx, width, 620, 'تتبع طلبك', admissionTrackUrl, '#eef2ff', '#4338ca');
+    ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 530);
 
     return canvas;
 }
@@ -154,6 +139,24 @@ function downloadCanvas(canvas, filename) {
 }
 
 function printTicket() {
+    const source = ticketCaptureRef.value;
+    if (!source) {
+        return;
+    }
+
+    document.querySelectorAll('.ticket-print-root').forEach((node) => node.remove());
+
+    const printRoot = document.createElement('div');
+    printRoot.className = 'ticket-print-root';
+    printRoot.appendChild(source.cloneNode(true));
+    document.body.appendChild(printRoot);
+
+    const cleanup = () => {
+        printRoot.remove();
+        window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup);
     window.print();
 }
 
@@ -190,25 +193,30 @@ function close() {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center sm:p-6"
         @click.self="close"
     >
         <div class="my-6 w-full max-w-md animate-[fadeIn_0.3s_ease] rounded-3xl bg-white p-8 text-center shadow-2xl sm:my-0">
             <div id="ticket-print-area" ref="ticketCaptureRef" class="rounded-2xl bg-white p-2">
-                <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+                <p class="ticket-welcome text-base font-extrabold leading-snug text-slate-900">
+                    <span class="block">{{ universityName }}</span>
+                    <span class="block">{{ universityWelcome }}</span>
+                </p>
+                <div class="ticket-print-hide mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
                     <Ticket class="h-8 w-8" />
                 </div>
-                <p class="text-sm text-slate-500">تم إصدار تذكرتك بنجاح</p>
-                <p class="my-3 text-6xl font-black text-blue-600" dir="ltr">{{ ticket.ticket_number }}</p>
-                <p class="text-lg font-semibold text-slate-800">{{ ticket.masked_name }}</p>
+                <p class="text-sm text-slate-500">{{ heading }}</p>
+                <p class="ticket-number my-3 text-6xl font-black text-blue-600" dir="ltr">{{ ticket.ticket_number }}</p>
+                <p class="text-lg font-semibold text-slate-800">{{ displayName }}</p>
                 <div class="mt-5 flex justify-center">
-                    <TicketQrCode :value="ticketScanUrl(ticket)" :size="176" />
+                    <TicketQrCode v-if="ticketScanUrl(ticket)" :value="ticketScanUrl(ticket)" :size="176" />
                 </div>
                 <p class="mt-3 text-sm font-semibold text-slate-600">امسح الرمز لعرض بياناتك</p>
                 <p class="mt-1 text-sm text-slate-500">يرجى الانتظار حتى يتم نداؤك</p>
                 <p class="mt-4 text-xs text-slate-400">{{ new Date().toLocaleString('ar-EG') }}</p>
-                <div class="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
+                <div v-if="showAdmissionLinks" class="ticket-print-hide mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
                     <a
                         :href="admissionApplyUrl"
                         target="_blank"
@@ -234,8 +242,14 @@ function close() {
                 {{ imageSaveError }}
             </p>
 
-            <div class="mt-8 grid grid-cols-2 gap-3">
+            <p v-if="allowDownload && !allowPrint" class="mt-4 text-sm font-semibold text-slate-500">
+                احفظ الصورة على هاتفك. الطباعة تتم عند موظف الشباك.
+            </p>
+
+            <div class="mt-8 grid gap-3" :class="hasBothActions ? 'grid-cols-2' : 'grid-cols-1'">
                 <button
+                    v-if="allowPrint"
+                    type="button"
                     class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
                     @click="printTicket"
                 >
@@ -243,6 +257,8 @@ function close() {
                     طباعة
                 </button>
                 <button
+                    v-if="allowDownload"
+                    type="button"
                     class="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
                     :disabled="savingImage"
                     @click="saveAsImage"
@@ -251,7 +267,9 @@ function close() {
                     {{ savingImage ? 'جاري الحفظ...' : 'حفظ صورة' }}
                 </button>
                 <button
-                    class="col-span-2 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                    type="button"
+                    class="rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                    :class="{ 'col-span-2': hasBothActions }"
                     @click="close"
                 >
                     إغلاق
@@ -259,4 +277,5 @@ function close() {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

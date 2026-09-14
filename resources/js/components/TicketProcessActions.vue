@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue';
 import {
+    Banknote,
     CheckCircle2,
     FileText,
     FolderCheck,
+    FolderDown,
     ScanFace,
     Stethoscope,
     UserCheck,
@@ -30,6 +32,22 @@ const admissionSteps = [
         buttonClass: 'bg-blue-600 hover:bg-blue-700 text-white',
         doneClass: 'text-blue-700',
         requiresSystem: true,
+    },
+    {
+        key: 'paid',
+        label: 'دفع',
+        doneLabel: 'تم الدفع',
+        icon: Banknote,
+        buttonClass: 'bg-cyan-600 hover:bg-cyan-700 text-white',
+        doneClass: 'text-cyan-700',
+    },
+    {
+        key: 'file_withdrawn',
+        label: 'سحب ملف',
+        doneLabel: 'تم السحب',
+        icon: FolderDown,
+        buttonClass: 'bg-orange-600 hover:bg-orange-700 text-white',
+        doneClass: 'text-orange-700',
     },
     {
         key: 'medical_checked',
@@ -114,6 +132,12 @@ function isDone(step) {
     if (step.key === 'entered') {
         return Boolean(ticket.has_entered);
     }
+    if (step.key === 'paid') {
+        return Boolean(ticket.has_paid);
+    }
+    if (step.key === 'file_withdrawn') {
+        return Boolean(ticket.has_file_withdrawn);
+    }
     if (step.key === 'documents_reviewed') {
         return Boolean(ticket.has_documents_reviewed);
     }
@@ -142,11 +166,19 @@ function canMark(step) {
     if (step.key === 'entered') {
         return ['waiting', 'serving'].includes(props.ticket.status) && !props.ticket.has_entered;
     }
+    if (step.key === 'paid') {
+        return Boolean(props.ticket.has_entered) && !props.ticket.has_paid;
+    }
+    if (step.key === 'file_withdrawn') {
+        return Boolean(props.ticket.has_entered) && Boolean(props.ticket.has_paid) && !props.ticket.has_file_withdrawn;
+    }
     if (step.key === 'documents_reviewed') {
         return Boolean(props.ticket.has_entered) && !props.ticket.has_documents_reviewed;
     }
     if (step.key === 'medical_checked') {
-        return Boolean(props.ticket.has_entered) && !props.ticket.has_medical_checked;
+        return Boolean(props.ticket.has_entered)
+            && Boolean(props.ticket.has_file_withdrawn)
+            && !props.ticket.has_medical_checked;
     }
     if (step.key === 'face_printed') {
         return Boolean(props.ticket.has_medical_checked) && !props.ticket.has_face_printed;

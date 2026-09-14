@@ -2,12 +2,12 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\College;
 use App\Enums\DocumentKind;
-use App\Enums\Faculty;
 use App\Enums\ProcessStep;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,7 +30,7 @@ class IssueTicketRequest extends FormRequest
             return [
                 'student_kind' => ['required', Rule::enum(StudentKind::class)],
                 'full_name' => ['required', 'string', 'min:3', 'max:255'],
-                'college' => ['required', 'string', Rule::in(Faculty::values())],
+                'college' => ['required', 'string', Rule::in(Faculty::activeSlugs())],
                 'department' => ['required', 'string', 'min:2', 'max:255'],
                 'seat_number' => ['required', ...Faculty::seatNumberRulesFor($this->input('college'))],
                 'document_kind' => ['required', Rule::enum(DocumentKind::class)],
@@ -56,7 +56,7 @@ class IssueTicketRequest extends FormRequest
                 'max:255',
                 Rule::when(
                     $this->input('request_type') === RequestType::NominationCard->value,
-                    [Rule::in(College::values())],
+                    [Rule::in(College::activeSlugs())],
                 ),
             ],
             'order_number' => ['required', 'digits:9'],
@@ -89,8 +89,8 @@ class IssueTicketRequest extends FormRequest
             'department.required' => 'يجب كتابة القسم.',
             'department.min' => 'يجب كتابة اسم القسم.',
             'seat_number.required' => 'رقم الجلوس مطلوب.',
-            'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.',
-            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.',
+            'seat_number.digits' => 'يجب أن يتكون رقم الجلوس من :digits أرقام بالضبط.',
+            'seat_number.digits_between' => 'يجب أن يتكون رقم الجلوس من :min إلى :max أرقام.',
             'document_kind.required' => 'يجب اختيار نوع المستند.',
             'document_kind.enum' => 'نوع المستند غير صحيح.',
             'document.required' => 'يجب رفع صورة المستند.',

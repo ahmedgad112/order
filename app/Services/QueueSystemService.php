@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
-use App\Enums\College;
 use App\Enums\DocumentKind;
-use App\Enums\Faculty;
 use App\Enums\QueueLane;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\UserRole;
 use App\Events\QueueDayResetEvent;
 use App\Events\QueueSystemUpdatedEvent;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -262,6 +262,18 @@ class QueueSystemService
     public function isOpen(): bool
     {
         return QueueSystemSetting::current()->is_open;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function broadcastStatus(): array
+    {
+        $status = $this->getStatus();
+
+        $this->broadcastSafely(new QueueSystemUpdatedEvent($status));
+
+        return $status;
     }
 
     /**

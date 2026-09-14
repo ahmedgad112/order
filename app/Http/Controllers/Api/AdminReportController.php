@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CollegeResource;
+use App\Http\Resources\FacultyResource;
 use App\Http\Resources\UserResource;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueTicket;
 use App\Models\User;
 use App\Services\QueueSystemService;
@@ -26,6 +30,8 @@ class AdminReportController extends Controller
             'teller_performance' => $performance,
             'tellers' => $performance,
             'queue_lanes' => $this->systemService->queueLaneAssignments(),
+            'faculties' => FacultyResource::collection(Faculty::query()->ordered()->get()),
+            'colleges' => CollegeResource::collection(College::query()->ordered()->get()),
             'system' => $this->systemService->getStatus(),
         ]);
     }

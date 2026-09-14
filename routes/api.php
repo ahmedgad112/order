@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\AdminCollegeController;
+use App\Http\Controllers\Api\AdminFacultyController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AdminSystemController;
 use App\Http\Controllers\Api\AdminTicketController;
@@ -40,6 +42,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-absent', [TellerQueueController::class, 'markAbsent']);
         Route::post('/tickets/{ticket}/restore', [TellerQueueController::class, 'restoreTicket']);
         Route::post('/tickets/{ticket}/mark-entered', [TellerQueueController::class, 'markEntered']);
+        Route::post('/tickets/{ticket}/mark-paid', [TellerQueueController::class, 'markPaid']);
+        Route::post('/tickets/{ticket}/mark-file-withdrawn', [TellerQueueController::class, 'markFileWithdrawn']);
         Route::post('/tickets/{ticket}/mark-documents-reviewed', [TellerQueueController::class, 'markDocumentsReviewed']);
         Route::post('/tickets/{ticket}/mark-medical-checked', [TellerQueueController::class, 'markMedicalChecked']);
         Route::post('/tickets/{ticket}/mark-face-printed', [TellerQueueController::class, 'markFacePrinted']);
@@ -65,6 +69,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/system/open-day', [AdminSystemController::class, 'openDay']);
         Route::put('/system/request-types', [AdminSystemController::class, 'updateRequestTypes']);
         Route::put('/system/student-kinds', [AdminSystemController::class, 'updateStudentKinds']);
+        Route::get('/faculties', [AdminFacultyController::class, 'index']);
+        Route::post('/faculties', [AdminFacultyController::class, 'store']);
+        Route::put('/faculties/{faculty}', [AdminFacultyController::class, 'update']);
+        Route::delete('/faculties/{faculty}', [AdminFacultyController::class, 'destroy']);
+        Route::get('/colleges', [AdminCollegeController::class, 'index']);
+        Route::post('/colleges', [AdminCollegeController::class, 'store']);
+        Route::put('/colleges/{college}', [AdminCollegeController::class, 'update']);
+        Route::delete('/colleges/{college}', [AdminCollegeController::class, 'destroy']);
         Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);

@@ -5,6 +5,8 @@ namespace App\Enums;
 enum ProcessStep: string
 {
     case Entered = 'entered';
+    case Paid = 'paid';
+    case FileWithdrawn = 'file_withdrawn';
     case DocumentsReviewed = 'documents_reviewed';
     case MedicalChecked = 'medical_checked';
     case FacePrinted = 'face_printed';
@@ -14,6 +16,8 @@ enum ProcessStep: string
     {
         return match ($this) {
             self::Entered => 'تم الدخول',
+            self::Paid => 'دفع',
+            self::FileWithdrawn => 'سحب ملف',
             self::DocumentsReviewed => 'مراجعة ورق',
             self::MedicalChecked => 'كشف طبي',
             self::FacePrinted => 'بصمة وجه',
@@ -27,10 +31,20 @@ enum ProcessStep: string
     public static function admissionCompletionCases(): array
     {
         return [
+            self::Paid,
+            self::FileWithdrawn,
             self::MedicalChecked,
             self::FacePrinted,
             self::FileDelivered,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function values(): array
+    {
+        return array_column(self::cases(), 'value');
     }
 
     /**
@@ -66,15 +80,21 @@ enum ProcessStep: string
         $now = now();
 
         return match ($this) {
+            self::FileWithdrawn => [
+                'paid_at' => $now,
+            ],
             self::MedicalChecked => [
-                'entered_at' => $now,
+                'paid_at' => $now,
+                'file_withdrawn_at' => $now,
             ],
             self::FacePrinted => [
-                'entered_at' => $now,
+                'paid_at' => $now,
+                'file_withdrawn_at' => $now,
                 'medical_checked_at' => $now,
             ],
             self::FileDelivered => [
-                'entered_at' => $now,
+                'paid_at' => $now,
+                'file_withdrawn_at' => $now,
                 'medical_checked_at' => $now,
                 'face_printed_at' => $now,
             ],

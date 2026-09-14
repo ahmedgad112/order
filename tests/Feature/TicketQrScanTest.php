@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\RequestType;
 use App\Enums\TicketStatus;
+use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -25,7 +25,7 @@ class TicketQrScanTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
 
@@ -66,7 +66,7 @@ class TicketQrScanTest extends TestCase
             'national_id' => '29501011234567',
             'order_number' => 'ORD-1001',
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
         ]);
 
         Sanctum::actingAs($teller);
@@ -74,15 +74,31 @@ class TicketQrScanTest extends TestCase
         $this->getJson('/api/teller/tickets/scan/'.$ticket->public_token)
             ->assertOk()
             ->assertJsonPath('ticket.ticket_number', 'OT4')
+            ->assertJsonPath('ticket.public_token', $ticket->public_token)
             ->assertJsonPath('ticket.full_name', 'محمد أحمد علي')
             ->assertJsonPath('ticket.national_id', '29501011234567')
             ->assertJsonPath('ticket.order_number', 'ORD-1001')
-            ->assertJsonPath('ticket.college', College::InformationTechnology->value)
+            ->assertJsonPath('ticket.college', College::InformationTechnology)
             ->assertJsonPath('ticket.college_label', 'تكنولوجيا المعلومات')
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value)
             ->assertJsonPath('ticket.has_entered', false)
             ->assertJsonPath('ticket.position_in_queue', 1)
             ->assertJsonPath('ticket.people_ahead', 0);
+    }
+
+    public function test_teller_ticket_list_includes_public_token_for_printing(): void
+    {
+        QueueSystemSetting::current();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 5,
+        ]);
+
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->getJson('/api/teller/tickets')
+            ->assertOk()
+            ->assertJsonPath('tickets.0.public_token', $ticket->public_token)
+            ->assertJsonPath('tickets.0.ticket_number', 'OT5');
     }
 
     public function test_returns_404_when_public_token_is_unknown(): void

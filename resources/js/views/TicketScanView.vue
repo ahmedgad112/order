@@ -17,6 +17,7 @@ import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDocumentLink from '../components/TicketDocumentLink.vue';
+import TicketPrintButton from '../components/TicketPrintButton.vue';
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -274,6 +275,8 @@ onUnmounted(() => {
                             <dd><TicketDocumentLink :ticket="ticket" preview /></dd>
                         </div>
                     </dl>
+
+                    <TicketPrintButton class="mt-6" :ticket="ticket" />
 
                     <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <p class="mb-3 text-sm font-bold text-slate-700">خطوات الطلب</p>

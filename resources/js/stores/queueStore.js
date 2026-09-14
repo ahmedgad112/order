@@ -18,6 +18,8 @@ export const useQueueStore = defineStore('queue', () => {
         waiting: 0,
         serving: 0,
         entered: 0,
+        paid: 0,
+        file_withdrawn: 0,
         documents_reviewed: 0,
         medical_checked: 0,
         face_printed: 0,
@@ -41,6 +43,8 @@ export const useQueueStore = defineStore('queue', () => {
         waiting: 0,
         serving: 0,
         entered: 0,
+        paid: 0,
+        file_withdrawn: 0,
         documents_reviewed: 0,
         medical_checked: 0,
         face_printed: 0,
@@ -49,6 +53,8 @@ export const useQueueStore = defineStore('queue', () => {
         cancelled: 0,
         absent: 0,
     });
+    const catalogFaculties = ref([]);
+    const catalogColleges = ref([]);
     const system = ref({
         is_open: true,
         is_day_open: true,
@@ -276,6 +282,8 @@ export const useQueueStore = defineStore('queue', () => {
     async function markProcessStep(ticketId, step) {
         const paths = {
             entered: `/teller/tickets/${ticketId}/mark-entered`,
+            paid: `/teller/tickets/${ticketId}/mark-paid`,
+            file_withdrawn: `/teller/tickets/${ticketId}/mark-file-withdrawn`,
             documents_reviewed: `/teller/tickets/${ticketId}/mark-documents-reviewed`,
             medical_checked: `/teller/tickets/${ticketId}/mark-medical-checked`,
             face_printed: `/teller/tickets/${ticketId}/mark-face-printed`,
@@ -321,6 +329,8 @@ export const useQueueStore = defineStore('queue', () => {
         tellerPerformance.value = data.teller_performance ?? [];
         tellers.value = data.tellers ?? data.teller_performance ?? [];
         queueLanes.value = data.queue_lanes ?? [];
+        catalogFaculties.value = data.faculties ?? catalogFaculties.value;
+        catalogColleges.value = data.colleges ?? catalogColleges.value;
         if (data.system) {
             system.value = data.system;
         }
@@ -448,6 +458,8 @@ export const useQueueStore = defineStore('queue', () => {
             waiting: 0,
             serving: 0,
             entered: 0,
+            paid: 0,
+            file_withdrawn: 0,
             documents_reviewed: 0,
             medical_checked: 0,
             face_printed: 0,
@@ -480,6 +492,56 @@ export const useQueueStore = defineStore('queue', () => {
             teller_ids: tellerIds,
         });
         queueLanes.value = data.queue_lanes ?? [];
+        return data;
+    }
+
+    function applyCatalog(data) {
+        if (data.faculties) {
+            catalogFaculties.value = data.faculties;
+        }
+
+        if (data.colleges) {
+            catalogColleges.value = data.colleges;
+        }
+
+        if (data.system) {
+            system.value = data.system;
+        }
+    }
+
+    async function createFaculty(payload) {
+        const { data } = await axios.post('/admin/faculties', payload);
+        applyCatalog(data);
+        return data;
+    }
+
+    async function updateFaculty(facultyId, payload) {
+        const { data } = await axios.put(`/admin/faculties/${facultyId}`, payload);
+        applyCatalog(data);
+        return data;
+    }
+
+    async function deactivateFaculty(facultyId) {
+        const { data } = await axios.delete(`/admin/faculties/${facultyId}`);
+        applyCatalog(data);
+        return data;
+    }
+
+    async function createCollege(payload) {
+        const { data } = await axios.post('/admin/colleges', payload);
+        applyCatalog(data);
+        return data;
+    }
+
+    async function updateCollege(collegeId, payload) {
+        const { data } = await axios.put(`/admin/colleges/${collegeId}`, payload);
+        applyCatalog(data);
+        return data;
+    }
+
+    async function deactivateCollege(collegeId) {
+        const { data } = await axios.delete(`/admin/colleges/${collegeId}`);
+        applyCatalog(data);
         return data;
     }
 
@@ -523,6 +585,8 @@ export const useQueueStore = defineStore('queue', () => {
             waiting: 0,
             serving: 0,
             entered: 0,
+            paid: 0,
+            file_withdrawn: 0,
             documents_reviewed: 0,
             medical_checked: 0,
             face_printed: 0,
@@ -873,6 +937,8 @@ export const useQueueStore = defineStore('queue', () => {
         registrationDates,
         registrationStats,
         system,
+        catalogFaculties,
+        catalogColleges,
         loading,
         error,
         hasWaiting,
@@ -919,6 +985,12 @@ export const useQueueStore = defineStore('queue', () => {
         updateRequestTypes,
         updateStudentKinds,
         updateQueueLaneTellers,
+        createFaculty,
+        updateFaculty,
+        deactivateFaculty,
+        createCollege,
+        updateCollege,
+        deactivateCollege,
         handleSystemUpdated,
         handleDayReset,
         handleTicketIssued,

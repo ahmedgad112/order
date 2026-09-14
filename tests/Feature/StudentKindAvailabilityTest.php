@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\DocumentKind;
-use App\Enums\Faculty;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\UserRole;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,7 +32,7 @@ class StudentKindAvailabilityTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ], $overrides);
     }
@@ -46,7 +46,7 @@ class StudentKindAvailabilityTest extends TestCase
         return array_merge([
             'student_kind' => StudentKind::CurrentStudent->value,
             'full_name' => 'سارة أحمد علي',
-            'college' => Faculty::IndustryEnergy->value,
+            'college' => Faculty::IndustryEnergy,
             'department' => 'تكنولوجيا المعلومات',
             'seat_number' => '1234567',
             'document_kind' => DocumentKind::StudentCard->value,

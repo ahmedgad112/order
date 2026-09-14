@@ -31,6 +31,8 @@ const form = reactive({
 });
 
 const fallbackCompletionServices = [
+    { value: 'paid', label: 'دفع' },
+    { value: 'file_withdrawn', label: 'سحب ملف' },
     { value: 'medical_checked', label: 'كشف طبي' },
     { value: 'face_printed', label: 'بصمة وجه' },
     { value: 'file_delivered', label: 'تسليم ملف' },
@@ -61,15 +63,19 @@ const requestTypes = computed(() => {
     ]);
 });
 
-const colleges = computed(() => queueStore.system.colleges ?? []);
-const faculties = computed(() => (
-    (queueStore.system.faculties ?? []).length
-        ? queueStore.system.faculties
-        : [
-            { value: 'industry_energy', label: 'صناعة وطاقة', seat_number_min_digits: 7, seat_number_max_digits: 7 },
-            { value: 'health_sciences', label: 'علوم صحية', seat_number_min_digits: 7, seat_number_max_digits: 9 },
-        ]
-));
+const colleges = computed(() => (queueStore.system.colleges ?? []).filter((college) => college.is_active !== false));
+const faculties = computed(() => {
+    const items = (queueStore.system.faculties ?? []).filter((faculty) => faculty.is_active !== false);
+
+    if (items.length) {
+        return items;
+    }
+
+    return [
+        { value: 'industry_energy', label: 'صناعة وطاقة', seat_number_min_digits: 7, seat_number_max_digits: 7 },
+        { value: 'health_sciences', label: 'علوم صحية', seat_number_min_digits: 7, seat_number_max_digits: 9 },
+    ];
+});
 const isCurrentStudent = computed(() => props.ticket.student_kind === 'current_student');
 const seatNumberMaxDigits = computed(() => {
     const faculty = faculties.value.find((item) => item.value === form.college);

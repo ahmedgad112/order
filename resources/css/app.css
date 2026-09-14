@@ -34,19 +34,75 @@ body {
     animation: pulse-ring 2s infinite;
 }
 
+.ticket-print-root {
+    display: none;
+}
+
 @media print {
-    body * {
-        visibility: hidden;
+    @page {
+        size: portrait;
+        margin: 5mm;
     }
-    #ticket-print-area,
-    #ticket-print-area * {
-        visibility: visible;
+
+    html,
+    body {
+        background: #fff !important;
+        height: auto !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
-    #ticket-print-area {
-        position: absolute;
-        inset: 0;
+
+    body > *:not(.ticket-print-root) {
+        display: none !important;
+    }
+
+    .ticket-print-root {
+        display: block !important;
+        width: 72mm;
+        max-width: 72mm;
+        margin: 0 auto;
+        background: #fff;
+        text-align: center;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .ticket-print-root #ticket-print-area {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
+        width: 100%;
+        padding: 4mm 0;
+        background: #fff !important;
+        box-shadow: none !important;
+        text-align: center;
+    }
+
+    .ticket-print-root .ticket-print-hide {
+        display: none !important;
+    }
+
+    .ticket-print-root .ticket-welcome {
+        margin: 0 0 10px;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.45;
+        color: #0f172a !important;
+    }
+
+    .ticket-print-root .ticket-number {
+        margin: 10px 0 6px;
+        font-size: 56px;
+        font-weight: 900;
+        line-height: 1;
+        color: #2563eb !important;
+    }
+
+    .ticket-print-root img {
+        width: 48mm;
+        height: 48mm;
+        margin: 8px auto 6px;
     }
 }

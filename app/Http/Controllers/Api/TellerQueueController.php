@@ -80,6 +80,26 @@ class TellerQueueController extends Controller
         ]);
     }
 
+    public function markPaid(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markPaid($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل الدفع.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function markFileWithdrawn(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->markFileWithdrawn($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل سحب الملف.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
     public function markDocumentsReviewed(Request $request, QueueTicket $ticket): JsonResponse
     {
         $ticket = $this->queueService->markDocumentsReviewed($ticket, $request->user());

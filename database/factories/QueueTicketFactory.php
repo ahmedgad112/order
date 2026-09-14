@@ -2,12 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Enums\College;
 use App\Enums\DocumentKind;
-use App\Enums\Faculty;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
+use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -32,7 +32,7 @@ class QueueTicketFactory extends Factory
             'national_id' => fake()->numerify('##############'),
             'request_type' => RequestType::NominationCard,
             'completion_step' => null,
-            'college' => fake()->randomElement(College::values()),
+            'college' => fake()->randomElement(College::activeSlugs()) ?: College::InformationTechnology,
             'department' => null,
             'order_number' => fake()->unique()->numerify('#########'),
             'seat_number' => null,
@@ -42,6 +42,8 @@ class QueueTicketFactory extends Factory
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'paid_at' => null,
+            'file_withdrawn_at' => null,
             'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
@@ -57,6 +59,8 @@ class QueueTicketFactory extends Factory
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'paid_at' => null,
+            'file_withdrawn_at' => null,
             'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
@@ -72,7 +76,7 @@ class QueueTicketFactory extends Factory
             'national_id' => null,
             'request_type' => null,
             'completion_step' => null,
-            'college' => fake()->randomElement(Faculty::values()),
+            'college' => fake()->randomElement(Faculty::activeSlugs()) ?: Faculty::IndustryEnergy,
             'department' => 'تكنولوجيا المعلومات',
             'order_number' => null,
             'seat_number' => fake()->unique()->numerify('#######'),
@@ -88,6 +92,42 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now(),
             'entered_at' => now(),
+            'paid_at' => null,
+            'file_withdrawn_at' => null,
+            'documents_reviewed_at' => null,
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
+            'completed_at' => null,
+            'file_delivered_at' => null,
+        ]);
+    }
+
+    public function paid(?User $teller = null): static
+    {
+        return $this->state(fn () => [
+            'status' => TicketStatus::Serving,
+            'user_id' => $teller?->id,
+            'called_at' => now()->subMinutes(2),
+            'entered_at' => now()->subMinutes(2),
+            'paid_at' => now()->subMinutes(1),
+            'file_withdrawn_at' => null,
+            'documents_reviewed_at' => null,
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
+            'completed_at' => null,
+            'file_delivered_at' => null,
+        ]);
+    }
+
+    public function fileWithdrawn(?User $teller = null): static
+    {
+        return $this->state(fn () => [
+            'status' => TicketStatus::Serving,
+            'user_id' => $teller?->id,
+            'called_at' => now()->subMinutes(3),
+            'entered_at' => now()->subMinutes(3),
+            'paid_at' => now()->subMinutes(2),
+            'file_withdrawn_at' => now()->subMinutes(1),
             'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
@@ -101,10 +141,12 @@ class QueueTicketFactory extends Factory
         return $this->state(fn () => [
             'status' => TicketStatus::Serving,
             'user_id' => $teller?->id,
-            'called_at' => now()->subMinutes(3),
-            'entered_at' => now()->subMinutes(3),
+            'called_at' => now()->subMinutes(4),
+            'entered_at' => now()->subMinutes(4),
+            'paid_at' => now()->subMinutes(3),
+            'file_withdrawn_at' => now()->subMinutes(2),
             'documents_reviewed_at' => null,
-            'medical_checked_at' => now()->subMinutes(2),
+            'medical_checked_at' => now()->subMinutes(1),
             'face_printed_at' => null,
             'completed_at' => null,
             'file_delivered_at' => null,
@@ -116,11 +158,13 @@ class QueueTicketFactory extends Factory
         return $this->state(fn () => [
             'status' => TicketStatus::Serving,
             'user_id' => $teller?->id,
-            'called_at' => now()->subMinutes(4),
-            'entered_at' => now()->subMinutes(4),
+            'called_at' => now()->subMinutes(5),
+            'entered_at' => now()->subMinutes(5),
+            'paid_at' => now()->subMinutes(4),
+            'file_withdrawn_at' => now()->subMinutes(3),
             'documents_reviewed_at' => null,
-            'medical_checked_at' => now()->subMinutes(3),
-            'face_printed_at' => now()->subMinutes(2),
+            'medical_checked_at' => now()->subMinutes(2),
+            'face_printed_at' => now()->subMinutes(1),
             'completed_at' => null,
             'file_delivered_at' => null,
         ]);
@@ -131,11 +175,13 @@ class QueueTicketFactory extends Factory
         return $this->state(fn () => [
             'status' => TicketStatus::Completed,
             'user_id' => $teller?->id,
-            'called_at' => now()->subMinutes(5),
-            'entered_at' => now()->subMinutes(5),
+            'called_at' => now()->subMinutes(6),
+            'entered_at' => now()->subMinutes(6),
+            'paid_at' => now()->subMinutes(5),
+            'file_withdrawn_at' => now()->subMinutes(4),
             'documents_reviewed_at' => null,
-            'medical_checked_at' => now()->subMinutes(4),
-            'face_printed_at' => now()->subMinutes(3),
+            'medical_checked_at' => now()->subMinutes(3),
+            'face_printed_at' => now()->subMinutes(2),
             'completed_at' => now(),
             'file_delivered_at' => now()->subMinutes(1),
         ]);
@@ -148,6 +194,8 @@ class QueueTicketFactory extends Factory
             'user_id' => $teller?->id,
             'called_at' => now()->subMinutes(3),
             'entered_at' => now()->subMinutes(3),
+            'paid_at' => null,
+            'file_withdrawn_at' => null,
             'documents_reviewed_at' => now()->subMinutes(2),
             'medical_checked_at' => null,
             'face_printed_at' => null,

@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\ProcessStep;
 use App\Enums\RequestType;
+use App\Enums\TicketStatus;
 use App\Enums\UserRole;
+use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -27,7 +28,7 @@ class RequestTypeTicketTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ], $overrides);
     }
@@ -101,7 +102,7 @@ class RequestTypeTicketTest extends TestCase
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'full_name' => 'طالب ترشيح',
         ]);
         QueueTicket::factory()->waiting()->create([
@@ -167,14 +168,14 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->postJson('/api/public/tickets', $this->issuePayload([
-            'college' => College::FoodIndustryTechnology->value,
+            'college' => College::FoodIndustryTechnology,
         ]))
             ->assertCreated();
 
         $this->assertDatabaseHas('queue_tickets', [
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::FoodIndustryTechnology->value,
+            'college' => College::FoodIndustryTechnology,
         ]);
     }
 
@@ -239,7 +240,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->getJson('/api/public/queue-status')
             ->assertOk()
-            ->assertJsonPath('system.colleges.0.value', College::InformationTechnology->value)
+            ->assertJsonPath('system.colleges.0.value', College::InformationTechnology)
             ->assertJsonPath('system.colleges.0.label', 'تكنولوجيا المعلومات')
             ->assertJsonPath('system.request_types.0.college_mode', 'select')
             ->assertJsonPath('system.request_types.0.college_label', 'الكلية الواردة في بطاقة الترشيح')
@@ -247,10 +248,12 @@ class RequestTypeTicketTest extends TestCase
             ->assertJsonPath('system.request_types.2.college_mode', 'text')
             ->assertJsonPath('system.request_types.3.college_mode', 'text')
             ->assertJsonPath('system.request_types.3.requires_completion_service', true)
-            ->assertJsonCount(3, 'system.request_types.3.completion_services')
-            ->assertJsonPath('system.request_types.3.completion_services.0.value', ProcessStep::MedicalChecked->value)
-            ->assertJsonPath('system.request_types.3.completion_services.1.value', ProcessStep::FacePrinted->value)
-            ->assertJsonPath('system.request_types.3.completion_services.2.value', ProcessStep::FileDelivered->value);
+            ->assertJsonCount(5, 'system.request_types.3.completion_services')
+            ->assertJsonPath('system.request_types.3.completion_services.0.value', ProcessStep::Paid->value)
+            ->assertJsonPath('system.request_types.3.completion_services.1.value', ProcessStep::FileWithdrawn->value)
+            ->assertJsonPath('system.request_types.3.completion_services.2.value', ProcessStep::MedicalChecked->value)
+            ->assertJsonPath('system.request_types.3.completion_services.3.value', ProcessStep::FacePrinted->value)
+            ->assertJsonPath('system.request_types.3.completion_services.4.value', ProcessStep::FileDelivered->value);
     }
 
     public function test_returns_422_when_request_type_is_disabled(): void
@@ -342,10 +345,11 @@ class RequestTypeTicketTest extends TestCase
             ->assertJsonPath('system.request_types.3.label', 'استكمال أوراق')
             ->assertJsonPath('system.request_types.3.enabled', true)
             ->assertJsonPath('system.request_types.3.requires_completion_service', true)
-            ->assertJsonCount(3, 'system.request_types.3.completion_services')
-            ->assertJsonPath('system.request_types.3.completion_services.0.label', 'كشف طبي')
-            ->assertJsonPath('system.request_types.3.completion_services.1.value', ProcessStep::FacePrinted->value)
-            ->assertJsonPath('system.request_types.3.completion_services.2.value', ProcessStep::FileDelivered->value);
+            ->assertJsonCount(5, 'system.request_types.3.completion_services')
+            ->assertJsonPath('system.request_types.3.completion_services.0.label', 'دفع')
+            ->assertJsonPath('system.request_types.3.completion_services.0.value', ProcessStep::Paid->value)
+            ->assertJsonPath('system.request_types.3.completion_services.1.value', ProcessStep::FileWithdrawn->value)
+            ->assertJsonPath('system.request_types.3.completion_services.4.value', ProcessStep::FileDelivered->value);
     }
 
     public function test_super_admin_can_update_enabled_request_types(): void
@@ -435,7 +439,7 @@ class RequestTypeTicketTest extends TestCase
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 4,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
         Sanctum::actingAs($manager);
@@ -460,7 +464,7 @@ class RequestTypeTicketTest extends TestCase
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 4,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
         Sanctum::actingAs($manager);
@@ -478,7 +482,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->assertDatabaseHas('queue_tickets', [
             'id' => $ticket->id,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
         ]);
     }
 
@@ -502,12 +506,37 @@ class RequestTypeTicketTest extends TestCase
         $this->assertSame(ProcessStep::MedicalChecked, $ticket->completion_step);
         $this->assertSame('كلية الهندسة', $ticket->college);
         $this->assertSame('456789123', $ticket->order_number);
-        $this->assertNotNull($ticket->entered_at);
+        $this->assertNull($ticket->entered_at);
+        $this->assertNotNull($ticket->paid_at);
+        $this->assertNotNull($ticket->file_withdrawn_at);
         $this->assertNull($ticket->medical_checked_at);
         $this->assertSame('استكمال أوراق — كشف طبي', $ticket->requestTypeLabel());
     }
 
-    public function test_document_completion_face_print_ticket_skips_earlier_checkpoints(): void
+    public function test_document_completion_file_withdrawn_ticket_starts_at_entry(): void
+    {
+        QueueSystemSetting::current();
+
+        $this->postJson('/api/public/tickets', $this->issuePayload([
+            'request_type' => RequestType::DocumentCompletion->value,
+            'completion_step' => ProcessStep::FileWithdrawn->value,
+            'college' => 'كلية الهندسة',
+            'order_number' => '456789123',
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'OF1');
+
+        $ticket = QueueTicket::query()->first();
+
+        $this->assertNotNull($ticket);
+        $this->assertSame(ProcessStep::FileWithdrawn, $ticket->completion_step);
+        $this->assertNull($ticket->entered_at);
+        $this->assertNotNull($ticket->paid_at);
+        $this->assertNull($ticket->file_withdrawn_at);
+        $this->assertSame('استكمال أوراق — سحب ملف', $ticket->requestTypeLabel());
+    }
+
+    public function test_document_completion_face_print_ticket_skips_earlier_checkpoints_except_entry(): void
     {
         QueueSystemSetting::current();
 
@@ -520,10 +549,99 @@ class RequestTypeTicketTest extends TestCase
         $ticket = QueueTicket::query()->first();
 
         $this->assertNotNull($ticket);
-        $this->assertNotNull($ticket->entered_at);
+        $this->assertNull($ticket->entered_at);
+        $this->assertNotNull($ticket->paid_at);
         $this->assertNotNull($ticket->medical_checked_at);
         $this->assertNull($ticket->face_printed_at);
         $this->assertSame('استكمال أوراق — بصمة وجه', $ticket->requestTypeLabel());
+    }
+
+    public function test_teller_can_mark_document_completion_ticket_as_entered_from_portal(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+
+        $this->postJson('/api/public/tickets', $this->issuePayload([
+            'request_type' => RequestType::DocumentCompletion->value,
+            'completion_step' => ProcessStep::FileWithdrawn->value,
+            'college' => 'كلية الهندسة',
+        ]))->assertCreated();
+
+        $ticket = QueueTicket::query()->first();
+        $this->assertNotNull($ticket);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets/scan/'.$ticket->public_token)
+            ->assertOk()
+            ->assertJsonPath('ticket.has_entered', false)
+            ->assertJsonPath('ticket.request_type_label', 'استكمال أوراق — سحب ملف');
+
+        $this->getJson('/api/teller/tickets?step=entered')
+            ->assertOk()
+            ->assertJsonPath('tickets.0.id', $ticket->id);
+
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-entered')
+            ->assertOk()
+            ->assertJsonPath('ticket.has_entered', true)
+            ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
+
+        $this->assertNotNull($ticket->fresh()->entered_at);
+    }
+
+    public function test_teller_can_mark_medical_on_document_completion_after_entry(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+
+        $this->postJson('/api/public/tickets', $this->issuePayload([
+            'request_type' => RequestType::DocumentCompletion->value,
+            'completion_step' => ProcessStep::MedicalChecked->value,
+            'college' => 'كلية الهندسة',
+        ]))->assertCreated();
+
+        $ticket = QueueTicket::query()->first();
+        $this->assertNotNull($ticket);
+
+        Sanctum::actingAs($teller);
+
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-medical-checked')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket'])
+            ->assertJsonPath('errors.ticket.0', 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
+
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-entered')->assertOk();
+
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-medical-checked')
+            ->assertOk()
+            ->assertJsonPath('ticket.has_medical_checked', true);
+
+        $this->assertNotNull($ticket->fresh()->medical_checked_at);
+    }
+
+    public function test_returns_422_when_document_completion_later_step_is_marked_before_entry(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+
+        $this->postJson('/api/public/tickets', $this->issuePayload([
+            'request_type' => RequestType::DocumentCompletion->value,
+            'completion_step' => ProcessStep::FacePrinted->value,
+            'college' => 'كلية الهندسة',
+        ]))->assertCreated();
+
+        $ticket = QueueTicket::query()->first();
+        $this->assertNotNull($ticket);
+
+        Sanctum::actingAs($teller);
+
+        $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-face-printed')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket'])
+            ->assertJsonPath('errors.ticket.0', 'سجّل طلب الدخول أولاً قبل بصمة الوجه.');
+
+        $this->assertNull($ticket->fresh()->entered_at);
+        $this->assertNull($ticket->fresh()->face_printed_at);
     }
 
     public function test_returns_422_when_document_completion_step_is_missing(): void

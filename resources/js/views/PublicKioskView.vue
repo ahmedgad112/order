@@ -42,7 +42,7 @@ const enabledRequestTypes = computed(() => (
     (queueStore.system.request_types ?? []).filter((type) => type.enabled)
 ));
 
-const colleges = computed(() => queueStore.system.colleges ?? []);
+const colleges = computed(() => (queueStore.system.colleges ?? []).filter((college) => college.is_active !== false));
 
 const selectedRequestType = computed(() => (
     enabledRequestTypes.value.find((type) => type.value === form.value.request_type) ?? null

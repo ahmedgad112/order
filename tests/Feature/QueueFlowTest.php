@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Events\TicketDeletedEvent;
+use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -29,7 +29,7 @@ class QueueFlowTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
 
@@ -40,7 +40,7 @@ class QueueFlowTest extends TestCase
         $this->assertDatabaseHas('queue_tickets', [
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
             'status' => TicketStatus::Waiting->value,
         ]);
@@ -72,7 +72,7 @@ class QueueFlowTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ])->assertCreated();
 
@@ -98,7 +98,7 @@ class QueueFlowTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
 
@@ -120,7 +120,7 @@ class QueueFlowTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '987654321',
         ]);
 
@@ -157,6 +157,8 @@ class QueueFlowTest extends TestCase
         $ticketId = $call->json('ticket.id');
 
         $this->postJson("/api/teller/tickets/{$ticketId}/mark-entered")->assertOk();
+        $this->postJson("/api/teller/tickets/{$ticketId}/mark-paid")->assertOk();
+        $this->postJson("/api/teller/tickets/{$ticketId}/mark-file-withdrawn")->assertOk();
         $this->postJson("/api/teller/tickets/{$ticketId}/mark-medical-checked")->assertOk();
         $this->postJson("/api/teller/tickets/{$ticketId}/mark-face-printed")->assertOk();
         $this->postJson("/api/teller/tickets/{$ticketId}/mark-file-delivered")->assertOk();
@@ -219,6 +221,8 @@ class QueueFlowTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
             ->assertJsonPath('tickets.0.has_entered', false)
+            ->assertJsonPath('tickets.0.has_paid', false)
+            ->assertJsonPath('tickets.0.has_file_withdrawn', false)
             ->assertJsonPath('tickets.0.has_medical_checked', false)
             ->assertJsonPath('tickets.0.has_face_printed', false)
             ->assertJsonPath('tickets.0.file_delivered', false)
@@ -234,6 +238,16 @@ class QueueFlowTest extends TestCase
             ->assertJsonPath('ticket.status', TicketStatus::Serving->value);
 
         $this->assertNotNull($ticket->fresh()->entered_at);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")
+            ->assertOk()
+            ->assertJsonPath('message', 'تم تسجيل الدفع.')
+            ->assertJsonPath('ticket.has_paid', true);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-file-withdrawn")
+            ->assertOk()
+            ->assertJsonPath('message', 'تم تسجيل سحب الملف.')
+            ->assertJsonPath('ticket.has_file_withdrawn', true);
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-medical-checked")
             ->assertOk()
@@ -262,6 +276,8 @@ class QueueFlowTest extends TestCase
     {
         return [
             'entered' => ['entered', 'في انتظار الدخول'],
+            'paid' => ['paid', 'في انتظار الدفع'],
+            'file_withdrawn' => ['file_withdrawn', 'في انتظار سحب الملف'],
             'medical_checked' => ['medical_checked', 'في انتظار الكشف'],
             'face_printed' => ['face_printed', 'في انتظار البصمة'],
             'file_delivered' => ['file_delivered', 'في انتظار التسليم'],
@@ -281,22 +297,30 @@ class QueueFlowTest extends TestCase
         ]);
         QueueTicket::factory()->serving($teller)->create([
             'ticket_number' => 2,
+            'full_name' => 'في انتظار الدفع',
+        ]);
+        QueueTicket::factory()->paid($teller)->create([
+            'ticket_number' => 3,
+            'full_name' => 'في انتظار سحب الملف',
+        ]);
+        QueueTicket::factory()->fileWithdrawn($teller)->create([
+            'ticket_number' => 4,
             'full_name' => 'في انتظار الكشف',
         ]);
         QueueTicket::factory()->medicalChecked($teller)->create([
-            'ticket_number' => 3,
+            'ticket_number' => 5,
             'full_name' => 'في انتظار البصمة',
         ]);
         QueueTicket::factory()->facePrinted($teller)->create([
-            'ticket_number' => 4,
+            'ticket_number' => 6,
             'full_name' => 'في انتظار التسليم',
         ]);
         QueueTicket::factory()->completed($teller)->create([
-            'ticket_number' => 5,
+            'ticket_number' => 7,
             'full_name' => 'تم الاكتمال',
         ]);
         QueueTicket::factory()->serving($teller)->create([
-            'ticket_number' => 6,
+            'ticket_number' => 8,
             'full_name' => 'ملغى بعد الدخول',
             'status' => TicketStatus::Cancelled,
         ]);
@@ -330,7 +354,7 @@ class QueueFlowTest extends TestCase
             'ticket_number' => 1,
             'full_name' => 'في انتظار الدخول',
         ]);
-        QueueTicket::factory()->serving($teller)->create([
+        QueueTicket::factory()->fileWithdrawn($teller)->create([
             'ticket_number' => 2,
             'full_name' => 'في انتظار الكشف',
         ]);
@@ -480,6 +504,16 @@ class QueueFlowTest extends TestCase
             ->assertJsonValidationErrors(['ticket']);
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-entered")->assertOk();
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-medical-checked")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket'])
+            ->assertJsonPath('errors.ticket.0', 'سجّل سحب الملف أولاً قبل الكشف الطبي.');
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-file-withdrawn")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket'])
+            ->assertJsonPath('errors.ticket.0', 'سجّل الدفع أولاً قبل سحب الملف.');
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-face-printed")
             ->assertUnprocessable()
@@ -858,7 +892,7 @@ class QueueFlowTest extends TestCase
             'full_name' => 'اسم معدل',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '111222333',
         ])->assertUnauthorized();
     }
@@ -877,7 +911,7 @@ class QueueFlowTest extends TestCase
             'full_name' => 'اسم معدل',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '111222333',
         ])->assertForbidden();
 

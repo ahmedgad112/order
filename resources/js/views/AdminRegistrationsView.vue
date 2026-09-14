@@ -20,10 +20,12 @@ const stepFilter = ref('all');
 const selectedDate = ref('');
 const loading = ref(false);
 
-const processStepValues = ['entered', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
+const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 const stepOptions = [
     { value: 'all', label: 'الكل' },
     { value: 'entered', label: 'طلب دخول' },
+    { value: 'paid', label: 'دفع' },
+    { value: 'file_withdrawn', label: 'سحب ملف' },
     { value: 'documents_reviewed', label: 'مراجعة ورق' },
     { value: 'medical_checked', label: 'كشف طبي' },
     { value: 'face_printed', label: 'بصمة وجه' },
@@ -250,7 +252,7 @@ onUnmounted(() => {
         <AppNavbar title="سجل التسجيلات" :subtitle="pageSubtitle" />
 
         <main class="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 <div class="rounded-2xl bg-white p-4 shadow-sm">
                     <p class="text-xs text-slate-500">الإجمالي</p>
                     <p class="text-2xl font-black text-slate-800">{{ queueStore.registrationStats.total }}</p>
@@ -262,6 +264,14 @@ onUnmounted(() => {
                 <div class="rounded-2xl bg-blue-50 p-4 shadow-sm">
                     <p class="text-xs text-blue-700">طلب دخول</p>
                     <p class="text-2xl font-black text-blue-600">{{ queueStore.registrationStats.entered }}</p>
+                </div>
+                <div class="rounded-2xl bg-cyan-50 p-4 shadow-sm">
+                    <p class="text-xs text-cyan-700">دفع</p>
+                    <p class="text-2xl font-black text-cyan-600">{{ queueStore.registrationStats.paid }}</p>
+                </div>
+                <div class="rounded-2xl bg-orange-50 p-4 shadow-sm">
+                    <p class="text-xs text-orange-700">سحب ملف</p>
+                    <p class="text-2xl font-black text-orange-600">{{ queueStore.registrationStats.file_withdrawn }}</p>
                 </div>
                 <div class="rounded-2xl bg-indigo-50 p-4 shadow-sm">
                     <p class="text-xs text-indigo-700">مراجعة ورق</p>
@@ -433,12 +443,26 @@ onUnmounted(() => {
                                     {{ ticket.has_documents_reviewed ? 'تم' : '—' }}
                                 </dd>
                             </div>
-                            <div v-else class="flex justify-between gap-3">
-                                <dt class="text-slate-500">كشف طبي</dt>
-                                <dd class="font-semibold" :class="ticket.has_medical_checked ? 'text-teal-700' : 'text-slate-400'">
-                                    {{ ticket.has_medical_checked ? 'تم' : '—' }}
-                                </dd>
-                            </div>
+                            <template v-else>
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-500">دفع</dt>
+                                    <dd class="font-semibold" :class="ticket.has_paid ? 'text-cyan-700' : 'text-slate-400'">
+                                        {{ ticket.has_paid ? 'تم' : '—' }}
+                                    </dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-500">سحب ملف</dt>
+                                    <dd class="font-semibold" :class="ticket.has_file_withdrawn ? 'text-orange-700' : 'text-slate-400'">
+                                        {{ ticket.has_file_withdrawn ? 'تم' : '—' }}
+                                    </dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt class="text-slate-500">كشف طبي</dt>
+                                    <dd class="font-semibold" :class="ticket.has_medical_checked ? 'text-teal-700' : 'text-slate-400'">
+                                        {{ ticket.has_medical_checked ? 'تم' : '—' }}
+                                    </dd>
+                                </div>
+                            </template>
                             <div v-if="ticket.student_kind !== 'current_student'" class="flex justify-between gap-3">
                                 <dt class="text-slate-500">بصمة وجه</dt>
                                 <dd class="font-semibold" :class="ticket.has_face_printed ? 'text-violet-700' : 'text-slate-400'">

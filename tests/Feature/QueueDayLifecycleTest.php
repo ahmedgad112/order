@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
+use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -29,7 +29,7 @@ class QueueDayLifecycleTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ])
             ->assertUnprocessable()
@@ -82,7 +82,7 @@ class QueueDayLifecycleTest extends TestCase
             'full_name' => 'عميل اليوم الجديد',
             'national_id' => '29501017654321',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'order_number' => '987654321',
         ])
             ->assertCreated()

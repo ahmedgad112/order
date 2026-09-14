@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\College;
 use App\Enums\ProcessStep;
 use App\Enums\QueueLane;
 use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
+use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -115,7 +115,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $assignedTicket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 2,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'national_id' => '29501011234568',
             'order_number' => '222222222',
         ]);
@@ -135,7 +135,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
         ]);
         Sanctum::actingAs($teller);
 
@@ -169,7 +169,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'national_id' => '29501011234567',
             'order_number' => '111111111',
         ]);
@@ -199,7 +199,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
             'request_type' => RequestType::NominationCard,
-            'college' => College::InformationTechnology->value,
+            'college' => College::InformationTechnology,
             'national_id' => '29501011234567',
             'order_number' => '111111111',
         ]);

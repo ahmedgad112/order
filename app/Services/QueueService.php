@@ -312,6 +312,8 @@ class QueueService
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
+            'paid_at' => null,
+            'file_withdrawn_at' => null,
             'documents_reviewed_at' => null,
             'medical_checked_at' => null,
             'face_printed_at' => null,
@@ -367,6 +369,47 @@ class QueueService
         return $ticket->fresh(['teller']);
     }
 
+    public function markPaid(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
+        $this->assertAdmissionProcess($ticket);
+        $this->assertCheckpointNotAlreadySet($ticket->paid_at, 'تم تسجيل الدفع لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الدفع.');
+
+        $ticket->update([
+            ...$this->servingAssignment($ticket, $teller),
+            'paid_at' => now(),
+        ]);
+
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
+    public function markFileWithdrawn(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertActiveStaff($teller);
+        $this->assertTicketIsProcessable($ticket);
+        $this->assertAdmissionProcess($ticket);
+        $this->assertCheckpointNotAlreadySet($ticket->file_withdrawn_at, 'تم تسجيل سحب الملف لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل سحب الملف.');
+        $this->assertPreviousCheckpoint($ticket->paid_at, 'سجّل الدفع أولاً قبل سحب الملف.');
+
+        $ticket->update([
+            ...$this->servingAssignment($ticket, $teller),
+            'file_withdrawn_at' => now(),
+        ]);
+
+        $ticket->load('teller');
+
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
+
+        return $ticket->fresh(['teller']);
+    }
+
     public function markDocumentsReviewed(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
@@ -400,6 +443,7 @@ class QueueService
         $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->medical_checked_at, 'تم تسجيل الكشف الطبي لهذه التذكرة مسبقاً.');
         $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
+        $this->assertPreviousCheckpoint($ticket->file_withdrawn_at, 'سجّل سحب الملف أولاً قبل الكشف الطبي.');
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -419,6 +463,7 @@ class QueueService
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->face_printed_at, 'تم تسجيل بصمة الوجه لهذه التذكرة مسبقاً.');
+        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل بصمة الوجه.');
         $this->assertPreviousCheckpoint($ticket->medical_checked_at, 'سجّل الكشف الطبي أولاً قبل بصمة الوجه.');
 
         $ticket->update([
@@ -442,6 +487,7 @@ class QueueService
         if ($ticket->isCurrentStudent()) {
             $this->assertPreviousCheckpoint($ticket->documents_reviewed_at, 'سجّل مراجعة الورق أولاً قبل تسليم الملف.');
         } else {
+            $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل تسليم الملف.');
             $this->assertPreviousCheckpoint($ticket->face_printed_at, 'سجّل بصمة الوجه أولاً قبل تسليم الملف.');
         }
 
@@ -641,7 +687,7 @@ class QueueService
     {
         if (! $ticket->usesAdmissionProcess()) {
             throw ValidationException::withMessages([
-                'ticket' => 'الكشف الطبي وبصمة الوجه غير مطلوبين للطالب الحالي.',
+                'ticket' => 'هذه الخطوة غير مطلوبة للطالب الحالي.',
             ]);
         }
     }

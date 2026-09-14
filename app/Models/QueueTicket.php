@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\College;
 use App\Enums\DocumentKind;
-use App\Enums\Faculty;
 use App\Enums\ProcessStep;
 use App\Enums\QueueLane;
 use App\Enums\RequestType;
@@ -41,6 +39,8 @@ use Illuminate\Support\Str;
     'user_id',
     'called_at',
     'entered_at',
+    'paid_at',
+    'file_withdrawn_at',
     'documents_reviewed_at',
     'medical_checked_at',
     'face_printed_at',
@@ -90,6 +90,8 @@ class QueueTicket extends Model
             'session_started_at' => 'datetime',
             'called_at' => 'datetime',
             'entered_at' => 'datetime',
+            'paid_at' => 'datetime',
+            'file_withdrawn_at' => 'datetime',
             'documents_reviewed_at' => 'datetime',
             'medical_checked_at' => 'datetime',
             'face_printed_at' => 'datetime',
@@ -262,11 +264,11 @@ class QueueTicket extends Model
         }
 
         if ($this->isCurrentStudent()) {
-            return Faculty::tryFrom($this->college)?->label() ?? $this->college;
+            return Faculty::labelFor($this->college) ?? $this->college;
         }
 
         if ($this->request_type === RequestType::NominationCard) {
-            return College::tryFrom($this->college)?->label() ?? $this->college;
+            return College::labelFor($this->college) ?? $this->college;
         }
 
         return $this->college;
@@ -316,6 +318,8 @@ class QueueTicket extends Model
      *     waiting: int,
      *     serving: int,
      *     entered: int,
+     *     paid: int,
+     *     file_withdrawn: int,
      *     documents_reviewed: int,
      *     medical_checked: int,
      *     face_printed: int,
@@ -337,6 +341,8 @@ class QueueTicket extends Model
             ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) as waiting', [TicketStatus::Waiting->value])
             ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) as serving', [TicketStatus::Serving->value])
             ->selectRaw('COUNT(CASE WHEN entered_at IS NOT NULL THEN 1 END) as entered')
+            ->selectRaw('COUNT(CASE WHEN paid_at IS NOT NULL THEN 1 END) as paid')
+            ->selectRaw('COUNT(CASE WHEN file_withdrawn_at IS NOT NULL THEN 1 END) as file_withdrawn')
             ->selectRaw('COUNT(CASE WHEN documents_reviewed_at IS NOT NULL THEN 1 END) as documents_reviewed')
             ->selectRaw('COUNT(CASE WHEN medical_checked_at IS NOT NULL THEN 1 END) as medical_checked')
             ->selectRaw('COUNT(CASE WHEN face_printed_at IS NOT NULL THEN 1 END) as face_printed')
@@ -356,6 +362,8 @@ class QueueTicket extends Model
             'waiting' => (int) ($row->waiting ?? 0),
             'serving' => (int) ($row->serving ?? 0),
             'entered' => (int) ($row->entered ?? 0),
+            'paid' => (int) ($row->paid ?? 0),
+            'file_withdrawn' => (int) ($row->file_withdrawn ?? 0),
             'documents_reviewed' => (int) ($row->documents_reviewed ?? 0),
             'medical_checked' => (int) ($row->medical_checked ?? 0),
             'face_printed' => (int) ($row->face_printed ?? 0),
@@ -374,6 +382,8 @@ class QueueTicket extends Model
      *     waiting: int,
      *     serving: int,
      *     entered: int,
+     *     paid: int,
+     *     file_withdrawn: int,
      *     documents_reviewed: int,
      *     medical_checked: int,
      *     face_printed: int,
@@ -451,7 +461,7 @@ class QueueTicket extends Model
      */
     public static function processStepValues(): array
     {
-        return ['entered', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
+        return ProcessStep::values();
     }
 
     public function scopeForAdmissionProcess(Builder $query): Builder
@@ -492,6 +502,17 @@ class QueueTicket extends Model
             'entered' => $query
                 ->whereIn('status', TicketStatus::activeValues())
                 ->whereNull('entered_at'),
+            'paid' => $query
+                ->forAdmissionProcess()
+                ->whereNotNull('entered_at')
+                ->whereNull('paid_at')
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
+            'file_withdrawn' => $query
+                ->forAdmissionProcess()
+                ->whereNotNull('entered_at')
+                ->whereNotNull('paid_at')
+                ->whereNull('file_withdrawn_at')
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
             'documents_reviewed' => $query
                 ->forCurrentStudentProcess()
                 ->whereNotNull('entered_at')
@@ -500,10 +521,12 @@ class QueueTicket extends Model
             'medical_checked' => $query
                 ->forAdmissionProcess()
                 ->whereNotNull('entered_at')
+                ->whereNotNull('file_withdrawn_at')
                 ->whereNull('medical_checked_at')
                 ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
             'face_printed' => $query
                 ->forAdmissionProcess()
+                ->whereNotNull('entered_at')
                 ->whereNotNull('medical_checked_at')
                 ->whereNull('face_printed_at')
                 ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent]),
@@ -515,6 +538,7 @@ class QueueTicket extends Model
                         ->where(function (Builder $admission): void {
                             $admission
                                 ->forAdmissionProcess()
+                                ->whereNotNull('entered_at')
                                 ->whereNotNull('face_printed_at');
                         })
                         ->orWhere(function (Builder $current): void {
@@ -529,16 +553,14 @@ class QueueTicket extends Model
 
     public function scopeMatchingSearch(Builder $query, string $search): Builder
     {
-        $matchingCollegeValues = array_values(array_filter(
-            [...College::values(), ...Faculty::values()],
-            function (string $value) use ($search): bool {
-                $college = College::tryFrom($value);
-                $faculty = Faculty::tryFrom($value);
-                $label = $college?->label() ?? $faculty?->label() ?? '';
-
+        $catalogLabels = College::labelsBySlug() + Faculty::labelsBySlug();
+        $matchingCollegeValues = array_keys(array_filter(
+            $catalogLabels,
+            function (string $label, string $slug) use ($search): bool {
                 return str_contains($label, $search)
-                    || str_contains($value, $search);
+                    || str_contains($slug, $search);
             },
+            ARRAY_FILTER_USE_BOTH,
         ));
 
         $parsedTicketCode = self::parseTicketCode($search);
