@@ -4,8 +4,6 @@ namespace App\Models;
 
 use App\Enums\DocumentKind;
 use App\Enums\ProcessStep;
-use App\Enums\QueueLane;
-use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use Database\Factories\QueueTicketFactory;
@@ -85,7 +83,6 @@ class QueueTicket extends Model
         return [
             'status' => TicketStatus::class,
             'student_kind' => StudentKind::class,
-            'request_type' => RequestType::class,
             'completion_step' => ProcessStep::class,
             'document_kind' => DocumentKind::class,
             'session_started_at' => 'datetime',
@@ -117,7 +114,7 @@ class QueueTicket extends Model
             return StudentKind::CurrentStudent->ticketPrefix();
         }
 
-        return $this->request_type?->ticketPrefix()
+        return RequestType::prefixFor($this->request_type)
             ?? StudentKind::NewStudent->ticketPrefix();
     }
 
@@ -132,10 +129,7 @@ class QueueTicket extends Model
     public static function ticketCodePrefixes(): array
     {
         $prefixes = [
-            ...array_map(
-                fn (RequestType $type): string => $type->ticketPrefix(),
-                RequestType::cases(),
-            ),
+            ...RequestType::prefixes(),
             StudentKind::NewStudent->ticketPrefix(),
             StudentKind::CurrentStudent->ticketPrefix(),
         ];
@@ -146,7 +140,7 @@ class QueueTicket extends Model
     }
 
     /**
-     * @return array{0: StudentKind, 1: RequestType|null, 2: int}|null
+     * @return array{0: StudentKind, 1: string|null, 2: int}|null
      */
     public static function parseTicketCode(string $search): ?array
     {
@@ -162,10 +156,10 @@ class QueueTicket extends Model
 
         $prefix = $matches[1];
         $number = (int) $matches[2];
-        $requestType = RequestType::tryFromTicketPrefix($prefix);
+        $requestType = RequestType::findByPrefix($prefix);
 
         if ($requestType instanceof RequestType) {
-            return [StudentKind::NewStudent, $requestType, $number];
+            return [StudentKind::NewStudent, $requestType->slug, $number];
         }
 
         $kind = StudentKind::tryFromTicketPrefix($prefix);
@@ -185,10 +179,10 @@ class QueueTicket extends Model
     public function queueLaneValue(): ?string
     {
         if ($this->isCurrentStudent()) {
-            return QueueLane::CurrentStudent->value;
+            return RequestType::LANE_CURRENT_STUDENT;
         }
 
-        return $this->request_type?->value;
+        return $this->request_type;
     }
 
     /**
@@ -196,7 +190,7 @@ class QueueTicket extends Model
      */
     public function scopeForQueueLanes(Builder $query, array $lanes): Builder
     {
-        $lanes = array_values(array_intersect($lanes, QueueLane::values()));
+        $lanes = array_values(array_intersect($lanes, RequestType::laneValues()));
 
         if ($lanes === []) {
             return $query->whereRaw('0 = 1');
@@ -205,10 +199,10 @@ class QueueTicket extends Model
         return $query->where(function (Builder $laneQuery) use ($lanes): void {
             $requestTypes = array_values(array_filter(
                 $lanes,
-                fn (string $lane): bool => $lane !== QueueLane::CurrentStudent->value,
+                fn (string $lane): bool => $lane !== RequestType::LANE_CURRENT_STUDENT,
             ));
 
-            if (in_array(QueueLane::CurrentStudent->value, $lanes, true)) {
+            if (in_array(RequestType::LANE_CURRENT_STUDENT, $lanes, true)) {
                 $laneQuery->orWhere('student_kind', StudentKind::CurrentStudent);
             }
 
@@ -242,15 +236,21 @@ class QueueTicket extends Model
             return $this->studentKindLabel();
         }
 
-        if ($this->request_type === RequestType::DocumentCompletion) {
+        $type = RequestType::findBySlug($this->request_type);
+
+        if (! $type instanceof RequestType) {
+            return $this->request_type;
+        }
+
+        if ($type->requires_completion_service) {
             $stepLabel = $this->completion_step?->label();
 
             return $stepLabel
-                ? $this->request_type->label().' — '.$stepLabel
-                : $this->request_type->label();
+                ? $type->label.' — '.$stepLabel
+                : $type->label;
         }
 
-        return $this->request_type?->label();
+        return $type->label;
     }
 
     public function completionStepLabel(): ?string
@@ -268,7 +268,7 @@ class QueueTicket extends Model
             return Faculty::labelFor($this->college) ?? $this->college;
         }
 
-        if ($this->request_type === RequestType::NominationCard) {
+        if (RequestType::findBySlug($this->request_type)?->isCollegeSelectMode()) {
             return College::labelFor($this->college) ?? $this->college;
         }
 
@@ -479,7 +479,7 @@ class QueueTicket extends Model
         return $query->where('student_kind', StudentKind::CurrentStudent);
     }
 
-    public function scopeForTicketSeries(Builder $query, StudentKind $kind, ?RequestType $requestType = null): Builder
+    public function scopeForTicketSeries(Builder $query, StudentKind $kind, ?string $requestType = null): Builder
     {
         if ($kind === StudentKind::CurrentStudent) {
             return $query->forCurrentStudentProcess();
@@ -487,7 +487,7 @@ class QueueTicket extends Model
 
         $query->forAdmissionProcess();
 
-        return $requestType instanceof RequestType
+        return filled($requestType)
             ? $query->where('request_type', $requestType)
             : $query->whereNull('request_type');
     }

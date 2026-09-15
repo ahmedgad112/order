@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\QueueLane;
 use App\Enums\UserRole;
+use App\Models\RequestType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -27,7 +27,7 @@ class StoreUserRequest extends FormRequest
             'role' => ['required', Rule::enum(UserRole::class)],
             'counter_name' => ['nullable', 'string', 'max:100', 'required_if:role,teller'],
             'queue_lanes' => ['sometimes', 'array'],
-            'queue_lanes.*' => ['required', 'string', 'distinct', Rule::enum(QueueLane::class)],
+            'queue_lanes.*' => ['required', 'string', 'distinct', Rule::in(RequestType::laneValues())],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -48,7 +48,7 @@ class StoreUserRequest extends FormRequest
             'counter_name.required_if' => 'اسم الشباك مطلوب للموظفين.',
             'queue_lanes.array' => 'أنواع الطلب المخصصة غير صحيحة.',
             'queue_lanes.*.distinct' => 'لا يمكن تكرار نوع الطلب.',
-            'queue_lanes.*.enum' => 'نوع الطلب غير صحيح.',
+            'queue_lanes.*.in' => 'نوع الطلب غير صحيح.',
         ];
     }
 }

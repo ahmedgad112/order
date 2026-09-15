@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\QueueLane;
 use App\Enums\UserRole;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -17,7 +16,13 @@ return new class extends Migration
             });
         }
 
-        $lanes = json_encode(QueueLane::values());
+        $lanes = json_encode([
+            'nomination_card',
+            'direct_application',
+            'transfer',
+            'document_completion',
+            'current_student',
+        ]);
 
         DB::table('users')
             ->where('role', UserRole::Teller->value)

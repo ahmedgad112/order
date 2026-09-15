@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Enums\DocumentKind;
-use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Models\College;
@@ -30,7 +29,7 @@ class QueueTicketFactory extends Factory
             'full_name' => fake()->name(),
             'student_kind' => StudentKind::NewStudent,
             'national_id' => fake()->numerify('##############'),
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'completion_step' => null,
             'college' => fake()->randomElement(College::activeSlugs()) ?: College::InformationTechnology,
             'department' => null,

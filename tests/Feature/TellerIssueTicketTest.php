@@ -2,12 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Enums\QueueLane;
-use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -24,19 +23,19 @@ class TellerIssueTicketTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1')
             ->assertJsonPath('ticket.full_name', 'محمد أحمد علي')
             ->assertJsonPath('ticket.order_number', '123456789')
-            ->assertJsonPath('ticket.request_type', RequestType::NominationCard->value)
+            ->assertJsonPath('ticket.request_type', 'nomination_card')
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
 
         $this->assertDatabaseHas('queue_tickets', [
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'student_kind' => StudentKind::NewStudent->value,
             'national_id' => null,
             'college' => null,
@@ -51,7 +50,7 @@ class TellerIssueTicketTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'سارة أحمد علي',
             'order_number' => '987654321',
-            'request_type' => QueueLane::CurrentStudent->value,
+            'request_type' => 'current_student',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1')
@@ -73,7 +72,7 @@ class TellerIssueTicketTest extends TestCase
         $this->postJson('/api/public/tickets', [
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertForbidden()
             ->assertJsonPath('message', 'التسجيل يتم عن طريق الموظف.');
@@ -88,7 +87,7 @@ class TellerIssueTicketTest extends TestCase
         $this->postJson('/api/teller/tickets', [
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])->assertUnauthorized();
 
         $this->assertDatabaseCount('queue_tickets', 0);
@@ -137,12 +136,13 @@ class TellerIssueTicketTest extends TestCase
 
     public function test_returns_422_when_request_type_is_disabled(): void
     {
-        QueueSystemSetting::current()->update([
-            'enabled_request_types' => [RequestType::NominationCard->value],
-        ]);
+        QueueSystemSetting::current();
+        RequestType::query()
+            ->where('slug', '!=', 'nomination_card')
+            ->update(['enabled' => false]);
 
         $this->issueTicketAsStaff([
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
         ])
             ->assertUnprocessable()
             ->assertJsonPath('errors.request_type.0', 'نوع الطلب غير متاح حالياً.');
@@ -153,10 +153,10 @@ class TellerIssueTicketTest extends TestCase
     public function test_teller_cannot_issue_unassigned_queue_lane(): void
     {
         QueueSystemSetting::current();
-        $teller = User::factory()->teller()->forQueueLanes([QueueLane::NominationCard])->create();
+        $teller = User::factory()->teller()->forQueueLanes(['nomination_card'])->create();
 
         $this->issueTicketAsStaff([
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
         ], $teller)
             ->assertUnprocessable()
             ->assertJsonPath('errors.request_type.0', 'نوع الطلب غير متاح حالياً.');

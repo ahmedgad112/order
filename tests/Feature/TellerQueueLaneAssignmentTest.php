@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\ProcessStep;
-use App\Enums\QueueLane;
-use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Models\College;
@@ -27,17 +25,17 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $other = User::factory()->teller('شباك 2')->create(['name' => 'موظف التحويل']);
         Sanctum::actingAs($manager);
 
-        $this->putJson('/api/admin/queue-lanes/'.QueueLane::NominationCard->value.'/tellers', [
+        $this->putJson('/api/admin/queue-lanes/'.'nomination_card'.'/tellers', [
             'teller_ids' => [$assigned->id],
         ])
             ->assertOk()
             ->assertJsonPath('message', 'تم تحديث موظفي نوع الطلب.')
-            ->assertJsonPath('queue_lanes.0.value', QueueLane::NominationCard->value)
+            ->assertJsonPath('queue_lanes.0.value', 'nomination_card')
             ->assertJsonPath('queue_lanes.0.teller_ids.0', $assigned->id);
 
-        $this->assertContains(QueueLane::NominationCard->value, $assigned->fresh()->queue_lanes);
-        $this->assertNotContains(QueueLane::NominationCard->value, $other->fresh()->queue_lanes);
-        $this->assertContains(QueueLane::Transfer->value, $other->fresh()->queue_lanes);
+        $this->assertContains('nomination_card', $assigned->fresh()->queue_lanes);
+        $this->assertNotContains('nomination_card', $other->fresh()->queue_lanes);
+        $this->assertContains('transfer', $other->fresh()->queue_lanes);
     }
 
     public function test_empty_teller_ids_unassigns_all_tellers_from_the_lane(): void
@@ -47,17 +45,17 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $teller = User::factory()->teller()->create();
         Sanctum::actingAs($admin);
 
-        $this->putJson('/api/admin/queue-lanes/'.QueueLane::Transfer->value.'/tellers', [
+        $this->putJson('/api/admin/queue-lanes/'.'transfer'.'/tellers', [
             'teller_ids' => [],
         ])->assertOk();
 
-        $this->assertNotContains(QueueLane::Transfer->value, $teller->fresh()->queue_lanes);
-        $this->assertContains(QueueLane::NominationCard->value, $teller->fresh()->queue_lanes);
+        $this->assertNotContains('transfer', $teller->fresh()->queue_lanes);
+        $this->assertContains('nomination_card', $teller->fresh()->queue_lanes);
     }
 
     public function test_returns_401_when_guest_updates_lane_tellers(): void
     {
-        $this->putJson('/api/admin/queue-lanes/'.QueueLane::NominationCard->value.'/tellers', [
+        $this->putJson('/api/admin/queue-lanes/'.'nomination_card'.'/tellers', [
             'teller_ids' => [],
         ])->assertUnauthorized();
     }
@@ -67,7 +65,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $teller = User::factory()->teller()->create();
         Sanctum::actingAs($teller);
 
-        $this->putJson('/api/admin/queue-lanes/'.QueueLane::NominationCard->value.'/tellers', [
+        $this->putJson('/api/admin/queue-lanes/'.'nomination_card'.'/tellers', [
             'teller_ids' => [$teller->id],
         ])->assertForbidden();
     }
@@ -79,7 +77,9 @@ class TellerQueueLaneAssignmentTest extends TestCase
 
         $this->putJson('/api/admin/queue-lanes/unknown-lane/tellers', [
             'teller_ids' => [],
-        ])->assertNotFound();
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['lane']);
     }
 
     public function test_returns_422_when_teller_ids_includes_a_non_teller(): void
@@ -88,7 +88,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $manager = User::factory()->manager()->create();
         Sanctum::actingAs($admin);
 
-        $response = $this->putJson('/api/admin/queue-lanes/'.QueueLane::NominationCard->value.'/tellers', [
+        $response = $this->putJson('/api/admin/queue-lanes/'.'nomination_card'.'/tellers', [
             'teller_ids' => [$manager->id],
         ]);
 
@@ -104,17 +104,17 @@ class TellerQueueLaneAssignmentTest extends TestCase
     public function test_teller_call_next_skips_tickets_outside_assigned_lanes(): void
     {
         QueueSystemSetting::current();
-        $teller = User::factory()->teller()->forQueueLanes([QueueLane::NominationCard])->create();
+        $teller = User::factory()->teller()->forQueueLanes(['nomination_card'])->create();
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
             'college' => 'كلية التجارة',
             'national_id' => '29501011234567',
             'order_number' => '111111111',
         ]);
         $assignedTicket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 2,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'national_id' => '29501011234568',
             'order_number' => '222222222',
@@ -134,7 +134,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $teller = User::factory()->teller()->forQueueLanes([])->create();
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
         ]);
         Sanctum::actingAs($teller);
@@ -148,10 +148,10 @@ class TellerQueueLaneAssignmentTest extends TestCase
     public function test_returns_422_when_waiting_tickets_are_outside_assigned_lanes(): void
     {
         QueueSystemSetting::current();
-        $teller = User::factory()->teller()->forQueueLanes([QueueLane::NominationCard])->create();
+        $teller = User::factory()->teller()->forQueueLanes(['nomination_card'])->create();
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
             'college' => 'كلية التجارة',
         ]);
         Sanctum::actingAs($teller);
@@ -165,17 +165,17 @@ class TellerQueueLaneAssignmentTest extends TestCase
     public function test_teller_ticket_list_hides_tickets_outside_assigned_lanes(): void
     {
         QueueSystemSetting::current();
-        $teller = User::factory()->teller()->forQueueLanes([QueueLane::NominationCard])->create();
+        $teller = User::factory()->teller()->forQueueLanes(['nomination_card'])->create();
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'national_id' => '29501011234567',
             'order_number' => '111111111',
         ]);
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 2,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
             'college' => 'كلية التجارة',
             'national_id' => '29501011234568',
             'order_number' => '222222222',
@@ -189,23 +189,23 @@ class TellerQueueLaneAssignmentTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
             ->assertJsonPath('tickets.0.ticket_number', 'OT1')
-            ->assertJsonPath('tickets.0.request_type', RequestType::NominationCard->value);
+            ->assertJsonPath('tickets.0.request_type', 'nomination_card');
     }
 
     public function test_teller_call_next_serves_document_completion_tickets_on_their_own_lane(): void
     {
         QueueSystemSetting::current();
-        $teller = User::factory()->teller()->forQueueLanes([QueueLane::DocumentCompletion])->create();
+        $teller = User::factory()->teller()->forQueueLanes(['document_completion'])->create();
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'national_id' => '29501011234567',
             'order_number' => '111111111',
         ]);
         $assignedTicket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 2,
-            'request_type' => RequestType::DocumentCompletion,
+            'request_type' => 'document_completion',
             'completion_step' => ProcessStep::MedicalChecked,
             'college' => 'كلية الهندسة',
             'national_id' => '29501011234568',
@@ -216,7 +216,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         $this->postJson('/api/teller/call-next')
             ->assertOk()
             ->assertJsonPath('ticket.id', $assignedTicket->id)
-            ->assertJsonPath('ticket.request_type', RequestType::DocumentCompletion->value)
+            ->assertJsonPath('ticket.request_type', 'document_completion')
             ->assertJsonPath('ticket.completion_step', ProcessStep::MedicalChecked->value)
             ->assertJsonPath('ticket.request_type_label', 'استكمال أوراق — كشف طبي');
     }
@@ -230,10 +230,10 @@ class TellerQueueLaneAssignmentTest extends TestCase
 
         $this->getJson('/api/admin/dashboard')
             ->assertOk()
-            ->assertJsonPath('queue_lanes.0.value', QueueLane::NominationCard->value)
+            ->assertJsonPath('queue_lanes.0.value', 'nomination_card')
             ->assertJsonPath('queue_lanes.0.teller_ids.0', $teller->id)
-            ->assertJsonPath('queue_lanes.3.value', QueueLane::DocumentCompletion->value)
-            ->assertJsonPath('queue_lanes.4.value', QueueLane::CurrentStudent->value);
+            ->assertJsonPath('queue_lanes.3.value', 'document_completion')
+            ->assertJsonPath('queue_lanes.4.value', 'current_student');
     }
 
     public function test_public_queue_status_does_not_include_queue_lane_assignments(): void
@@ -260,7 +260,7 @@ class TellerQueueLaneAssignmentTest extends TestCase
         ])
             ->assertCreated()
             ->assertJsonCount(5, 'user.queue_lanes')
-            ->assertJsonPath('user.queue_lanes.0.value', QueueLane::NominationCard->value);
+            ->assertJsonPath('user.queue_lanes.0.value', 'nomination_card');
     }
 
     public function test_users_index_includes_queue_lane_options(): void
@@ -270,9 +270,9 @@ class TellerQueueLaneAssignmentTest extends TestCase
 
         $this->getJson('/api/admin/users')
             ->assertOk()
-            ->assertJsonPath('queue_lanes.0.value', QueueLane::NominationCard->value)
-            ->assertJsonPath('queue_lanes.3.value', QueueLane::DocumentCompletion->value)
-            ->assertJsonPath('queue_lanes.4.value', QueueLane::CurrentStudent->value)
+            ->assertJsonPath('queue_lanes.0.value', 'nomination_card')
+            ->assertJsonPath('queue_lanes.3.value', 'document_completion')
+            ->assertJsonPath('queue_lanes.4.value', 'current_student')
             ->assertJsonCount(5, 'queue_lanes');
     }
 
@@ -283,15 +283,15 @@ class TellerQueueLaneAssignmentTest extends TestCase
         Sanctum::actingAs($admin);
 
         $this->putJson('/api/admin/users/'.$teller->id, [
-            'queue_lanes' => [QueueLane::Transfer->value, QueueLane::CurrentStudent->value],
+            'queue_lanes' => ['transfer', 'current_student'],
         ])
             ->assertOk()
             ->assertJsonCount(2, 'user.queue_lanes')
-            ->assertJsonPath('user.queue_lanes.0.value', QueueLane::Transfer->value)
-            ->assertJsonPath('user.queue_lanes.1.value', QueueLane::CurrentStudent->value);
+            ->assertJsonPath('user.queue_lanes.0.value', 'transfer')
+            ->assertJsonPath('user.queue_lanes.1.value', 'current_student');
 
         $this->assertSame(
-            [QueueLane::Transfer->value, QueueLane::CurrentStudent->value],
+            ['transfer', 'current_student'],
             $teller->fresh()->queue_lanes,
         );
     }

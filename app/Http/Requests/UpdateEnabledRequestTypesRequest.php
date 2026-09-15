@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\RequestType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +19,7 @@ class UpdateEnabledRequestTypesRequest extends FormRequest
     {
         return [
             'enabled_request_types' => ['required', 'array', 'min:1'],
-            'enabled_request_types.*' => ['required', 'string', 'distinct', Rule::enum(RequestType::class)],
+            'enabled_request_types.*' => ['required', 'string', 'distinct', Rule::exists('request_types', 'slug')],
         ];
     }
 
@@ -33,7 +32,7 @@ class UpdateEnabledRequestTypesRequest extends FormRequest
             'enabled_request_types.required' => 'يجب اختيار نوع طلب واحد على الأقل.',
             'enabled_request_types.min' => 'يجب اختيار نوع طلب واحد على الأقل.',
             'enabled_request_types.*.distinct' => 'لا يمكن تكرار نوع الطلب.',
-            'enabled_request_types.*.enum' => 'نوع الطلب غير صحيح.',
+            'enabled_request_types.*.exists' => 'نوع الطلب غير صحيح.',
         ];
     }
 }

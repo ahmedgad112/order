@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Enums\QueueLane;
 use App\Enums\UserRole;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -29,7 +29,7 @@ class UserFactory extends Factory
             'remember_token' => Str::random(10),
             'role' => UserRole::Teller,
             'counter_name' => 'شباك '.fake()->numberBetween(1, 9),
-            'queue_lanes' => QueueLane::values(),
+            'queue_lanes' => RequestType::laneValues(),
             'is_active' => true,
         ];
     }
@@ -69,20 +69,17 @@ class UserFactory extends Factory
         return $this->state(fn () => [
             'role' => UserRole::Teller,
             'counter_name' => $counterName ?? 'شباك 1',
-            'queue_lanes' => QueueLane::values(),
+            'queue_lanes' => RequestType::laneValues(),
         ]);
     }
 
     /**
-     * @param  list<string>|list<QueueLane>  $lanes
+     * @param  list<string>  $lanes
      */
     public function forQueueLanes(array $lanes): static
     {
         return $this->state(fn () => [
-            'queue_lanes' => array_map(
-                fn (QueueLane|string $lane): string => $lane instanceof QueueLane ? $lane->value : $lane,
-                $lanes,
-            ),
+            'queue_lanes' => array_values($lanes),
         ]);
     }
 

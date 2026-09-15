@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\QueueLane;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -92,23 +91,21 @@ class User extends Authenticatable
     public function queueLaneValues(): array
     {
         if (! $this->isTeller()) {
-            return QueueLane::values();
+            return RequestType::laneValues();
         }
 
         $stored = $this->queue_lanes;
 
         if (! is_array($stored)) {
-            return QueueLane::values();
+            return RequestType::laneValues();
         }
 
-        return array_values(array_intersect($stored, QueueLane::values()));
+        return array_values(array_intersect($stored, RequestType::laneValues()));
     }
 
-    public function servesQueueLane(QueueLane|string $lane): bool
+    public function servesQueueLane(string $lane): bool
     {
-        $value = $lane instanceof QueueLane ? $lane->value : $lane;
-
-        return in_array($value, $this->queueLaneValues(), true);
+        return in_array($lane, $this->queueLaneValues(), true);
     }
 
     public function constrainsTicketsToAssignedLanes(): bool

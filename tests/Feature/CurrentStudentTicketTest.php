@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\DocumentKind;
-use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Models\Faculty;
@@ -71,7 +70,7 @@ class CurrentStudentTicketTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1');
@@ -87,7 +86,7 @@ class CurrentStudentTicketTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'علي محمود حسن',
             'order_number' => '123456787',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT2');
@@ -110,7 +109,7 @@ class CurrentStudentTicketTest extends TestCase
         ]);
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'full_name' => 'طالب جديد بنفس الرقم',
         ]);
         Sanctum::actingAs(User::factory()->superAdmin()->create());

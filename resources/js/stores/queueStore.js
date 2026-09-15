@@ -55,6 +55,7 @@ export const useQueueStore = defineStore('queue', () => {
     });
     const catalogFaculties = ref([]);
     const catalogColleges = ref([]);
+    const adminRequestTypes = ref([]);
     const system = ref({
         is_open: true,
         is_day_open: true,
@@ -491,6 +492,40 @@ export const useQueueStore = defineStore('queue', () => {
             enabled_request_types: enabledRequestTypes,
         });
         system.value = data.system;
+        return data;
+    }
+
+    function applyRequestTypeCatalog(data) {
+        if (data.request_types) {
+            adminRequestTypes.value = data.request_types;
+        }
+
+        if (data.system) {
+            system.value = data.system;
+        }
+    }
+
+    async function fetchRequestTypes() {
+        const { data } = await axios.get('/admin/request-types');
+        applyRequestTypeCatalog(data);
+        return data;
+    }
+
+    async function createRequestType(payload) {
+        const { data } = await axios.post('/admin/request-types', payload);
+        applyRequestTypeCatalog(data);
+        return data;
+    }
+
+    async function updateRequestType(requestTypeId, payload) {
+        const { data } = await axios.put(`/admin/request-types/${requestTypeId}`, payload);
+        applyRequestTypeCatalog(data);
+        return data;
+    }
+
+    async function deleteRequestType(requestTypeId) {
+        const { data } = await axios.delete(`/admin/request-types/${requestTypeId}`);
+        applyRequestTypeCatalog(data);
         return data;
     }
 
@@ -975,6 +1010,7 @@ export const useQueueStore = defineStore('queue', () => {
         system,
         catalogFaculties,
         catalogColleges,
+        adminRequestTypes,
         loading,
         error,
         hasWaiting,
@@ -1021,6 +1057,10 @@ export const useQueueStore = defineStore('queue', () => {
         endDay,
         openDay,
         updateRequestTypes,
+        fetchRequestTypes,
+        createRequestType,
+        updateRequestType,
+        deleteRequestType,
         updateStudentKinds,
         updateQueueLaneTellers,
         createFaculty,

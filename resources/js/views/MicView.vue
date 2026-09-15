@@ -1,12 +1,19 @@
 <script setup>
 import { computed, onUnmounted, ref } from 'vue';
-import { Mic, MicOff, Radio, ShieldAlert } from 'lucide-vue-next';
+import { Mic, MicOff, Play, Radio, Send, ShieldAlert, Square, Trash2 } from 'lucide-vue-next';
 import { axios } from '../bootstrap';
 import AppNavbar from '../components/AppNavbar.vue';
 
+const mode = ref('live'); // 'live' | 'record'
 const talking = ref(false);
 const micError = ref('');
 const chunksSent = ref(0);
+
+const recording = ref(false);
+const recordingSeconds = ref(0);
+const recordedUrl = ref('');
+const sending = ref(false);
+const sendSuccess = ref('');
 
 const supported = computed(() => (
     'mediaDevices' in navigator
@@ -19,6 +26,9 @@ let recorder = null;
 let sessionId = '';
 let sequence = 0;
 let uploadChain = Promise.resolve();
+let recordedBlob = null;
+let recordedChunks = [];
+let recordTimer = null;
 
 function pickMimeType() {
     const candidates = [
@@ -42,6 +52,28 @@ function extensionFor(mimeType) {
 
     return 'webm';
 }
+
+async function acquireStream() {
+    if (!supported.value) {
+        micError.value = 'المتصفح لا يدعم تسجيل الصوت.';
+        return false;
+    }
+
+    try {
+        if (!stream) {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true },
+            });
+        }
+    } catch {
+        micError.value = 'تعذر الوصول إلى الميكروفون. امنح الإذن للمتصفح، وتأكد أن الصفحة تعمل عبر HTTPS أو localhost.';
+        return false;
+    }
+
+    return true;
+}
+
+// ---- Live push-to-talk ----
 
 function queueUpload(blob, final) {
     const seq = sequence;
@@ -72,19 +104,7 @@ function queueUpload(blob, final) {
 async function startTalking() {
     micError.value = '';
 
-    if (!supported.value) {
-        micError.value = 'المتصفح لا يدعم تسجيل الصوت.';
-        return;
-    }
-
-    try {
-        if (!stream) {
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true },
-            });
-        }
-    } catch {
-        micError.value = 'تعذر الوصول إلى الميكروفون. امنح الإذن للمتصفح، وتأكد أن الصفحة تعمل عبر HTTPS أو localhost.';
+    if (!await acquireStream()) {
         return;
     }
 
@@ -111,6 +131,112 @@ function stopTalking() {
     talking.value = false;
 }
 
+// ---- Record then send ----
+
+async function startRecording() {
+    micError.value = '';
+    sendSuccess.value = '';
+
+    if (!await acquireStream()) {
+        return;
+    }
+
+    discardRecording(false);
+
+    const mimeType = pickMimeType();
+    recordedChunks = [];
+
+    recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+            recordedChunks.push(event.data);
+        }
+    };
+    recorder.onstop = () => {
+        recordedBlob = new Blob(recordedChunks, { type: recorder?.mimeType || 'audio/webm' });
+        recordedUrl.value = URL.createObjectURL(recordedBlob);
+        recording.value = false;
+    };
+
+    recordingSeconds.value = 0;
+    recordTimer = setInterval(() => {
+        recordingSeconds.value += 1;
+    }, 1000);
+
+    recorder.start();
+    recording.value = true;
+}
+
+function stopRecording() {
+    if (recordTimer) {
+        clearInterval(recordTimer);
+        recordTimer = null;
+    }
+
+    if (recorder && recorder.state !== 'inactive') {
+        recorder.stop();
+    }
+
+    recording.value = false;
+}
+
+function discardRecording(resetSeconds = true) {
+    if (recordedUrl.value) {
+        URL.revokeObjectURL(recordedUrl.value);
+    }
+
+    recordedUrl.value = '';
+    recordedBlob = null;
+    recordedChunks = [];
+
+    if (resetSeconds) {
+        recordingSeconds.value = 0;
+    }
+}
+
+async function sendRecording() {
+    if (!recordedBlob || sending.value) {
+        return;
+    }
+
+    sending.value = true;
+    micError.value = '';
+    sendSuccess.value = '';
+
+    const form = new FormData();
+    form.append('audio', recordedBlob, `recording.${extensionFor(recordedBlob.type)}`);
+
+    try {
+        const { data } = await axios.post('/admin/mic-recording', form);
+        sendSuccess.value = data?.message || 'تم إرسال التسجيل إلى شاشة العرض.';
+        discardRecording();
+    } catch {
+        micError.value = 'تعذر إرسال التسجيل. حاول مرة أخرى.';
+    } finally {
+        sending.value = false;
+    }
+}
+
+function formatSeconds(total) {
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function switchMode(next) {
+    if (mode.value === next) {
+        return;
+    }
+
+    stopTalking();
+    stopRecording();
+    discardRecording();
+    micError.value = '';
+    sendSuccess.value = '';
+    mode.value = next;
+}
+
 function releaseStream() {
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
@@ -118,6 +244,8 @@ function releaseStream() {
 
 onUnmounted(() => {
     stopTalking();
+    stopRecording();
+    discardRecording();
     releaseStream();
 });
 </script>
@@ -128,39 +256,113 @@ onUnmounted(() => {
 
         <main class="flex flex-1 items-center justify-center p-6">
             <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                <div class="mx-auto mb-6 grid w-fit grid-cols-2 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-sm font-bold">
+                    <button
+                        type="button"
+                        class="rounded-full px-4 py-2 transition-colors"
+                        :class="mode === 'live' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                        @click="switchMode('live')"
+                    >
+                        بث مباشر
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-full px-4 py-2 transition-colors"
+                        :class="mode === 'record' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                        @click="switchMode('record')"
+                    >
+                        تسجيل ثم إرسال
+                    </button>
+                </div>
+
                 <div
                     class="mx-auto mb-6 flex h-28 w-28 items-center justify-center rounded-full transition-colors"
-                    :class="talking ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'"
+                    :class="(talking || recording) ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'"
                 >
-                    <Mic v-if="supported" class="h-12 w-12" :class="{ 'animate-pulse': talking }" />
+                    <Mic v-if="supported" class="h-12 w-12" :class="{ 'animate-pulse': talking || recording }" />
                     <MicOff v-else class="h-12 w-12" />
                 </div>
 
-                <h2 class="text-xl font-black text-slate-900">
-                    {{ talking ? 'جاري البث...' : 'اضغط مطولاً للتحدث' }}
-                </h2>
-                <p class="mt-2 text-sm text-slate-500">
-                    استمر بالضغط على الزر أثناء الكلام، واتركه عند الانتهاء.
-                    سيُسمع صوتك على شاشة العرض مباشرة.
-                </p>
+                <template v-if="mode === 'live'">
+                    <h2 class="text-xl font-black text-slate-900">
+                        {{ talking ? 'جاري البث...' : 'اضغط مطولاً للتحدث' }}
+                    </h2>
+                    <p class="mt-2 text-sm text-slate-500">
+                        استمر بالضغط على الزر أثناء الكلام، واتركه عند الانتهاء.
+                        سيُسمع صوتك على شاشة العرض مباشرة.
+                    </p>
 
-                <button
-                    type="button"
-                    class="mt-8 flex w-full select-none items-center justify-center gap-3 rounded-3xl px-6 py-6 text-xl font-black text-white transition-colors"
-                    :class="talking ? 'bg-red-600' : 'bg-indigo-600 hover:bg-indigo-700'"
-                    :disabled="!supported"
-                    @pointerdown.prevent="startTalking"
-                    @pointerup.prevent="stopTalking"
-                    @pointerleave.prevent="stopTalking"
-                    @pointercancel.prevent="stopTalking"
-                    @contextmenu.prevent
-                >
-                    <Radio class="h-6 w-6" :class="{ 'animate-pulse': talking }" />
-                    {{ talking ? 'اترك للإيقاف' : 'اضغط وتحدث' }}
-                </button>
+                    <button
+                        type="button"
+                        class="mt-8 flex w-full select-none items-center justify-center gap-3 rounded-3xl px-6 py-6 text-xl font-black text-white transition-colors"
+                        :class="talking ? 'bg-red-600' : 'bg-indigo-600 hover:bg-indigo-700'"
+                        :disabled="!supported"
+                        @pointerdown.prevent="startTalking"
+                        @pointerup.prevent="stopTalking"
+                        @pointerleave.prevent="stopTalking"
+                        @pointercancel.prevent="stopTalking"
+                        @contextmenu.prevent
+                    >
+                        <Radio class="h-6 w-6" :class="{ 'animate-pulse': talking }" />
+                        {{ talking ? 'اترك للإيقاف' : 'اضغط وتحدث' }}
+                    </button>
 
-                <p v-if="chunksSent > 0" class="mt-4 text-xs font-semibold text-slate-400">
-                    تم إرسال {{ chunksSent }} مقطع صوتي
+                    <p v-if="chunksSent > 0" class="mt-4 text-xs font-semibold text-slate-400">
+                        تم إرسال {{ chunksSent }} مقطع صوتي
+                    </p>
+                </template>
+
+                <template v-else>
+                    <h2 class="text-xl font-black text-slate-900">
+                        {{ recording ? `جاري التسجيل... ${formatSeconds(recordingSeconds)}` : 'سجّل إعلانك ثم أرسله' }}
+                    </h2>
+                    <p class="mt-2 text-sm text-slate-500">
+                        اضغط «تسجيل» وتحدث، ثم «إيقاف». استمع للتسجيل وأرسله — سيُسمع على شاشة العرض بعد الإرسال.
+                    </p>
+
+                    <button
+                        v-if="!recordedUrl"
+                        type="button"
+                        class="mt-8 flex w-full items-center justify-center gap-3 rounded-3xl px-6 py-6 text-xl font-black text-white transition-colors"
+                        :class="recording ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                        :disabled="!supported"
+                        @click="recording ? stopRecording() : startRecording()"
+                    >
+                        <Square v-if="recording" class="h-6 w-6" />
+                        <Mic v-else class="h-6 w-6" />
+                        {{ recording ? 'إيقاف التسجيل' : 'تسجيل' }}
+                    </button>
+
+                    <div v-else class="mt-8 space-y-4">
+                        <audio :src="recordedUrl" controls class="w-full">
+                            <Play class="h-5 w-5" />
+                        </audio>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                class="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-4 text-lg font-black text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                                :disabled="sending"
+                                @click="sendRecording"
+                            >
+                                <Send class="h-5 w-5" />
+                                {{ sending ? 'جاري الإرسال...' : 'إرسال للعرض' }}
+                            </button>
+                            <button
+                                type="button"
+                                class="flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-4 text-lg font-black text-slate-700 transition-colors hover:bg-slate-50"
+                                :disabled="sending"
+                                @click="discardRecording(); startRecording()"
+                            >
+                                <Trash2 class="h-5 w-5" />
+                                إعادة
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <p v-if="sendSuccess" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                    {{ sendSuccess }}
                 </p>
 
                 <div

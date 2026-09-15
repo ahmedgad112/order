@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\QueueLane;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +28,7 @@ class AdminUserController extends Controller
 
         return response()->json([
             'users' => UserResource::collection($query->get()),
-            'queue_lanes' => QueueLane::payload(),
+            'queue_lanes' => RequestType::lanePayload(),
         ]);
     }
 
@@ -50,7 +50,7 @@ class AdminUserController extends Controller
             'role' => $role,
             'counter_name' => $role === UserRole::Teller ? ($data['counter_name'] ?? null) : null,
             'queue_lanes' => $role === UserRole::Teller
-                ? array_values(array_unique($data['queue_lanes'] ?? QueueLane::values()))
+                ? array_values(array_unique($data['queue_lanes'] ?? RequestType::laneValues()))
                 : null,
             'is_active' => $data['is_active'] ?? true,
         ]);

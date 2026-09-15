@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\QueueLane;
-use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
@@ -15,6 +13,7 @@ use App\Events\TicketUpdatedEvent;
 use App\Http\Resources\PublicTicketResource;
 use App\Jobs\GenerateTicketAudioJob;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -37,18 +36,16 @@ class QueueService
     {
         $this->systemService->assertAcceptingTickets();
 
-        $lane = QueueLane::from($data['request_type']);
+        [$studentKind, $requestType] = RequestType::resolveLane($data['request_type']);
 
-        if ($staff?->constrainsTicketsToAssignedLanes() && ! $staff->servesQueueLane($lane)) {
+        if ($staff?->constrainsTicketsToAssignedLanes() && ! $staff->servesQueueLane($data['request_type'])) {
             throw ValidationException::withMessages([
                 'request_type' => 'نوع الطلب غير مخصص لحسابك.',
             ]);
         }
 
-        $ticket = DB::transaction(function () use ($data, $lane): QueueTicket {
+        $ticket = DB::transaction(function () use ($data, $studentKind, $requestType): QueueTicket {
             $sessionStartedAt = QueueTicket::currentSessionStartedAt();
-            $studentKind = $lane->studentKind();
-            $requestType = $lane->requestType();
             $maxNumber = QueueTicket::query()
                 ->today()
                 ->forTicketSeries($studentKind, $requestType)
@@ -271,15 +268,13 @@ class QueueService
                 'seat_number' => $data['seat_number'],
             ]);
         } else {
-            $requestType = $data['request_type'] instanceof RequestType
-                ? $data['request_type']
-                : RequestType::from($data['request_type']);
+            $requestType = $data['request_type'];
 
             $ticket->update([
                 'full_name' => $data['full_name'],
                 'national_id' => $data['national_id'],
                 'request_type' => $requestType,
-                'completion_step' => $requestType === RequestType::DocumentCompletion
+                'completion_step' => RequestType::findBySlug($requestType)?->requires_completion_service
                     ? ($data['completion_step'] ?? null)
                     : null,
                 'college' => $data['college'],
@@ -306,10 +301,7 @@ class QueueService
             'called_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
-        GenerateTicketAudioJob::dispatch($ticket->id);
+        $this->announceTicketCall($ticket);
 
         return $ticket;
     }
@@ -406,9 +398,7 @@ class QueueService
             'entered_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -426,9 +416,7 @@ class QueueService
             'paid_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -447,9 +435,7 @@ class QueueService
             'file_withdrawn_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -473,9 +459,7 @@ class QueueService
             'documents_reviewed_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -494,9 +478,7 @@ class QueueService
             'medical_checked_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -515,9 +497,7 @@ class QueueService
             'face_printed_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -540,9 +520,7 @@ class QueueService
             'file_delivered_at' => now(),
         ]);
 
-        $ticket->load('teller');
-
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        $this->announceTicketCall($ticket);
 
         return $ticket->fresh(['teller']);
     }
@@ -781,8 +759,15 @@ class QueueService
         return [
             'status' => TicketStatus::Serving,
             'user_id' => $ticket->user_id ?? $teller->id,
-            'called_at' => $ticket->called_at ?? now(),
+            'called_at' => now(),
         ];
+    }
+
+    private function announceTicketCall(QueueTicket $ticket): void
+    {
+        $ticket->load('teller');
+        $this->broadcastSafely(new TicketCalledEvent($ticket));
+        GenerateTicketAudioJob::dispatch($ticket->id);
     }
 
     private function broadcastSafely(object $event): void

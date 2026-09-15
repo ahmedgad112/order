@@ -7,6 +7,7 @@ use App\Events\MicAudioChunkEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AnnounceRequest;
 use App\Http\Requests\MicChunkRequest;
+use App\Models\AnnouncementLog;
 use App\Models\QueueTicket;
 use App\Services\SpeechService;
 use Illuminate\Http\JsonResponse;
@@ -78,6 +79,14 @@ class SpeechController extends Controller
 
         $audioUrl = $this->speech->audioUrl($filename);
 
+        AnnouncementLog::create([
+            'user_id' => $request->user()->id,
+            'text' => $data['text'],
+            'voice' => $data['voice'] ?? SpeechService::DEFAULT_VOICE,
+            'rate' => $data['rate'] ?? SpeechService::DEFAULT_RATE,
+            'audio_filename' => $filename,
+        ]);
+
         $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, $data['text']));
 
         return response()->json([
@@ -107,6 +116,37 @@ class SpeechController extends Controller
         ));
 
         return response()->json(['audio_url' => $audioUrl]);
+    }
+
+    public function micRecording(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'audio' => ['required', 'file', 'max:20480'],
+        ], [
+            'audio.required' => 'التسجيل الصوتي مطلوب.',
+            'audio.max' => 'حجم التسجيل كبير جداً.',
+        ]);
+
+        /** @var UploadedFile $file */
+        $file = $request->file('audio');
+
+        $filename = $this->speech->storeUploadedAudio($file);
+        $audioUrl = $this->speech->audioUrl($filename);
+
+        AnnouncementLog::create([
+            'user_id' => $request->user()->id,
+            'text' => 'تسجيل صوتي',
+            'voice' => 'recording',
+            'rate' => SpeechService::DEFAULT_RATE,
+            'audio_filename' => $filename,
+        ]);
+
+        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, 'تسجيل صوتي'));
+
+        return response()->json([
+            'message' => 'تم إرسال التسجيل إلى شاشة العرض.',
+            'audio_url' => $audioUrl,
+        ]);
     }
 
     private function broadcastSafely(object $event): void

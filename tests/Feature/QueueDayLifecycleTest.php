@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Models\QueueSystemSetting;
@@ -27,7 +26,7 @@ class QueueDayLifecycleTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['system']);
@@ -78,7 +77,7 @@ class QueueDayLifecycleTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'عميل اليوم الجديد',
             'order_number' => '987654321',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1');

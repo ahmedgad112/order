@@ -39,7 +39,8 @@ class SpeechAnnouncementTest extends TestCase
         Event::fake();
         $this->fakeSpeech();
 
-        Sanctum::actingAs(User::factory()->manager()->create());
+        $manager = User::factory()->manager()->create();
+        Sanctum::actingAs($manager);
 
         $this->postJson('/api/admin/announce', [
             'text' => 'على الجميع التوجه إلى القاعة الرئيسية',
@@ -49,6 +50,13 @@ class SpeechAnnouncementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'تم إرسال الإعلان الصوتي.')
             ->assertJsonStructure(['audio_url']);
+
+        $this->assertDatabaseHas('announcement_logs', [
+            'user_id' => $manager->id,
+            'text' => 'على الجميع التوجه إلى القاعة الرئيسية',
+            'voice' => 'ar-EG-SalmaNeural',
+            'rate' => '0%',
+        ]);
 
         Event::assertDispatched(AnnouncementMadeEvent::class);
     }
@@ -175,6 +183,43 @@ class SpeechAnnouncementTest extends TestCase
     {
         $this->get('/api/public/audio/secret.php')->assertNotFound();
         $this->get('/api/public/audio/missing.mp3')->assertNotFound();
+    }
+
+    public function test_manager_can_send_recorded_announcement(): void
+    {
+        Event::fake();
+
+        $manager = User::factory()->manager()->create();
+        Sanctum::actingAs($manager);
+
+        $this->postJson('/api/admin/mic-recording', [
+            'audio' => UploadedFile::fake()->create('recording.webm', 128, 'audio/webm'),
+        ])
+            ->assertOk()
+            ->assertJsonStructure(['audio_url'])
+            ->assertJsonPath('message', 'تم إرسال التسجيل إلى شاشة العرض.');
+
+        $this->assertDatabaseHas('announcement_logs', [
+            'user_id' => $manager->id,
+            'text' => 'تسجيل صوتي',
+            'voice' => 'recording',
+        ]);
+
+        $this->assertCount(1, Storage::files('announcements'));
+
+        Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
+            return $event->text === 'تسجيل صوتي'
+                && str_contains($event->audioUrl, '/api/public/audio/');
+        });
+    }
+
+    public function test_mic_recording_requires_audio(): void
+    {
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/mic-recording', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('audio');
     }
 
     public function test_manager_can_send_mic_chunk(): void

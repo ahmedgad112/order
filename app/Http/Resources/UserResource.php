@@ -2,8 +2,8 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\QueueLane;
 use App\Enums\UserRole;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -24,7 +24,7 @@ class UserResource extends JsonResource
             'role_label' => $this->role->label(),
             'counter_name' => $this->counter_name,
             'queue_lanes' => $this->isTeller()
-                ? QueueLane::payload($this->queueLaneValues())
+                ? RequestType::lanePayload($this->queueLaneValues())
                 : [],
             'is_active' => $this->is_active,
             'assignable_roles' => array_map(

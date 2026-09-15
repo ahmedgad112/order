@@ -2,7 +2,7 @@
 
 namespace Tests;
 
-use App\Enums\RequestType;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
@@ -16,6 +16,7 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         Cache::flush();
+        RequestType::flushCatalog();
     }
 
     /**
@@ -28,7 +29,7 @@ abstract class TestCase extends BaseTestCase
         return $this->postJson('/api/teller/tickets', array_merge([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ], $payload));
     }
 }

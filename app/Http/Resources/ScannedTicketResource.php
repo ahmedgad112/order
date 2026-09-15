@@ -31,7 +31,7 @@ class ScannedTicketResource extends JsonResource
             'student_kind' => $this->studentKindValue(),
             'student_kind_label' => $this->studentKindLabel(),
             'national_id' => $this->national_id,
-            'request_type' => $this->request_type?->value,
+            'request_type' => $this->request_type,
             'request_type_label' => $this->requestTypeLabel(),
             'completion_step' => $this->completion_step?->value,
             'completion_step_label' => $this->completionStepLabel(),

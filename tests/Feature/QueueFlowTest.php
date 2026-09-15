@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
@@ -28,7 +27,7 @@ class QueueFlowTest extends TestCase
         $this->postJson('/api/public/tickets', [
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertForbidden()
             ->assertJsonPath('message', 'التسجيل يتم عن طريق الموظف.');
@@ -61,7 +60,7 @@ class QueueFlowTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])->assertCreated();
 
         $this->getJson('/api/public/queue-status')
@@ -85,7 +84,7 @@ class QueueFlowTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['system']);
@@ -103,7 +102,7 @@ class QueueFlowTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['order_number']);
@@ -711,7 +710,7 @@ class QueueFlowTest extends TestCase
         $this->postJson('/api/admin/system/end-day')->assertForbidden();
         $this->postJson('/api/admin/system/open-day')->assertForbidden();
         $this->putJson('/api/admin/system/request-types', [
-            'enabled_request_types' => [RequestType::NominationCard->value],
+            'enabled_request_types' => ['nomination_card'],
         ])->assertForbidden();
         $this->putJson('/api/admin/system/student-kinds', [
             'enabled_student_kinds' => [StudentKind::NewStudent->value],
@@ -865,7 +864,7 @@ class QueueFlowTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => 'اسم معدل',
             'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'order_number' => '111222333',
         ])->assertUnauthorized();
@@ -884,7 +883,7 @@ class QueueFlowTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => 'اسم معدل',
             'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'order_number' => '111222333',
         ])->assertForbidden();
@@ -910,14 +909,14 @@ class QueueFlowTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => 'محمد المعدل',
             'national_id' => '29501017654321',
-            'request_type' => RequestType::DirectApplication->value,
+            'request_type' => 'direct_application',
             'college' => 'كلية التجارة',
             'order_number' => '987654321',
         ])
             ->assertOk()
             ->assertJsonPath('ticket.full_name', 'محمد المعدل')
             ->assertJsonPath('ticket.national_id', '29501017654321')
-            ->assertJsonPath('ticket.request_type', RequestType::DirectApplication->value)
+            ->assertJsonPath('ticket.request_type', 'direct_application')
             ->assertJsonPath('ticket.request_type_label', 'تقديم مباشر')
             ->assertJsonPath('ticket.college', 'كلية التجارة')
             ->assertJsonPath('ticket.college_label', 'كلية التجارة')
@@ -927,7 +926,7 @@ class QueueFlowTest extends TestCase
             'id' => $ticket->id,
             'full_name' => 'محمد المعدل',
             'national_id' => '29501017654321',
-            'request_type' => RequestType::DirectApplication->value,
+            'request_type' => 'direct_application',
             'college' => 'كلية التجارة',
             'order_number' => '987654321',
         ]);
@@ -948,7 +947,7 @@ class QueueFlowTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => 'بعد التعديل',
             'national_id' => '29501011234567',
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'college' => 'كلية الهندسة',
             'order_number' => '123456789',
         ])

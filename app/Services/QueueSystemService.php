@@ -3,8 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DocumentKind;
-use App\Enums\QueueLane;
-use App\Enums\RequestType;
+use App\Enums\ProcessStep;
 use App\Enums\StudentKind;
 use App\Enums\UserRole;
 use App\Events\QueueDayResetEvent;
@@ -13,6 +12,7 @@ use App\Models\College;
 use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -142,13 +142,15 @@ class QueueSystemService
     {
         abort_unless($admin->canControlSystem(), 403, 'ليس لديك صلاحية للوصول.');
 
-        $settings = QueueSystemSetting::current();
+        $enabledRequestTypes = array_values(array_unique($enabledRequestTypes));
 
-        $settings->update([
-            'enabled_request_types' => array_values(array_unique($enabledRequestTypes)),
-        ]);
+        RequestType::query()->get()->each(
+            fn (RequestType $type) => $type->update([
+                'enabled' => in_array($type->slug, $enabledRequestTypes, true),
+            ]),
+        );
 
-        $status = $this->formatStatus($settings->fresh());
+        $status = $this->formatStatus(QueueSystemSetting::current());
 
         $this->broadcastSafely(new QueueSystemUpdatedEvent($status));
 
@@ -180,8 +182,14 @@ class QueueSystemService
      * @param  list<int>  $tellerIds
      * @return list<array{value: string, label: string, teller_ids: list<int>}>
      */
-    public function assignTellersToLane(QueueLane $lane, array $tellerIds): array
+    public function assignTellersToLane(string $lane, array $tellerIds): array
     {
+        if (! in_array($lane, RequestType::laneValues(), true)) {
+            throw ValidationException::withMessages([
+                'lane' => 'نوع الطلب غير صحيح.',
+            ]);
+        }
+
         $selected = array_values(array_unique(array_map('intval', $tellerIds)));
 
         $tellers = User::query()
@@ -193,11 +201,11 @@ class QueueSystemService
             $current = $teller->queueLaneValues();
 
             if (in_array($teller->id, $selected, true)) {
-                $current[] = $lane->value;
+                $current[] = $lane;
             } else {
                 $current = array_filter(
                     $current,
-                    fn (string $value): bool => $value !== $lane->value,
+                    fn (string $value): bool => $value !== $lane,
                 );
             }
 
@@ -220,18 +228,18 @@ class QueueSystemService
             ->get();
 
         return array_map(
-            function (QueueLane $lane) use ($tellers): array {
+            function (array $lane) use ($tellers): array {
                 $assigned = $tellers
-                    ->filter(fn (User $teller): bool => $teller->servesQueueLane($lane))
+                    ->filter(fn (User $teller): bool => $teller->servesQueueLane($lane['value']))
                     ->values();
 
                 return [
-                    'value' => $lane->value,
-                    'label' => $lane->label(),
+                    'value' => $lane['value'],
+                    'label' => $lane['label'],
                     'teller_ids' => $assigned->pluck('id')->map(fn ($id): int => (int) $id)->all(),
                 ];
             },
-            QueueLane::cases(),
+            RequestType::lanePayload(),
         );
     }
 
@@ -293,8 +301,9 @@ class QueueSystemService
             'day_ended_message' => $dayOpen ? null : 'انتهى استقبال الطلبات اليوم. يمكن متابعة الطلبات الحالية.',
             'last_reset_at' => $settings->last_reset_at?->toIso8601String(),
             'current_session_started_at' => $settings->currentSessionStartedAt()->toIso8601String(),
-            'request_types' => RequestType::payload($settings->enabledRequestTypeValues()),
+            'request_types' => RequestType::payload(),
             'student_kinds' => StudentKind::payload($settings->enabledStudentKindValues()),
+            'completion_service_options' => ProcessStep::admissionCompletionPayload(),
             'colleges' => College::payload(),
             'faculties' => Faculty::payload(),
             'document_kinds' => DocumentKind::payload(),

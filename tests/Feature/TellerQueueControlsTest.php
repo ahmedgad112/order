@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\QueueLane;
-use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketUpdatedEvent;
@@ -78,11 +76,11 @@ class TellerQueueControlsTest extends TestCase
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()
-            ->forQueueLanes([QueueLane::NominationCard])
+            ->forQueueLanes(['nomination_card'])
             ->create();
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
         ]);
         Sanctum::actingAs($teller);
 
@@ -202,12 +200,12 @@ class TellerQueueControlsTest extends TestCase
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()
-            ->forQueueLanes([QueueLane::NominationCard])
+            ->forQueueLanes(['nomination_card'])
             ->create();
         QueueTicket::factory()->waiting()->create(['ticket_number' => 1]);
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 2,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
         ]);
         Sanctum::actingAs($teller);
 
@@ -293,6 +291,28 @@ class TellerQueueControlsTest extends TestCase
             GenerateTicketAudioJob::class,
             fn (GenerateTicketAudioJob $job): bool => $job->ticketId === $ticket->id,
         );
+    }
+
+    public function test_marking_a_checkpoint_recalls_the_ticket_to_the_counter(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create(['ticket_number' => 1]);
+        $originalCalledAt = $ticket->called_at;
+        Queue::fake();
+        Event::fake([TicketCalledEvent::class]);
+        Sanctum::actingAs($teller);
+
+        $this->travel(5)->seconds();
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")->assertOk();
+
+        Event::assertDispatched(TicketCalledEvent::class);
+        Queue::assertPushed(
+            GenerateTicketAudioJob::class,
+            fn (GenerateTicketAudioJob $job): bool => $job->ticketId === $ticket->id,
+        );
+        $this->assertTrue($ticket->fresh()->called_at->gt($originalCalledAt));
     }
 
     public function test_returns_422_when_recalling_a_waiting_ticket(): void

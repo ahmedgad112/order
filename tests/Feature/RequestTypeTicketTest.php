@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\ProcessStep;
-use App\Enums\RequestType;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -26,7 +26,7 @@ class RequestTypeTicketTest extends TestCase
     {
         return array_merge([
             'full_name' => 'محمد أحمد علي',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'order_number' => '123456789',
         ], $overrides);
     }
@@ -36,7 +36,7 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'college' => 'كلية الهندسة',
             'order_number' => '987654321',
         ]))
@@ -44,7 +44,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->assertDatabaseHas('queue_tickets', [
             'full_name' => 'محمد أحمد علي',
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'order_number' => '987654321',
             'national_id' => null,
             'college' => null,
@@ -61,7 +61,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->issueTicketAsStaff($this->issuePayload([
             'national_id' => '29501011234568',
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'college' => 'كلية الهندسة',
             'order_number' => '123456788',
         ]))
@@ -70,7 +70,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->issueTicketAsStaff($this->issuePayload([
             'national_id' => '29501011234569',
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
             'completion_step' => ProcessStep::MedicalChecked->value,
             'college' => 'كلية الهندسة',
             'order_number' => '123456787',
@@ -80,7 +80,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->issueTicketAsStaff($this->issuePayload([
             'national_id' => '29501011234570',
-            'request_type' => RequestType::DirectApplication->value,
+            'request_type' => 'direct_application',
             'college' => 'كلية الهندسة',
             'order_number' => '123456786',
         ]))
@@ -100,19 +100,19 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'full_name' => 'طالب ترشيح',
         ]);
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
             'college' => 'كلية التجارة',
             'full_name' => 'طالب تحويل',
         ]);
         QueueTicket::factory()->waiting()->create([
             'ticket_number' => 1,
-            'request_type' => RequestType::DocumentCompletion,
+            'request_type' => 'document_completion',
             'completion_step' => ProcessStep::MedicalChecked,
             'college' => 'كلية الهندسة',
             'full_name' => 'طالب استكمال',
@@ -171,38 +171,38 @@ class RequestTypeTicketTest extends TestCase
 
         $this->assertDatabaseHas('queue_tickets', [
             'full_name' => 'محمد أحمد علي',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'college' => null,
             'national_id' => null,
         ]);
     }
 
     #[DataProvider('freeTextCollegeRequestTypes')]
-    public function test_staff_can_issue_ticket_without_college_for_all_request_types(RequestType $requestType, string $orderNumber): void
+    public function test_staff_can_issue_ticket_without_college_for_all_request_types(string $requestType, string $orderNumber): void
     {
         QueueSystemSetting::current();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => $requestType->value,
+            'request_type' => $requestType,
             'order_number' => $orderNumber,
         ]))
             ->assertCreated()
-            ->assertJsonPath('ticket.request_type', $requestType->value);
+            ->assertJsonPath('ticket.request_type', $requestType);
 
         $this->assertDatabaseHas('queue_tickets', [
-            'request_type' => $requestType->value,
+            'request_type' => $requestType,
             'college' => null,
         ]);
     }
 
     /**
-     * @return array<string, array{0: RequestType, 1: string}>
+     * @return array<string, array{0: string, 1: string}>
      */
     public static function freeTextCollegeRequestTypes(): array
     {
         return [
-            'direct_application' => [RequestType::DirectApplication, '123456781'],
-            'transfer' => [RequestType::Transfer, '123456782'],
+            'direct_application' => ['direct_application', '123456781'],
+            'transfer' => ['transfer', '123456782'],
         ];
     }
 
@@ -230,12 +230,13 @@ class RequestTypeTicketTest extends TestCase
 
     public function test_returns_422_when_request_type_is_disabled(): void
     {
-        QueueSystemSetting::current()->update([
-            'enabled_request_types' => [RequestType::NominationCard->value],
-        ]);
+        QueueSystemSetting::current();
+        RequestType::query()
+            ->where('slug', '!=', 'nomination_card')
+            ->update(['enabled' => false]);
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
         ]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['request_type'])
@@ -291,15 +292,15 @@ class RequestTypeTicketTest extends TestCase
 
         $this->getJson('/api/public/queue-status')
             ->assertOk()
-            ->assertJsonPath('system.request_types.0.value', RequestType::NominationCard->value)
+            ->assertJsonPath('system.request_types.0.value', 'nomination_card')
             ->assertJsonPath('system.request_types.0.label', 'حاصل على بطاقة ترشيح')
             ->assertJsonPath('system.request_types.0.enabled', true)
             ->assertJsonPath('system.request_types.0.college_mode', 'select')
-            ->assertJsonPath('system.request_types.1.value', RequestType::DirectApplication->value)
+            ->assertJsonPath('system.request_types.1.value', 'direct_application')
             ->assertJsonPath('system.request_types.1.enabled', true)
-            ->assertJsonPath('system.request_types.2.value', RequestType::Transfer->value)
+            ->assertJsonPath('system.request_types.2.value', 'transfer')
             ->assertJsonPath('system.request_types.2.enabled', true)
-            ->assertJsonPath('system.request_types.3.value', RequestType::DocumentCompletion->value)
+            ->assertJsonPath('system.request_types.3.value', 'document_completion')
             ->assertJsonPath('system.request_types.3.label', 'استكمال أوراق')
             ->assertJsonPath('system.request_types.3.enabled', true)
             ->assertJsonPath('system.request_types.3.requires_completion_service', true)
@@ -318,8 +319,8 @@ class RequestTypeTicketTest extends TestCase
 
         $this->putJson('/api/admin/system/request-types', [
             'enabled_request_types' => [
-                RequestType::NominationCard->value,
-                RequestType::Transfer->value,
+                'nomination_card',
+                'transfer',
             ],
         ])
             ->assertOk()
@@ -329,8 +330,8 @@ class RequestTypeTicketTest extends TestCase
             ->assertJsonPath('system.request_types.2.enabled', true);
 
         $this->assertSame(
-            [RequestType::NominationCard->value, RequestType::Transfer->value],
-            QueueSystemSetting::query()->first()?->enabled_request_types,
+            ['nomination_card', 'transfer'],
+            RequestType::enabledSlugs(),
         );
 
         $this->getJson('/api/public/queue-status')
@@ -343,7 +344,7 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->putJson('/api/admin/system/request-types', [
-            'enabled_request_types' => [RequestType::NominationCard->value],
+            'enabled_request_types' => ['nomination_card'],
         ])->assertUnauthorized();
     }
 
@@ -359,7 +360,7 @@ class RequestTypeTicketTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->putJson('/api/admin/system/request-types', [
-            'enabled_request_types' => [RequestType::NominationCard->value],
+            'enabled_request_types' => ['nomination_card'],
         ])->assertForbidden();
     }
 
@@ -390,13 +391,14 @@ class RequestTypeTicketTest extends TestCase
 
     public function test_manager_can_update_ticket_request_type_even_when_disabled_for_kiosk(): void
     {
-        QueueSystemSetting::current()->update([
-            'enabled_request_types' => [RequestType::NominationCard->value],
-        ]);
+        QueueSystemSetting::current();
+        RequestType::query()
+            ->where('slug', '!=', 'nomination_card')
+            ->update(['enabled' => false]);
         $manager = User::factory()->manager()->create();
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 4,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
@@ -405,12 +407,12 @@ class RequestTypeTicketTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => $ticket->full_name,
             'national_id' => $ticket->national_id,
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'college' => 'كلية التجارة',
             'order_number' => '123456789',
         ])
             ->assertOk()
-            ->assertJsonPath('ticket.request_type', RequestType::Transfer->value)
+            ->assertJsonPath('ticket.request_type', 'transfer')
             ->assertJsonPath('ticket.college', 'كلية التجارة')
             ->assertJsonPath('ticket.college_label', 'كلية التجارة');
     }
@@ -421,7 +423,7 @@ class RequestTypeTicketTest extends TestCase
         $manager = User::factory()->manager()->create();
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 4,
-            'request_type' => RequestType::NominationCard,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ]);
@@ -430,7 +432,7 @@ class RequestTypeTicketTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => $ticket->full_name,
             'national_id' => $ticket->national_id,
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'college' => 'كلية الهندسة',
             'order_number' => '123456789',
         ])
@@ -449,7 +451,7 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
             'order_number' => '456789123',
         ]))
             ->assertCreated()
@@ -458,7 +460,7 @@ class RequestTypeTicketTest extends TestCase
         $ticket = QueueTicket::query()->first();
 
         $this->assertNotNull($ticket);
-        $this->assertSame(RequestType::DocumentCompletion, $ticket->request_type);
+        $this->assertSame('document_completion', $ticket->request_type);
         $this->assertNull($ticket->completion_step);
         $this->assertNull($ticket->entered_at);
         $this->assertNull($ticket->paid_at);
@@ -473,7 +475,7 @@ class RequestTypeTicketTest extends TestCase
         $teller = User::factory()->teller()->create();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
         ]), $teller)->assertCreated();
 
         $ticket = QueueTicket::query()->first();
@@ -504,7 +506,7 @@ class RequestTypeTicketTest extends TestCase
         $teller = User::factory()->teller()->create();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
         ]), $teller)->assertCreated();
 
         $ticket = QueueTicket::query()->first();
@@ -534,7 +536,7 @@ class RequestTypeTicketTest extends TestCase
         $teller = User::factory()->teller()->create();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
         ]), $teller)->assertCreated();
 
         $ticket = QueueTicket::query()->first();
@@ -556,13 +558,13 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
         ]))
             ->assertCreated()
-            ->assertJsonPath('ticket.request_type', RequestType::DocumentCompletion->value);
+            ->assertJsonPath('ticket.request_type', 'document_completion');
 
         $this->assertDatabaseHas('queue_tickets', [
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
             'completion_step' => null,
         ]);
     }
@@ -572,14 +574,14 @@ class RequestTypeTicketTest extends TestCase
         QueueSystemSetting::current();
 
         $this->issueTicketAsStaff($this->issuePayload([
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'completion_step' => ProcessStep::MedicalChecked->value,
             'college' => 'كلية الهندسة',
         ]))
             ->assertCreated();
 
         $this->assertDatabaseHas('queue_tickets', [
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'completion_step' => null,
             'college' => null,
             'national_id' => null,
@@ -592,7 +594,7 @@ class RequestTypeTicketTest extends TestCase
         $manager = User::factory()->manager()->create();
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 6,
-            'request_type' => RequestType::Transfer,
+            'request_type' => 'transfer',
             'college' => 'كلية التجارة',
             'order_number' => '123456789',
         ]);
@@ -601,13 +603,13 @@ class RequestTypeTicketTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => $ticket->full_name,
             'national_id' => $ticket->national_id,
-            'request_type' => RequestType::DocumentCompletion->value,
+            'request_type' => 'document_completion',
             'completion_step' => ProcessStep::FileDelivered->value,
             'college' => 'كلية التجارة',
             'order_number' => '123456789',
         ])
             ->assertOk()
-            ->assertJsonPath('ticket.request_type', RequestType::DocumentCompletion->value)
+            ->assertJsonPath('ticket.request_type', 'document_completion')
             ->assertJsonPath('ticket.completion_step', ProcessStep::FileDelivered->value)
             ->assertJsonPath('ticket.request_type_label', 'استكمال أوراق — تسليم ملف');
     }
@@ -618,7 +620,7 @@ class RequestTypeTicketTest extends TestCase
         $manager = User::factory()->manager()->create();
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 7,
-            'request_type' => RequestType::DocumentCompletion,
+            'request_type' => 'document_completion',
             'completion_step' => ProcessStep::MedicalChecked,
             'college' => 'كلية الهندسة',
             'order_number' => '123456789',
@@ -628,13 +630,13 @@ class RequestTypeTicketTest extends TestCase
         $this->putJson('/api/admin/tickets/'.$ticket->id, [
             'full_name' => $ticket->full_name,
             'national_id' => $ticket->national_id,
-            'request_type' => RequestType::Transfer->value,
+            'request_type' => 'transfer',
             'completion_step' => ProcessStep::MedicalChecked->value,
             'college' => 'كلية التجارة',
             'order_number' => '123456789',
         ])
             ->assertOk()
-            ->assertJsonPath('ticket.request_type', RequestType::Transfer->value)
+            ->assertJsonPath('ticket.request_type', 'transfer')
             ->assertJsonPath('ticket.completion_step', null)
             ->assertJsonPath('ticket.request_type_label', 'تحويل (مناظر / غير مناظر)');
     }

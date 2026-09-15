@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\QueueLane;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateEnabledRequestTypesRequest;
 use App\Http\Requests\UpdateEnabledStudentKindsRequest;
@@ -100,7 +99,7 @@ class AdminSystemController extends Controller
         ]);
     }
 
-    public function updateLaneTellers(UpdateQueueLaneTellersRequest $request, QueueLane $lane): JsonResponse
+    public function updateLaneTellers(UpdateQueueLaneTellersRequest $request, string $lane): JsonResponse
     {
         $queueLanes = $this->systemService->assignTellersToLane(
             $lane,

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdminCollegeController;
 use App\Http\Controllers\Api\AdminFacultyController;
 use App\Http\Controllers\Api\AdminReportController;
+use App\Http\Controllers\Api\AdminRequestTypeController;
 use App\Http\Controllers\Api\AdminSystemController;
 use App\Http\Controllers\Api\AdminTicketController;
 use App\Http\Controllers\Api\AdminUserController;
@@ -75,6 +76,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/announce', [SpeechController::class, 'announce']);
         Route::post('/mic-chunk', [SpeechController::class, 'micChunk'])
             ->middleware('throttle:360,1');
+        Route::post('/mic-recording', [SpeechController::class, 'micRecording'])
+            ->middleware('throttle:60,1');
     });
 
     Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
@@ -84,6 +87,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/system/open-day', [AdminSystemController::class, 'openDay']);
         Route::put('/system/request-types', [AdminSystemController::class, 'updateRequestTypes']);
         Route::put('/system/student-kinds', [AdminSystemController::class, 'updateStudentKinds']);
+        Route::apiResource('/request-types', AdminRequestTypeController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
         Route::get('/faculties', [AdminFacultyController::class, 'index']);
         Route::post('/faculties', [AdminFacultyController::class, 'store']);
         Route::put('/faculties/{faculty}', [AdminFacultyController::class, 'update']);

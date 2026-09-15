@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\DocumentKind;
-use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\UserRole;
 use App\Models\College;
@@ -30,7 +29,7 @@ class StudentKindAvailabilityTest extends TestCase
             'student_kind' => StudentKind::NewStudent->value,
             'full_name' => 'محمد أحمد علي',
             'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
             'college' => College::InformationTechnology,
             'order_number' => '123456789',
         ], $overrides);
@@ -189,7 +188,7 @@ class StudentKindAvailabilityTest extends TestCase
         $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
-            'request_type' => RequestType::NominationCard->value,
+            'request_type' => 'nomination_card',
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['request_type'])
