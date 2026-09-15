@@ -21,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->statefulApi();
 
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+
         $middleware->redirectGuestsTo(function (Request $request): ?string {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return null;

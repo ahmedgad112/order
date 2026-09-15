@@ -1,10 +1,10 @@
 <script setup>
 import { computed, onUnmounted, ref } from 'vue';
-import { Mic, MicOff, Play, Radio, Send, ShieldAlert, Square, Trash2 } from 'lucide-vue-next';
+import { Megaphone, Mic, MicOff, Play, Radio, Send, ShieldAlert, Square, Trash2 } from 'lucide-vue-next';
 import { axios } from '../bootstrap';
 import AppNavbar from '../components/AppNavbar.vue';
 
-const mode = ref('live'); // 'live' | 'record'
+const mode = ref('record'); // 'record' | 'live' | 'text'
 const talking = ref(false);
 const micError = ref('');
 const chunksSent = ref(0);
@@ -14,6 +14,25 @@ const recordingSeconds = ref(0);
 const recordedUrl = ref('');
 const sending = ref(false);
 const sendSuccess = ref('');
+
+const announceText = ref('');
+const announceVoice = ref('ar-EG-SalmaNeural');
+const announceRate = ref('0%');
+const announceLoading = ref(false);
+
+const voiceOptions = [
+    { value: 'ar-EG-SalmaNeural', label: 'عربي مصري — سلمى (أنثى)' },
+    { value: 'ar-EG-ShakirNeural', label: 'عربي مصري — شاكر (ذكر)' },
+    { value: 'ar-SA-ZariyahNeural', label: 'عربي فصحى — زرية (أنثى)' },
+    { value: 'ar-SA-HamedNeural', label: 'عربي فصحى — حامد (ذكر)' },
+];
+
+const rateOptions = [
+    { value: '-25%', label: 'بطيء' },
+    { value: '0%', label: 'عادي' },
+    { value: '+25%', label: 'سريع' },
+    { value: '+50%', label: 'سريع جداً' },
+];
 
 const supported = computed(() => (
     'mediaDevices' in navigator
@@ -217,6 +236,37 @@ async function sendRecording() {
     }
 }
 
+// ---- Text announcement ----
+
+async function sendTextAnnouncement() {
+    const text = announceText.value.trim();
+
+    if (text.length < 2) {
+        micError.value = 'اكتب نص الإعلان أولاً.';
+        return;
+    }
+
+    announceLoading.value = true;
+    micError.value = '';
+    sendSuccess.value = '';
+
+    try {
+        const { data } = await axios.post('/admin/announce', {
+            text,
+            voice: announceVoice.value,
+            rate: announceRate.value,
+        });
+        sendSuccess.value = data?.message || 'تم إرسال الإعلان الصوتي.';
+        announceText.value = '';
+    } catch (err) {
+        micError.value = err.response?.data?.message
+            ?? Object.values(err.response?.data?.errors ?? {}).flat()[0]
+            ?? 'تعذر إرسال الإعلان.';
+    } finally {
+        announceLoading.value = false;
+    }
+}
+
 function formatSeconds(total) {
     const minutes = Math.floor(total / 60);
     const seconds = total % 60;
@@ -256,10 +306,18 @@ onUnmounted(() => {
 
         <main class="flex flex-1 items-center justify-center p-6">
             <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <div class="mx-auto mb-6 grid w-fit grid-cols-2 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-sm font-bold">
+                <div class="mx-auto mb-2 grid w-full grid-cols-3 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-sm font-bold">
                     <button
                         type="button"
-                        class="rounded-full px-4 py-2 transition-colors"
+                        class="rounded-full px-2 py-2 transition-colors"
+                        :class="mode === 'record' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                        @click="switchMode('record')"
+                    >
+                        تسجيل ثم إرسال
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-full px-2 py-2 transition-colors"
                         :class="mode === 'live' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                         @click="switchMode('live')"
                     >
@@ -267,13 +325,21 @@ onUnmounted(() => {
                     </button>
                     <button
                         type="button"
-                        class="rounded-full px-4 py-2 transition-colors"
-                        :class="mode === 'record' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-                        @click="switchMode('record')"
+                        class="rounded-full px-2 py-2 transition-colors"
+                        :class="mode === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+                        @click="switchMode('text')"
                     >
-                        تسجيل ثم إرسال
+                        إعلان نصي
                     </button>
                 </div>
+
+                <p
+                    v-if="mode !== 'text'"
+                    class="mb-5 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-semibold leading-5 text-indigo-800"
+                >
+                    ننصح باستخدام «تسجيل ثم إرسال»: تسجّل إعلانك وتستمع إليه قبل إرساله، فيظهر بأفضل جودة على الشاشة. البث المباشر قد يتأثر بجودة الشبكة.
+                </p>
+                <div v-else class="mb-5" />
 
                 <div
                     class="mx-auto mb-6 flex h-28 w-28 items-center justify-center rounded-full transition-colors"
@@ -312,7 +378,7 @@ onUnmounted(() => {
                     </p>
                 </template>
 
-                <template v-else>
+                <template v-else-if="mode === 'record'">
                     <h2 class="text-xl font-black text-slate-900">
                         {{ recording ? `جاري التسجيل... ${formatSeconds(recordingSeconds)}` : 'سجّل إعلانك ثم أرسله' }}
                     </h2>
@@ -359,6 +425,56 @@ onUnmounted(() => {
                             </button>
                         </div>
                     </div>
+                </template>
+
+                <template v-else>
+                    <h2 class="text-xl font-black text-slate-900">إعلان نصي</h2>
+                    <p class="mt-2 text-sm text-slate-500">
+                        اكتب رسالة وسيتم نطقها بصوت آلي على شاشة العرض مباشرة.
+                    </p>
+
+                    <textarea
+                        v-model="announceText"
+                        rows="3"
+                        maxlength="500"
+                        class="mt-6 w-full rounded-2xl border border-slate-200 px-4 py-3 text-right outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                        placeholder="مثال: على المتقدمين لكلية الهندسة التوجه إلى الطابق الأول"
+                    />
+
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div class="text-right">
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">الصوت</label>
+                            <select
+                                v-model="announceVoice"
+                                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                            >
+                                <option v-for="voice in voiceOptions" :key="voice.value" :value="voice.value">
+                                    {{ voice.label }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="text-right">
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">سرعة الكلام</label>
+                            <select
+                                v-model="announceRate"
+                                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                            >
+                                <option v-for="rate in rateOptions" :key="rate.value" :value="rate.value">
+                                    {{ rate.label }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="mt-5 flex w-full items-center justify-center gap-3 rounded-3xl bg-indigo-600 px-6 py-4 text-lg font-black text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                        :disabled="announceLoading"
+                        @click="sendTextAnnouncement"
+                    >
+                        <Megaphone class="h-5 w-5" />
+                        {{ announceLoading ? 'جاري الإرسال...' : 'إرسال الإعلان' }}
+                    </button>
                 </template>
 
                 <p v-if="sendSuccess" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">

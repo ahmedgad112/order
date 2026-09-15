@@ -7,7 +7,6 @@ import {
     Clock3,
     GraduationCap,
     Lock,
-    Megaphone,
     Power,
     Timer,
     Unlock,
@@ -40,26 +39,6 @@ const actionFeedback = ref('');
 const actionError = ref('');
 const showEndDayConfirm = ref(false);
 const showOpenDayConfirm = ref(false);
-const announceText = ref('');
-const announceVoice = ref('ar-EG-SalmaNeural');
-const announceRate = ref('0%');
-const announceLoading = ref(false);
-const announceFeedback = ref('');
-const announceError = ref('');
-
-const voiceOptions = [
-    { value: 'ar-EG-SalmaNeural', label: 'عربي مصري — سلمى (أنثى)' },
-    { value: 'ar-EG-ShakirNeural', label: 'عربي مصري — شاكر (ذكر)' },
-    { value: 'ar-SA-ZariyahNeural', label: 'عربي فصحى — زرية (أنثى)' },
-    { value: 'ar-SA-HamedNeural', label: 'عربي فصحى — حامد (ذكر)' },
-];
-
-const rateOptions = [
-    { value: '-25%', label: 'بطيء' },
-    { value: '0%', label: 'عادي' },
-    { value: '+25%', label: 'سريع' },
-    { value: '+50%', label: 'سريع جداً' },
-];
 let stopAutoRefresh = null;
 let unsubscribeEcho = null;
 
@@ -122,35 +101,6 @@ async function handleOpenSystem() {
         actionError.value = err.response?.data?.message ?? 'تعذر فتح النظام.';
     } finally {
         actionLoading.value = false;
-    }
-}
-
-async function handleAnnounce() {
-    const text = announceText.value.trim();
-
-    if (text.length < 2) {
-        announceError.value = 'اكتب نص الإعلان أولاً.';
-        announceFeedback.value = '';
-        return;
-    }
-
-    announceLoading.value = true;
-    announceError.value = '';
-    announceFeedback.value = '';
-    try {
-        const result = await queueStore.sendAnnouncement({
-            text,
-            voice: announceVoice.value,
-            rate: announceRate.value,
-        });
-        announceFeedback.value = result.message ?? 'تم إرسال الإعلان الصوتي.';
-        announceText.value = '';
-    } catch (err) {
-        announceError.value = err.response?.data?.message
-            ?? Object.values(err.response?.data?.errors ?? {}).flat()[0]
-            ?? 'تعذر إرسال الإعلان.';
-    } finally {
-        announceLoading.value = false;
     }
 }
 
@@ -320,59 +270,6 @@ onUnmounted(() => {
 
                 <p v-if="actionFeedback" class="mt-4 text-sm font-semibold text-green-700">{{ actionFeedback }}</p>
                 <p v-if="actionError" class="mt-4 text-sm font-semibold text-red-700">{{ actionError }}</p>
-            </section>
-
-            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div class="mb-4 flex items-center gap-2">
-                    <Megaphone class="h-5 w-5 text-indigo-600" />
-                    <h2 class="text-lg font-bold text-slate-900">إعلان صوتي</h2>
-                </div>
-                <p class="mb-4 text-sm text-slate-600">
-                    اكتب رسالة وسيتم نطقها على شاشة العرض مباشرة.
-                </p>
-                <textarea
-                    v-model="announceText"
-                    rows="3"
-                    maxlength="500"
-                    class="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
-                    placeholder="مثال: على المتقدمين لكلية الهندسة التوجه إلى الطابق الأول"
-                />
-                <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                        <label class="mb-1 block text-sm font-semibold text-slate-700">الصوت</label>
-                        <select
-                            v-model="announceVoice"
-                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
-                        >
-                            <option v-for="voice in voiceOptions" :key="voice.value" :value="voice.value">
-                                {{ voice.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-semibold text-slate-700">سرعة الكلام</label>
-                        <select
-                            v-model="announceRate"
-                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
-                        >
-                            <option v-for="rate in rateOptions" :key="rate.value" :value="rate.value">
-                                {{ rate.label }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
-                <div class="mt-4 flex items-center gap-4">
-                    <button
-                        class="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-                        :disabled="announceLoading"
-                        @click="handleAnnounce"
-                    >
-                        <Megaphone class="h-4 w-4" />
-                        {{ announceLoading ? 'جاري الإرسال...' : 'إرسال الإعلان' }}
-                    </button>
-                    <p v-if="announceFeedback" class="text-sm font-semibold text-green-700">{{ announceFeedback }}</p>
-                    <p v-if="announceError" class="text-sm font-semibold text-red-700">{{ announceError }}</p>
-                </div>
             </section>
 
             <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
