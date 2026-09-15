@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Events\AnnouncementMadeEvent;
 use App\Events\MicAudioChunkEvent;
+use App\Jobs\GenerateTicketAudioJob;
 use App\Models\QueueTicket;
 use App\Models\User;
 use App\Services\SpeechService;
@@ -143,6 +144,23 @@ class SpeechAnnouncementTest extends TestCase
         $this->postJson('/api/public/ticket-audio', [
             'ticket_id' => $ticket->id,
         ])->assertNotFound();
+    }
+
+    public function test_generate_ticket_audio_job_stores_announcement_file(): void
+    {
+        $speech = Mockery::mock(SpeechService::class)->makePartial();
+        $speech->shouldReceive('synthesize')->once()->andReturn('fake-mp3-bytes');
+        $this->app->instance(SpeechService::class, $speech);
+
+        $teller = User::factory()->teller('شباك 3')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create();
+
+        (new GenerateTicketAudioJob($ticket->id))->handle(
+            $this->app->make(SpeechService::class),
+        );
+
+        $this->assertCount(1, Storage::files('announcements'));
+        $this->assertStringStartsWith('tts-', basename(Storage::files('announcements')[0]));
     }
 
     public function test_stream_audio_serves_stored_file(): void

@@ -13,6 +13,7 @@ use App\Events\TicketIssuedEvent;
 use App\Events\TicketRestoredEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Http\Resources\PublicTicketResource;
+use App\Jobs\GenerateTicketAudioJob;
 use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -118,6 +119,7 @@ class QueueService
             $nextTicket->load('teller');
 
             $this->broadcastSafely(new TicketCalledEvent($nextTicket));
+            GenerateTicketAudioJob::dispatch($nextTicket->id)->afterCommit();
 
             return $nextTicket;
         });
@@ -148,6 +150,7 @@ class QueueService
             $locked->load('teller');
 
             $this->broadcastSafely(new TicketCalledEvent($locked));
+            GenerateTicketAudioJob::dispatch($locked->id)->afterCommit();
 
             return $locked->fresh(['teller']);
         });
@@ -306,6 +309,7 @@ class QueueService
         $ticket->load('teller');
 
         $this->broadcastSafely(new TicketCalledEvent($ticket));
+        GenerateTicketAudioJob::dispatch($ticket->id);
 
         return $ticket;
     }

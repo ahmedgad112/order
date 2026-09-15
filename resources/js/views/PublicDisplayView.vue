@@ -19,6 +19,7 @@ let sharedAudioCtx = null;
 let announcementTimer = null;
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+const CHIME_URL = '/audio/airport-ding.wav';
 
 function probeAudio() {
     const probe = new Audio(SILENT_WAV);
@@ -117,43 +118,7 @@ function displayName(ticket) {
 }
 
 function playChime() {
-    try {
-        sharedAudioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
-        if (sharedAudioCtx.state === 'suspended') {
-            sharedAudioCtx.resume();
-        }
-        const ctx = sharedAudioCtx;
-        // Airport PA chime: ding-dong … ding-dong (A5 → E5, repeated)
-        const notes = [
-            { freq: 880, at: 0 },
-            { freq: 659.25, at: 0.55 },
-            { freq: 880, at: 1.5 },
-            { freq: 659.25, at: 2.05 },
-        ];
-
-        notes.forEach(({ freq, at }) => {
-            const start = ctx.currentTime + at;
-
-            [1, 2.76, 5.4].forEach((partial, partialIndex) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                const peak = [0.22, 0.08, 0.03][partialIndex];
-
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq * partial, start);
-                gain.gain.setValueAtTime(0.0001, start);
-                gain.gain.exponentialRampToValueAtTime(peak, start + 0.015);
-                gain.gain.exponentialRampToValueAtTime(0.0001, start + (partialIndex === 0 ? 0.55 : 0.3));
-
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(start);
-                osc.stop(start + 0.6);
-            });
-        });
-    } catch {
-        // audio not available
-    }
+    enqueueAudio(CHIME_URL, 'chime');
 }
 
 function callKey(ticket) {
