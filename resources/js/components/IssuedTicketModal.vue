@@ -68,23 +68,21 @@ async function renderTicketToCanvas(ticket) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#000000';
     ctx.font = `bold 18px ${ticketFontFamily}`;
     ctx.fillText(universityName, width / 2, 32);
     ctx.font = `bold 16px ${ticketFontFamily}`;
     ctx.fillText(universityWelcome, width / 2, 56);
 
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = '#000000';
     ctx.font = `14px ${ticketFontFamily}`;
     ctx.fillText('تم إصدار تذكرتك بنجاح', width / 2, 96);
 
-    ctx.fillStyle = '#2563eb';
     ctx.direction = 'ltr';
     ctx.font = `bold 68px ${ticketFontFamily}`;
     ctx.fillText(String(ticket.ticket_number), width / 2, 160);
     ctx.direction = 'rtl';
 
-    ctx.fillStyle = '#334155';
     ctx.font = `bold 16px ${ticketFontFamily}`;
     ctx.fillText(displayName.value, width / 2, 214);
 
@@ -101,16 +99,13 @@ async function renderTicketToCanvas(ticket) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = '#000000';
     ctx.font = `13px ${ticketFontFamily}`;
     ctx.fillText('امسح الرمز لعرض بياناتك', width / 2, 470);
 
-    ctx.fillStyle = '#94a3b8';
     ctx.font = `12px ${ticketFontFamily}`;
     ctx.fillText('يرجى الانتظار حتى يتم نداؤك', width / 2, 496);
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = `12px ${ticketFontFamily}`;
     ctx.fillText(new Date().toLocaleString('ar-EG'), width / 2, 530);
 
     return canvas;
@@ -204,36 +199,36 @@ function close() {
                     <span class="block">{{ universityName }}</span>
                     <span class="block">{{ universityWelcome }}</span>
                 </p>
-                <div class="ticket-print-hide mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600">
+                <div class="ticket-print-hide mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-700">
                     <Ticket class="h-8 w-8" />
                 </div>
-                <p class="text-sm text-slate-500">{{ heading }}</p>
-                <p class="ticket-number my-3 text-6xl font-black text-blue-600" dir="ltr">{{ ticket.ticket_number }}</p>
-                <p class="text-lg font-semibold text-slate-800">{{ displayName }}</p>
+                <p class="text-sm text-slate-900">{{ heading }}</p>
+                <p class="ticket-number my-3 text-6xl font-black text-slate-900" dir="ltr">{{ ticket.ticket_number }}</p>
+                <p class="text-lg font-semibold text-slate-900">{{ displayName }}</p>
                 <div class="mt-5 flex justify-center">
                     <TicketQrCode v-if="ticketScanUrl(ticket)" :value="ticketScanUrl(ticket)" :size="176" />
                 </div>
-                <p class="mt-3 text-sm font-semibold text-slate-600">امسح الرمز لعرض بياناتك</p>
-                <p class="mt-1 text-sm text-slate-500">يرجى الانتظار حتى يتم نداؤك</p>
-                <p class="mt-4 text-xs text-slate-400">{{ new Date().toLocaleString('ar-EG') }}</p>
+                <p class="mt-3 text-sm font-semibold text-slate-900">امسح الرمز لعرض بياناتك</p>
+                <p class="mt-1 text-sm text-slate-900">يرجى الانتظار حتى يتم نداؤك</p>
+                <p class="mt-4 text-xs text-slate-900">{{ new Date().toLocaleString('ar-EG') }}</p>
                 <div v-if="showAdmissionLinks" class="ticket-print-hide mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
                     <a
                         :href="admissionApplyUrl"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="rounded-2xl bg-emerald-50 px-4 py-3"
+                        class="rounded-2xl bg-slate-100 px-4 py-3"
                     >
-                        <span class="block text-sm font-bold text-emerald-800">تقدم الطلب</span>
-                        <span class="mt-1 block text-xs text-slate-600" dir="ltr">{{ admissionApplyUrl }}</span>
+                        <span class="block text-sm font-bold text-slate-900">تقدم الطلب</span>
+                        <span class="mt-1 block text-xs text-slate-900" dir="ltr">{{ admissionApplyUrl }}</span>
                     </a>
                     <a
                         :href="admissionTrackUrl"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="rounded-2xl bg-indigo-50 px-4 py-3"
+                        class="rounded-2xl bg-slate-100 px-4 py-3"
                     >
-                        <span class="block text-sm font-bold text-indigo-800">تتبع طلبك</span>
-                        <span class="mt-1 block text-xs text-slate-600" dir="ltr">{{ admissionTrackUrl }}</span>
+                        <span class="block text-sm font-bold text-slate-900">تتبع طلبك</span>
+                        <span class="mt-1 block text-xs text-slate-900" dir="ltr">{{ admissionTrackUrl }}</span>
                     </a>
                 </div>
             </div>

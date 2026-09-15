@@ -84,12 +84,16 @@ body {
         display: none !important;
     }
 
+    .ticket-print-root,
+    .ticket-print-root * {
+        color: #000 !important;
+    }
+
     .ticket-print-root .ticket-welcome {
         margin: 0 0 10px;
         font-size: 13px;
         font-weight: 800;
         line-height: 1.45;
-        color: #0f172a !important;
     }
 
     .ticket-print-root .ticket-number {
@@ -97,7 +101,6 @@ body {
         font-size: 56px;
         font-weight: 900;
         line-height: 1;
-        color: #2563eb !important;
     }
 
     .ticket-print-root img {
