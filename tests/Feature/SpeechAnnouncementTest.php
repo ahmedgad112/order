@@ -237,6 +237,61 @@ class SpeechAnnouncementTest extends TestCase
         Event::assertDispatched(MicAudioChunkEvent::class);
     }
 
+    public function test_mic_chunk_prepends_session_init_segment_to_later_chunks(): void
+    {
+        Event::fake();
+
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $sessionId = fake()->uuid();
+
+        $this->postJson('/api/admin/mic-chunk', [
+            'audio' => UploadedFile::fake()->createWithContent('chunk.webm', 'INIT-SEGMENT'),
+            'session_id' => $sessionId,
+            'seq' => 0,
+        ])->assertOk();
+
+        $audioUrl = $this->postJson('/api/admin/mic-chunk', [
+            'audio' => UploadedFile::fake()->createWithContent('chunk.webm', 'CLUSTER-DATA'),
+            'session_id' => $sessionId,
+            'seq' => 1,
+        ])->assertOk()->json('audio_url');
+
+        $filename = basename((string) $audioUrl);
+        $stored = Storage::get('announcements/'.$filename);
+
+        $this->assertSame('INIT-SEGMENTCLUSTER-DATA', $stored);
+
+        Event::assertDispatched(MicAudioChunkEvent::class, function (MicAudioChunkEvent $event): bool {
+            $rawFilename = basename((string) $event->rawUrl);
+
+            return Storage::get('announcements/'.$rawFilename) === 'CLUSTER-DATA';
+        });
+    }
+
+    public function test_mic_chunk_different_sessions_do_not_share_headers(): void
+    {
+        Event::fake();
+
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/mic-chunk', [
+            'audio' => UploadedFile::fake()->createWithContent('chunk.webm', 'INIT-SEGMENT'),
+            'session_id' => fake()->uuid(),
+            'seq' => 0,
+        ])->assertOk();
+
+        $audioUrl = $this->postJson('/api/admin/mic-chunk', [
+            'audio' => UploadedFile::fake()->createWithContent('chunk.webm', 'OTHER-CHUNK'),
+            'session_id' => fake()->uuid(),
+            'seq' => 1,
+        ])->assertOk()->json('audio_url');
+
+        $stored = Storage::get('announcements/'.basename((string) $audioUrl));
+
+        $this->assertSame('OTHER-CHUNK', $stored);
+    }
+
     public function test_teller_cannot_send_mic_chunk(): void
     {
         Sanctum::actingAs(User::factory()->teller()->create());

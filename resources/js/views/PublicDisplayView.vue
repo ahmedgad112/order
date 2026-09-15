@@ -88,6 +88,116 @@ function playNextAudio() {
     audio.play().catch(done);
 }
 
+// ---- Live mic stream (MediaSource) ----
+
+let micSource = null;
+let micBuffer = null;
+let micEl = null;
+let micMime = '';
+let micAppending = false;
+const micAppendQueue = [];
+let micIdleTimer = null;
+
+const MIC_MIME_BY_EXT = {
+    webm: 'audio/webm;codecs="opus"',
+    ogg: 'audio/ogg;codecs="opus"',
+    m4a: 'audio/mp4',
+    mp4: 'audio/mp4',
+    mp3: 'audio/mpeg',
+};
+
+function micMimeFor(url) {
+    const ext = String(url).split('?')[0].split('.').pop().toLowerCase();
+    return MIC_MIME_BY_EXT[ext] ?? '';
+}
+
+function resetMicStream() {
+    micAppendQueue.length = 0;
+    micAppending = false;
+    micBuffer = null;
+    micMime = '';
+
+    if (micEl) {
+        try {
+            micEl.pause();
+        } catch { /* noop */ }
+        if (micEl.src?.startsWith('blob:')) {
+            URL.revokeObjectURL(micEl.src);
+        }
+    }
+
+    micEl = null;
+    micSource = null;
+}
+
+function ensureMicStream(mime) {
+    if (micSource && micMime === mime) {
+        return;
+    }
+
+    resetMicStream();
+    micMime = mime;
+    micSource = new MediaSource();
+    micEl = new Audio();
+    micEl.src = URL.createObjectURL(micSource);
+    micEl.play().catch(() => {});
+
+    micSource.addEventListener('sourceopen', () => {
+        try {
+            micBuffer = micSource.addSourceBuffer(mime);
+            micBuffer.mode = 'sequence';
+
+            const onDone = () => {
+                micAppending = false;
+                flushMicAppends();
+            };
+
+            micBuffer.addEventListener('updateend', onDone);
+            micBuffer.addEventListener('error', onDone);
+            micBuffer.addEventListener('abort', onDone);
+            flushMicAppends();
+        } catch {
+            resetMicStream();
+        }
+    }, { once: true });
+}
+
+function flushMicAppends() {
+    if (micAppending || !micBuffer || micAppendQueue.length === 0) {
+        return;
+    }
+
+    const item = micAppendQueue[0];
+
+    if (item.mime !== micMime) {
+        return;
+    }
+
+    micAppendQueue.shift();
+    micAppending = true;
+
+    try {
+        micBuffer.appendBuffer(item.bytes);
+    } catch {
+        micAppending = false;
+        resetMicStream();
+        return;
+    }
+
+    if (micEl?.paused) {
+        micEl.play().catch(() => {});
+    }
+}
+
+function armMicIdle(delay = 6000) {
+    clearTimeout(micIdleTimer);
+    micIdleTimer = setTimeout(() => {
+        liveMic.value = false;
+    }, delay);
+}
+
+// ---- /Live mic stream ----
+
 function toggleVoice() {
     voiceEnabled.value = !voiceEnabled.value;
     localStorage.setItem('display_voice', voiceEnabled.value ? '1' : '0');
@@ -175,9 +285,44 @@ function onAnnouncement(event) {
 }
 
 function onMicChunk(event) {
-    if (event.audio_url) {
-        enqueueAudio(event.audio_url, 'mic');
+    if (event.final && !event.audio_url) {
+        armMicIdle(2500);
+        return;
     }
+
+    const streamUrl = event.raw_url || event.audio_url;
+
+    if (!streamUrl) {
+        return;
+    }
+
+    const mime = micMimeFor(streamUrl);
+    const canStream = 'MediaSource' in window
+        && mime
+        && MediaSource.isTypeSupported(mime);
+
+    if (!canStream) {
+        enqueueAudio(event.audio_url || streamUrl, 'mic');
+        return;
+    }
+
+    liveMic.value = true;
+    armMicIdle();
+
+    fetch(streamUrl)
+        .then((res) => (res.ok ? res.arrayBuffer() : Promise.reject()))
+        .then((bytes) => {
+            if (bytes.byteLength === 0) {
+                return;
+            }
+            micAppendQueue.push({ bytes, mime });
+            ensureMicStream(mime);
+            flushMicAppends();
+            armMicIdle();
+        })
+        .catch(() => {
+            // dropped chunk — stream continues
+        });
 }
 
 const remainingWaitingCount = computed(() => (
@@ -257,6 +402,8 @@ onUnmounted(() => {
         clearInterval(clockTimer);
     }
     clearTimeout(announcementTimer);
+    clearTimeout(micIdleTimer);
+    resetMicStream();
     unsubscribeEcho?.();
     stopAutoRefresh?.();
 });

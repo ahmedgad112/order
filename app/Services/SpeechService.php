@@ -106,6 +106,40 @@ class SpeechService
         );
     }
 
+    /**
+     * MediaRecorder chunks after the first lack the container init segment.
+     * Returns [rawName, playableName]: the raw fragment for MediaSource
+     * streaming, and a standalone-playable file (init segment prepended)
+     * for the per-chunk fallback path.
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function storeMicChunk(UploadedFile $file, string $sessionId): array
+    {
+        $bytes = (string) $file->get();
+        $extension = $this->extensionForMime((string) $file->getMimeType());
+        $rawName = $this->storeAudio($bytes, $extension);
+        $headerPath = 'mic-headers/'.$sessionId;
+
+        if (! Storage::exists($headerPath)) {
+            Storage::put($headerPath, $bytes);
+            $this->pruneMicHeaders();
+
+            return [$rawName, $rawName];
+        }
+
+        return [$rawName, $this->storeAudio(Storage::get($headerPath).$bytes, $extension)];
+    }
+
+    private function pruneMicHeaders(): void
+    {
+        foreach (Storage::files('mic-headers') as $path) {
+            if (Storage::lastModified($path) < time() - 3600) {
+                Storage::delete($path);
+            }
+        }
+    }
+
     public function audioPath(string $filename): ?string
     {
         if (preg_match('/^[A-Za-z0-9\-]+\.(mp3|webm|m4a|ogg|mp4|wav)$/', $filename) !== 1) {

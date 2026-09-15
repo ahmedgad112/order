@@ -17,6 +17,7 @@ class MicAudioChunkEvent implements ShouldBroadcastNow
         public string $sessionId,
         public int $sequence,
         public bool $final = false,
+        public ?string $rawUrl = null,
     ) {}
 
     /**
@@ -39,6 +40,7 @@ class MicAudioChunkEvent implements ShouldBroadcastNow
     {
         return [
             'audio_url' => $this->audioUrl,
+            'raw_url' => $this->rawUrl ?? $this->audioUrl,
             'session_id' => $this->sessionId,
             'seq' => $this->sequence,
             'final' => $this->final,

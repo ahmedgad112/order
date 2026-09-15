@@ -683,6 +683,9 @@ export const useQueueStore = defineStore('queue', () => {
 
     function handleTicketAbsent(event) {
         const ticket = event.ticket;
+        if (!ticket?.id) {
+            return;
+        }
         serving.value = serving.value.filter((item) => item.id !== ticket.id);
         stats.value.serving = serving.value.length;
         if (currentTicket.value?.id === ticket.id) {
@@ -694,6 +697,9 @@ export const useQueueStore = defineStore('queue', () => {
 
     function handleTicketRestored(event) {
         const ticket = event.ticket;
+        if (!ticket?.id) {
+            return;
+        }
         removeAbsentTicket(ticket.id);
         waiting.value = [...waiting.value, ticket]
             .sort(compareTickets)
@@ -771,6 +777,9 @@ export const useQueueStore = defineStore('queue', () => {
 
     function handleTicketIssued(event) {
         const ticket = event.ticket;
+        if (!ticket?.id) {
+            return;
+        }
         waiting.value = [...waiting.value, ticket]
             .sort(compareTickets)
             .slice(0, 10);
@@ -780,6 +789,9 @@ export const useQueueStore = defineStore('queue', () => {
 
     function handleTicketCalled(event) {
         const ticket = event.ticket;
+        if (!ticket?.id) {
+            return;
+        }
         removeFromWaiting(ticket.id);
         upsertServingTicket(ticket);
         stats.value.waiting = Math.max(0, stats.value.waiting - 1);
@@ -789,6 +801,9 @@ export const useQueueStore = defineStore('queue', () => {
 
     function handleTicketCompleted(event) {
         const ticket = event.ticket;
+        if (!ticket?.id) {
+            return;
+        }
         serving.value = serving.value.filter((item) => item.id !== ticket.id);
         removeFromWaiting(ticket.id);
         stats.value.serving = serving.value.length;

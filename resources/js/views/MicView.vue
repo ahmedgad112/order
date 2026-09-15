@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Megaphone, Mic, MicOff, Play, Radio, Send, ShieldAlert, Square, Trash2 } from 'lucide-vue-next';
 import { axios } from '../bootstrap';
 import AppNavbar from '../components/AppNavbar.vue';
@@ -291,6 +291,11 @@ function releaseStream() {
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
 }
+
+onMounted(() => {
+    // Request mic access up front so pressing the button starts instantly.
+    acquireStream();
+});
 
 onUnmounted(() => {
     stopTalking();

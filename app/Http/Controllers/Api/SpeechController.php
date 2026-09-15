@@ -100,12 +100,13 @@ class SpeechController extends Controller
         $data = $request->validated();
 
         $audioUrl = null;
+        $rawUrl = null;
         $file = $request->file('audio');
 
         if ($file instanceof UploadedFile) {
-            $audioUrl = $this->speech->audioUrl(
-                $this->speech->storeUploadedAudio($file),
-            );
+            [$rawName, $playableName] = $this->speech->storeMicChunk($file, $data['session_id']);
+            $audioUrl = $this->speech->audioUrl($playableName);
+            $rawUrl = $this->speech->audioUrl($rawName);
         }
 
         $this->broadcastSafely(new MicAudioChunkEvent(
@@ -113,6 +114,7 @@ class SpeechController extends Controller
             $data['session_id'],
             (int) ($data['seq'] ?? 0),
             $request->boolean('final'),
+            $rawUrl,
         ));
 
         return response()->json(['audio_url' => $audioUrl]);
