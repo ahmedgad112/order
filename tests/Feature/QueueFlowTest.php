@@ -21,29 +21,19 @@ class QueueFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_can_issue_ticket_when_system_is_open(): void
+    public function test_guest_cannot_issue_ticket_from_public_endpoint(): void
     {
         QueueSystemSetting::current();
 
-        $response = $this->postJson('/api/public/tickets', [
+        $this->postJson('/api/public/tickets', [
             'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
             'order_number' => '123456789',
-        ]);
-
-        $response->assertCreated()
-            ->assertJsonPath('ticket.ticket_number', 'OT1')
-            ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
-
-        $this->assertDatabaseHas('queue_tickets', [
-            'national_id' => '29501011234567',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
-            'order_number' => '123456789',
-            'status' => TicketStatus::Waiting->value,
-        ]);
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'التسجيل يتم عن طريق الموظف.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
     }
 
     public function test_public_queue_status_returns_the_same_counts_on_repeated_reads(): void
@@ -68,12 +58,10 @@ class QueueFlowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('stats.waiting', 0);
 
-        $this->postJson('/api/public/tickets', [
+        $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
             'order_number' => '123456789',
+            'request_type' => RequestType::NominationCard->value,
         ])->assertCreated();
 
         $this->getJson('/api/public/queue-status')
@@ -82,7 +70,7 @@ class QueueFlowTest extends TestCase
             ->assertJsonPath('waiting.0.ticket_number', 'OT1')
             ->assertJsonPath('waiting.0.full_name', 'محمد أحمد علي')
             ->assertJsonPath('waiting.0.request_type_label', 'حاصل على بطاقة ترشيح')
-            ->assertJsonPath('waiting.0.college_label', 'تكنولوجيا المعلومات')
+            ->assertJsonPath('waiting.0.college_label', null)
             ->assertJsonMissingPath('waiting.0.national_id');
     }
 
@@ -94,15 +82,12 @@ class QueueFlowTest extends TestCase
             'closed_message' => 'مغلق للاختبار',
         ]);
 
-        $response = $this->postJson('/api/public/tickets', [
+        $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
             'order_number' => '123456789',
-        ]);
-
-        $response->assertUnprocessable()
+            'request_type' => RequestType::NominationCard->value,
+        ])
+            ->assertUnprocessable()
             ->assertJsonValidationErrors(['system']);
     }
 
@@ -111,21 +96,17 @@ class QueueFlowTest extends TestCase
         QueueSystemSetting::current();
 
         QueueTicket::factory()->waiting()->create([
-            'national_id' => '29501011234567',
-            'order_number' => 'ORD-1001',
+            'order_number' => '123456789',
             'ticket_number' => 1,
         ]);
 
-        $response = $this->postJson('/api/public/tickets', [
+        $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
+            'order_number' => '123456789',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
-            'order_number' => '987654321',
-        ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['national_id']);
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['order_number']);
     }
 
     public function test_teller_can_call_complete_and_cancel_flow(): void
@@ -707,7 +688,7 @@ class QueueFlowTest extends TestCase
         ])->assertUnprocessable();
     }
 
-    public function test_manager_can_view_reports_but_cannot_manage_users_or_system(): void
+    public function test_manager_can_manage_employees_but_cannot_control_system(): void
     {
         QueueSystemSetting::current();
         $manager = User::factory()->manager()->create();
@@ -715,7 +696,7 @@ class QueueFlowTest extends TestCase
 
         $this->getJson('/api/me')
             ->assertOk()
-            ->assertJsonPath('user.permissions.manage_users', false)
+            ->assertJsonPath('user.permissions.manage_users', true)
             ->assertJsonPath('user.permissions.control_system', false)
             ->assertJsonPath('user.permissions.edit_tickets', true)
             ->assertJsonPath('user.permissions.delete_tickets', false);
@@ -723,8 +704,8 @@ class QueueFlowTest extends TestCase
         $this->getJson('/api/admin/system/status')->assertOk();
         $this->getJson('/api/admin/tickets')->assertOk();
         $this->getJson('/api/admin/tellers')->assertOk();
+        $this->getJson('/api/admin/users')->assertOk();
 
-        $this->getJson('/api/admin/users')->assertForbidden();
         $this->postJson('/api/admin/system/close')->assertForbidden();
         $this->postJson('/api/admin/system/open')->assertForbidden();
         $this->postJson('/api/admin/system/end-day')->assertForbidden();
@@ -734,13 +715,6 @@ class QueueFlowTest extends TestCase
         ])->assertForbidden();
         $this->putJson('/api/admin/system/student-kinds', [
             'enabled_student_kinds' => [StudentKind::NewStudent->value],
-        ])->assertForbidden();
-        $this->postJson('/api/admin/users', [
-            'name' => 'موظف جديد',
-            'email' => 'new-teller@queue.local',
-            'password' => 'password123',
-            'role' => UserRole::Teller->value,
-            'counter_name' => 'شباك 5',
         ])->assertForbidden();
     }
 

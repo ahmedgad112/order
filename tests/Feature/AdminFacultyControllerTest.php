@@ -2,15 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Enums\DocumentKind;
 use App\Enums\StudentKind;
 use App\Enums\UserRole;
 use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -68,29 +65,23 @@ class AdminFacultyControllerTest extends TestCase
             ]);
     }
 
-    public function test_guest_can_issue_ticket_for_newly_created_faculty(): void
+    public function test_staff_can_issue_current_student_ticket_after_faculty_is_created(): void
     {
-        Storage::fake();
         QueueSystemSetting::current();
         Sanctum::actingAs(User::factory()->superAdmin()->create());
 
         $this->postJson('/api/admin/faculties', $this->facultyPayload())->assertCreated();
 
-        $this->post('/api/public/tickets', [
-            'student_kind' => StudentKind::CurrentStudent->value,
+        $this->issueTicketAsStaff([
             'full_name' => 'سارة أحمد علي',
-            'college' => 'commerce',
-            'department' => 'محاسبة',
-            'seat_number' => '12345678',
-            'document_kind' => DocumentKind::StudentCard->value,
-            'document' => UploadedFile::fake()->image('card.jpg'),
-        ], [
-            'Accept' => 'application/json',
+            'order_number' => '123456789',
+            'request_type' => 'current_student',
         ])->assertCreated();
 
         $this->assertDatabaseHas('queue_tickets', [
-            'college' => 'commerce',
-            'seat_number' => '12345678',
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '123456789',
+            'student_kind' => StudentKind::CurrentStudent->value,
         ]);
     }
 

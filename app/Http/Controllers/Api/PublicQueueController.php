@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\IssueTicketRequest;
 use App\Http\Requests\TrackTicketRequest;
-use App\Http\Resources\IssuedTicketResource;
 use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\UserTicketResource;
 use App\Services\QueueService;
@@ -19,14 +17,9 @@ class PublicQueueController extends Controller
         private readonly QueueSystemService $systemService,
     ) {}
 
-    public function issueTicket(IssueTicketRequest $request): JsonResponse
+    public function issueTicket(): JsonResponse
     {
-        $ticket = $this->queueService->issueTicket($request->validated());
-
-        return response()->json([
-            'message' => 'تم إصدار التذكرة بنجاح.',
-            'ticket' => new IssuedTicketResource($ticket),
-        ], 201);
+        abort(403, 'التسجيل يتم عن طريق الموظف.');
     }
 
     public function trackTicket(TrackTicketRequest $request): JsonResponse

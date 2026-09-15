@@ -4,6 +4,7 @@ import {
     ClipboardList,
     Lock,
     PhoneCall,
+    Plus,
     RefreshCw,
     RotateCcw,
     Search,
@@ -17,6 +18,8 @@ import TicketDeleteButton from '../components/TicketDeleteButton.vue';
 import TicketEditForm from '../components/TicketEditForm.vue';
 import TicketDocumentLink from '../components/TicketDocumentLink.vue';
 import TicketPrintButton from '../components/TicketPrintButton.vue';
+import StaffIssueTicketModal from '../components/StaffIssueTicketModal.vue';
+import IssuedTicketModal from '../components/IssuedTicketModal.vue';
 
 const authStore = useAuthStore();
 const queueStore = useQueueStore();
@@ -31,6 +34,8 @@ const editingId = ref(null);
 const search = ref('');
 const stepFilter = ref('all');
 const loading = ref(false);
+const showIssueForm = ref(false);
+const issuedTicket = ref(null);
 
 const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 
@@ -120,6 +125,13 @@ async function refresh() {
 
 function canMarkAbsent(ticket) {
     return ['waiting', 'serving'].includes(ticket.status);
+}
+
+function handleIssued(result) {
+    showIssueForm.value = false;
+    issuedTicket.value = result.ticket;
+    actionMessage.value = result.message ?? 'تم إصدار الدور بنجاح.';
+    actionError.value = '';
 }
 
 async function handleProcessMark(ticket, step) {
@@ -351,6 +363,18 @@ onUnmounted(() => {
                     {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم — النظام شغال لمتابعة الطلبات الحالية.' }}
                 </div>
             </div>
+
+            <section class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                    type="button"
+                    class="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                    :disabled="!queueStore.isAcceptingTickets"
+                    @click="showIssueForm = true"
+                >
+                    <Plus class="h-5 w-5" />
+                    دور جديد
+                </button>
+            </section>
 
             <section
                 v-if="authStore.isTeller"
@@ -692,5 +716,21 @@ onUnmounted(() => {
                 </div>
             </section>
         </main>
+
+        <StaffIssueTicketModal
+            v-if="showIssueForm"
+            @issued="handleIssued"
+            @close="showIssueForm = false"
+        />
+
+        <IssuedTicketModal
+            v-if="issuedTicket"
+            :ticket="issuedTicket"
+            allow-print
+            :allow-download="false"
+            :show-admission-links="false"
+            heading="تم إصدار الدور"
+            @close="issuedTicket = null"
+        />
     </div>
 </template>

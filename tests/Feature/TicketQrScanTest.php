@@ -21,20 +21,17 @@ class TicketQrScanTest extends TestCase
     {
         QueueSystemSetting::current();
 
-        $response = $this->postJson('/api/public/tickets', [
+        $response = $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
             'order_number' => '123456789',
+            'request_type' => RequestType::NominationCard->value,
         ]);
 
         $response->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1')
-            ->assertJsonPath('ticket.masked_name', 'محمد أ***')
-            ->assertJsonMissingPath('ticket.national_id')
-            ->assertJsonMissingPath('ticket.order_number')
-            ->assertJsonMissingPath('ticket.full_name');
+            ->assertJsonPath('ticket.full_name', 'محمد أحمد علي')
+            ->assertJsonPath('ticket.order_number', '123456789')
+            ->assertJsonMissingPath('ticket.masked_name');
 
         $token = $response->json('ticket.public_token');
         $this->assertTrue(Str::isUuid($token));

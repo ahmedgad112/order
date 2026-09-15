@@ -2,9 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\ProcessStep;
+use App\Enums\QueueLane;
 use App\Enums\RequestType;
-use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
@@ -15,7 +14,6 @@ use App\Events\TicketRestoredEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Models\QueueTicket;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -31,15 +29,22 @@ class QueueService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function issueTicket(array $data): QueueTicket
+    public function issueTicket(array $data, ?User $staff = null): QueueTicket
     {
         $this->systemService->assertAcceptingTickets();
-        $ticket = DB::transaction(function () use ($data): QueueTicket {
+
+        $lane = QueueLane::from($data['request_type']);
+
+        if ($staff?->constrainsTicketsToAssignedLanes() && ! $staff->servesQueueLane($lane)) {
+            throw ValidationException::withMessages([
+                'request_type' => 'نوع الطلب غير مخصص لحسابك.',
+            ]);
+        }
+
+        $ticket = DB::transaction(function () use ($data, $lane): QueueTicket {
             $sessionStartedAt = QueueTicket::currentSessionStartedAt();
-            $studentKind = StudentKind::from($data['student_kind'] ?? StudentKind::NewStudent->value);
-            $requestType = $studentKind === StudentKind::CurrentStudent
-                ? null
-                : RequestType::from($data['request_type']);
+            $studentKind = $lane->studentKind();
+            $requestType = $lane->requestType();
             $maxNumber = QueueTicket::query()
                 ->today()
                 ->forTicketSeries($studentKind, $requestType)
@@ -47,49 +52,15 @@ class QueueService
                 ->orderByDesc('ticket_number')
                 ->value('ticket_number');
 
-            $attributes = [
+            return QueueTicket::query()->create([
                 'ticket_number' => ($maxNumber ?? 0) + 1,
                 'session_started_at' => $sessionStartedAt,
                 'full_name' => $data['full_name'],
                 'student_kind' => $studentKind,
+                'request_type' => $requestType,
+                'order_number' => $data['order_number'],
                 'status' => TicketStatus::Waiting,
-            ];
-
-            if ($studentKind === StudentKind::CurrentStudent) {
-                $document = $data['document'] ?? null;
-                $documentPath = $document instanceof UploadedFile
-                    ? $document->store('current-student-documents')
-                    : null;
-
-                $attributes = [
-                    ...$attributes,
-                    'college' => $data['college'],
-                    'department' => $data['department'],
-                    'seat_number' => $data['seat_number'],
-                    'document_kind' => $data['document_kind'],
-                    'document_path' => $documentPath,
-                ];
-            } else {
-                $attributes = [
-                    ...$attributes,
-                    'national_id' => $data['national_id'],
-                    'request_type' => $data['request_type'],
-                    'completion_step' => $data['completion_step'] ?? null,
-                    'college' => $data['college'],
-                    'order_number' => $data['order_number'],
-                ];
-
-                $completionStep = ProcessStep::tryFrom((string) ($data['completion_step'] ?? ''));
-
-                if ($completionStep instanceof ProcessStep) {
-                    $attributes = [
-                        ...$attributes,
-                        ...$completionStep->priorCheckpointAttributes(),
-                    ];
-                }
-            }
-
-            return QueueTicket::query()->create($attributes);
+            ]);
         });
 
         $this->broadcastSafely(new TicketIssuedEvent($ticket));

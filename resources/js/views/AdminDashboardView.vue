@@ -26,7 +26,9 @@ const navbarSubtitle = computed(() => {
     const role = authStore.user?.role_label ?? 'الإدارة';
     const hint = authStore.canControlSystem
         ? 'إدارة النظام والحسابات والتقارير اليومية'
-        : 'متابعة التقارير والتشغيل اليومي';
+        : authStore.canManageUsers
+            ? 'إدارة حسابات الموظفين والتقارير اليومية'
+            : 'متابعة التقارير والتشغيل اليومي';
 
     return `${role} — ${hint}`;
 });

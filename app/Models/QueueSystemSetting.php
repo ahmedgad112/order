@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\QueueLane;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -102,6 +103,24 @@ class QueueSystemSetting extends Model
         $value = $kind instanceof StudentKind ? $kind->value : $kind;
 
         return in_array($value, $this->enabledStudentKindValues(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function enabledQueueLaneValues(): array
+    {
+        $lanes = [];
+
+        if ($this->isStudentKindEnabled(StudentKind::NewStudent)) {
+            $lanes = $this->enabledRequestTypeValues();
+        }
+
+        if ($this->isStudentKindEnabled(StudentKind::CurrentStudent)) {
+            $lanes[] = QueueLane::CurrentStudent->value;
+        }
+
+        return $lanes;
     }
 
     public function closedByUser(): BelongsTo

@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::prefix('teller')->middleware('role:teller,manager,super_admin')->group(function (): void {
         Route::get('/queue-status', [TellerQueueController::class, 'queueStatus']);
         Route::get('/tickets', [TellerQueueController::class, 'tickets']);
+        Route::post('/tickets', [TellerQueueController::class, 'store']);
         Route::get('/tickets/scan/{ticket:public_token}', [TellerQueueController::class, 'showScannedTicket']);
         Route::get('/tickets/{ticket}/document', [TellerQueueController::class, 'showDocument']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
@@ -60,6 +61,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/tickets/{ticket}', [AdminTicketController::class, 'update']);
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
         Route::put('/queue-lanes/{lane}/tellers', [AdminSystemController::class, 'updateLaneTellers']);
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::post('/users', [AdminUserController::class, 'store']);
+        Route::put('/users/{user}', [AdminUserController::class, 'update']);
+        Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
     });
 
     Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
@@ -78,9 +83,5 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/colleges/{college}', [AdminCollegeController::class, 'update']);
         Route::delete('/colleges/{college}', [AdminCollegeController::class, 'destroy']);
         Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
-        Route::get('/users', [AdminUserController::class, 'index']);
-        Route::post('/users', [AdminUserController::class, 'store']);
-        Route::put('/users/{user}', [AdminUserController::class, 'update']);
-        Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
     });
 });

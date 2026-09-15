@@ -107,7 +107,7 @@ const navItems = computed(() => {
     }
 
     const items = [
-        { to: '/', label: 'إصدار تذكرة', icon: Ticket, match: 'student-choice' },
+        { to: '/', label: 'الرئيسية', icon: Ticket, match: 'student-choice' },
         { to: '/track', label: 'متابعة التذكرة', icon: Search, match: 'track' },
     ];
 
@@ -128,7 +128,7 @@ const hasMobileMenu = computed(() => {
 
 function isActive(item) {
     if (item.match === 'student-choice') {
-        return ['student-choice', 'kiosk', 'current-student'].includes(route.name);
+        return route.name === 'student-choice';
     }
 
     return route.name === item.match;

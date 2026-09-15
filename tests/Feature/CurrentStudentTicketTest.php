@@ -6,7 +6,6 @@ use App\Enums\DocumentKind;
 use App\Enums\RequestType;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
-use App\Models\College;
 use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
@@ -39,100 +38,67 @@ class CurrentStudentTicketTest extends TestCase
         ], $overrides);
     }
 
-    public function test_guest_can_issue_current_student_ticket_with_document(): void
+    public function test_staff_can_issue_current_student_ticket_with_name_order_and_type(): void
     {
-        Storage::fake();
         QueueSystemSetting::current();
 
-        $this->post('/api/public/tickets', $this->currentStudentPayload(), [
-            'Accept' => 'application/json',
+        $this->issueTicketAsStaff([
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '987654321',
+            'request_type' => 'current_student',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1')
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value)
-            ->assertJsonMissingPath('ticket.national_id')
-            ->assertJsonMissingPath('ticket.seat_number')
-            ->assertJsonMissingPath('ticket.document_path');
+            ->assertJsonPath('ticket.student_kind', StudentKind::CurrentStudent->value);
 
         $ticket = QueueTicket::query()->first();
 
         $this->assertNotNull($ticket);
         $this->assertSame(StudentKind::CurrentStudent, $ticket->student_kind);
         $this->assertSame('سارة أحمد علي', $ticket->full_name);
-        $this->assertSame(Faculty::IndustryEnergy, $ticket->college);
-        $this->assertSame('تكنولوجيا المعلومات', $ticket->department);
-        $this->assertSame('1234567', $ticket->seat_number);
-        $this->assertSame(DocumentKind::StudentCard, $ticket->document_kind);
-        $this->assertNull($ticket->national_id);
-        $this->assertNull($ticket->order_number);
+        $this->assertSame('987654321', $ticket->order_number);
         $this->assertNull($ticket->request_type);
-        $this->assertTrue($ticket->hasDocument());
-        Storage::assertExists((string) $ticket->document_path);
+        $this->assertNull($ticket->national_id);
+        $this->assertNull($ticket->college);
+        $this->assertNull($ticket->document_path);
     }
 
     public function test_new_and_current_students_keep_independent_ticket_sequences(): void
     {
-        Storage::fake();
         QueueSystemSetting::current();
 
-        $this->postJson('/api/public/tickets', [
-            'student_kind' => StudentKind::NewStudent->value,
+        $this->issueTicketAsStaff([
             'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
             'order_number' => '123456789',
+            'request_type' => RequestType::NominationCard->value,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1');
 
-        $this->post('/api/public/tickets', $this->currentStudentPayload(), [
-            'Accept' => 'application/json',
+        $this->issueTicketAsStaff([
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '123456788',
+            'request_type' => 'current_student',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1');
 
-        $this->postJson('/api/public/tickets', [
-            'student_kind' => StudentKind::NewStudent->value,
+        $this->issueTicketAsStaff([
             'full_name' => 'علي محمود حسن',
-            'national_id' => '29501011234568',
+            'order_number' => '123456787',
             'request_type' => RequestType::NominationCard->value,
-            'college' => College::InformationTechnology,
-            'order_number' => '123456788',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT2');
 
-        $this->post('/api/public/tickets', $this->currentStudentPayload([
+        $this->issueTicketAsStaff([
             'full_name' => 'منى سعيد',
-            'seat_number' => '7654321',
-            'document' => UploadedFile::fake()->image('card2.jpg'),
-        ]), [
-            'Accept' => 'application/json',
+            'order_number' => '123456786',
+            'request_type' => 'current_student',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O2');
-
-        $this->assertDatabaseHas('queue_tickets', [
-            'full_name' => 'محمد أحمد علي',
-            'ticket_number' => 1,
-            'student_kind' => StudentKind::NewStudent->value,
-        ]);
-        $this->assertDatabaseHas('queue_tickets', [
-            'full_name' => 'سارة أحمد علي',
-            'ticket_number' => 1,
-            'student_kind' => StudentKind::CurrentStudent->value,
-        ]);
-        $this->assertDatabaseHas('queue_tickets', [
-            'full_name' => 'علي محمود حسن',
-            'ticket_number' => 2,
-            'student_kind' => StudentKind::NewStudent->value,
-        ]);
-        $this->assertDatabaseHas('queue_tickets', [
-            'full_name' => 'منى سعيد',
-            'ticket_number' => 2,
-            'student_kind' => StudentKind::CurrentStudent->value,
-        ]);
     }
 
     public function test_admin_can_search_current_student_ticket_by_code(): void
@@ -156,156 +122,17 @@ class CurrentStudentTicketTest extends TestCase
             ->assertJsonPath('tickets.0.ticket_number', 'O1');
     }
 
-    public function test_returns_422_when_current_student_payload_is_empty(): void
+    public function test_returns_403_when_guest_issues_current_student_ticket_from_public_endpoint(): void
     {
         QueueSystemSetting::current();
-
-        $this->post('/api/public/tickets', [
-            'student_kind' => StudentKind::CurrentStudent->value,
-        ], [
-            'Accept' => 'application/json',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['full_name', 'college', 'department', 'seat_number', 'document_kind', 'document'])
-            ->assertJsonPath('errors.full_name.0', 'الاسم الكامل مطلوب.')
-            ->assertJsonPath('errors.college.0', 'يجب تحديد الكلية.')
-            ->assertJsonPath('errors.department.0', 'يجب كتابة القسم.')
-            ->assertJsonPath('errors.seat_number.0', 'رقم الجلوس مطلوب.')
-            ->assertJsonPath('errors.document_kind.0', 'يجب اختيار نوع المستند.')
-            ->assertJsonPath('errors.document.0', 'يجب رفع صورة المستند.');
-
-        $this->assertDatabaseCount('queue_tickets', 0);
-    }
-
-    #[DataProvider('invalidSeatNumbers')]
-    public function test_returns_422_when_seat_number_is_not_seven_digits(string $seatNumber): void
-    {
-        Storage::fake();
-        QueueSystemSetting::current();
-
-        $this->post('/api/public/tickets', $this->currentStudentPayload([
-            'seat_number' => $seatNumber,
-        ]), [
-            'Accept' => 'application/json',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['seat_number'])
-            ->assertJsonPath('errors.seat_number.0', 'يجب أن يتكون رقم الجلوس من 7 أرقام بالضبط.');
-
-        $this->assertDatabaseCount('queue_tickets', 0);
-    }
-
-    /**
-     * @return array<string, array{0: string}>
-     */
-    public static function invalidSeatNumbers(): array
-    {
-        return [
-            'too_short' => ['123456'],
-            'too_long' => ['12345678'],
-            'letters' => ['123456a'],
-        ];
-    }
-
-    #[DataProvider('healthSciencesSeatNumbers')]
-    public function test_guest_can_issue_health_sciences_ticket_with_seven_to_nine_digit_seat_number(string $seatNumber): void
-    {
-        Storage::fake();
-        QueueSystemSetting::current();
-
-        $this->post('/api/public/tickets', $this->currentStudentPayload([
-            'college' => Faculty::HealthSciences,
-            'department' => 'علوم المختبرات',
-            'seat_number' => $seatNumber,
-        ]), [
-            'Accept' => 'application/json',
-        ])
-            ->assertCreated();
-
-        $this->assertDatabaseHas('queue_tickets', [
-            'college' => Faculty::HealthSciences,
-            'department' => 'علوم المختبرات',
-            'seat_number' => $seatNumber,
-        ]);
-    }
-
-    /**
-     * @return array<string, array{0: string}>
-     */
-    public static function healthSciencesSeatNumbers(): array
-    {
-        return [
-            'seven_digits' => ['1234567'],
-            'eight_digits' => ['12345678'],
-            'nine_digits' => ['123456789'],
-        ];
-    }
-
-    #[DataProvider('invalidHealthSciencesSeatNumbers')]
-    public function test_returns_422_when_health_sciences_seat_number_is_outside_seven_to_nine_digits(string $seatNumber): void
-    {
-        Storage::fake();
-        QueueSystemSetting::current();
-
-        $this->post('/api/public/tickets', $this->currentStudentPayload([
-            'college' => Faculty::HealthSciences,
-            'seat_number' => $seatNumber,
-        ]), [
-            'Accept' => 'application/json',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['seat_number'])
-            ->assertJsonPath('errors.seat_number.0', 'يجب أن يتكون رقم الجلوس من 7 إلى 9 أرقام.');
-
-        $this->assertDatabaseCount('queue_tickets', 0);
-    }
-
-    /**
-     * @return array<string, array{0: string}>
-     */
-    public static function invalidHealthSciencesSeatNumbers(): array
-    {
-        return [
-            'too_short' => ['123456'],
-            'too_long' => ['1234567890'],
-            'letters' => ['1234567a'],
-        ];
-    }
-
-    public function test_returns_422_when_faculty_is_not_listed(): void
-    {
-        Storage::fake();
-        QueueSystemSetting::current();
-
-        $this->post('/api/public/tickets', $this->currentStudentPayload([
-            'college' => 'information_technology',
-        ]), [
-            'Accept' => 'application/json',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['college'])
-            ->assertJsonPath('errors.college.0', 'يجب اختيار الكلية الصحيحة.');
-
-        $this->assertDatabaseCount('queue_tickets', 0);
-    }
-
-    public function test_returns_422_when_active_ticket_already_uses_the_seat_number(): void
-    {
-        Storage::fake();
-        QueueSystemSetting::current();
-        QueueTicket::factory()->currentStudent()->waiting()->create([
-            'ticket_number' => 1,
-            'seat_number' => '1234567',
-        ]);
 
         $this->post('/api/public/tickets', $this->currentStudentPayload(), [
             'Accept' => 'application/json',
         ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['seat_number'])
-            ->assertJsonPath('errors.seat_number.0', 'يوجد تذكرة نشطة اليوم بنفس رقم الجلوس.');
+            ->assertForbidden()
+            ->assertJsonPath('message', 'التسجيل يتم عن طريق الموظف.');
 
-        $this->assertDatabaseCount('queue_tickets', 1);
+        $this->assertDatabaseCount('queue_tickets', 0);
     }
 
     public function test_public_queue_status_includes_faculties_and_document_kinds(): void

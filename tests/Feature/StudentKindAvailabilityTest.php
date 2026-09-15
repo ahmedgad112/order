@@ -12,7 +12,6 @@ use App\Models\QueueSystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -165,17 +164,18 @@ class StudentKindAvailabilityTest extends TestCase
 
     public function test_returns_422_when_current_student_kind_is_disabled(): void
     {
-        Storage::fake();
         QueueSystemSetting::current()->update([
             'enabled_student_kinds' => [StudentKind::NewStudent->value],
         ]);
 
-        $this->post('/api/public/tickets', $this->currentStudentPayload(), [
-            'Accept' => 'application/json',
+        $this->issueTicketAsStaff([
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '987654321',
+            'request_type' => 'current_student',
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['student_kind'])
-            ->assertJsonPath('errors.student_kind.0', 'تقديم الطلاب الحاليين غير متاح حالياً.');
+            ->assertJsonValidationErrors(['request_type'])
+            ->assertJsonPath('errors.request_type.0', 'نوع الطلب غير متاح حالياً.');
 
         $this->assertDatabaseCount('queue_tickets', 0);
     }
@@ -186,21 +186,25 @@ class StudentKindAvailabilityTest extends TestCase
             'enabled_student_kinds' => [StudentKind::CurrentStudent->value],
         ]);
 
-        $this->postJson('/api/public/tickets', $this->newStudentPayload())
+        $this->issueTicketAsStaff([
+            'full_name' => 'محمد أحمد علي',
+            'order_number' => '123456789',
+            'request_type' => RequestType::NominationCard->value,
+        ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['student_kind'])
-            ->assertJsonPath('errors.student_kind.0', 'تقديم الطلاب الجدد غير متاح حالياً.');
+            ->assertJsonValidationErrors(['request_type'])
+            ->assertJsonPath('errors.request_type.0', 'نوع الطلب غير متاح حالياً.');
 
         $this->assertDatabaseCount('queue_tickets', 0);
     }
 
-    public function test_guest_can_issue_new_student_ticket_when_current_student_is_closed(): void
+    public function test_staff_can_issue_new_student_ticket_when_current_student_is_closed(): void
     {
         QueueSystemSetting::current()->update([
             'enabled_student_kinds' => [StudentKind::NewStudent->value],
         ]);
 
-        $this->postJson('/api/public/tickets', $this->newStudentPayload())
+        $this->issueTicketAsStaff()
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1');
 
@@ -210,15 +214,16 @@ class StudentKindAvailabilityTest extends TestCase
         ]);
     }
 
-    public function test_guest_can_issue_current_student_ticket_when_new_student_is_closed(): void
+    public function test_staff_can_issue_current_student_ticket_when_new_student_is_closed(): void
     {
-        Storage::fake();
         QueueSystemSetting::current()->update([
             'enabled_student_kinds' => [StudentKind::CurrentStudent->value],
         ]);
 
-        $this->post('/api/public/tickets', $this->currentStudentPayload(), [
-            'Accept' => 'application/json',
+        $this->issueTicketAsStaff([
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '987654321',
+            'request_type' => 'current_student',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1');

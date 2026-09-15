@@ -6,19 +6,15 @@ const routes = [
         path: '/',
         name: 'student-choice',
         component: () => import('../views/StudentChoiceView.vue'),
-        meta: { title: 'اختيار نوع الطالب' },
+        meta: { title: 'نظام إدارة الأدوار' },
     },
     {
         path: '/new-student',
-        name: 'kiosk',
-        component: () => import('../views/PublicKioskView.vue'),
-        meta: { title: 'إصدار تذكرة' },
+        redirect: { name: 'student-choice' },
     },
     {
         path: '/current-student',
-        name: 'current-student',
-        component: () => import('../views/CurrentStudentKioskView.vue'),
-        meta: { title: 'طالب حالي' },
+        redirect: { name: 'student-choice' },
     },
     {
         path: '/display',
@@ -103,9 +99,7 @@ router.beforeEach(async (to) => {
 });
 
 const prefetchByRoute = {
-    'student-choice': ['kiosk', 'current-student', 'track', 'login'],
-    kiosk: ['student-choice', 'track', 'login'],
-    'current-student': ['student-choice', 'track', 'login'],
+    'student-choice': ['track', 'login'],
     track: ['student-choice'],
     login: ['teller', 'admin'],
     teller: ['admin', 'admin-registrations'],

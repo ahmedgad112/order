@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IssueTicketRequest;
 use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\ScannedTicketResource;
 use App\Http\Resources\TicketResource;
@@ -21,6 +22,16 @@ class TellerQueueController extends Controller
         private readonly QueueService $queueService,
         private readonly QueueSystemService $systemService,
     ) {}
+
+    public function store(IssueTicketRequest $request): JsonResponse
+    {
+        $ticket = $this->queueService->issueTicket($request->validated(), $request->user());
+
+        return response()->json([
+            'message' => 'تم إصدار الدور بنجاح.',
+            'ticket' => new TicketResource($ticket),
+        ], 201);
+    }
 
     public function tickets(Request $request): JsonResponse
     {

@@ -1,43 +1,11 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import { GraduationCap, Lock, Search, UserPlus } from 'lucide-vue-next';
+import { Lock, Search, UserRound } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 
 const queueStore = useQueueStore();
-
-const visibleStudentKinds = computed(() => {
-    if (!queueStore.isAcceptingTickets) {
-        return [];
-    }
-
-    const kinds = [];
-
-    if (queueStore.isNewStudentOpen) {
-        kinds.push({
-            to: '/new-student',
-            label: 'طالب جديد',
-            hint: 'التقديم للالتحاق بالجامعة',
-            icon: UserPlus,
-            boxClass: 'bg-blue-50 hover:border-blue-400 hover:bg-blue-100',
-            iconClass: 'bg-blue-600',
-        });
-    }
-
-    if (queueStore.isCurrentStudentOpen) {
-        kinds.push({
-            to: '/current-student',
-            label: 'طالب حالي',
-            hint: 'طالب في الجامعة — فرقة ثانية',
-            icon: GraduationCap,
-            boxClass: 'bg-indigo-50 hover:border-indigo-400 hover:bg-indigo-100',
-            iconClass: 'bg-indigo-600',
-        });
-    }
-
-    return kinds;
-});
 
 let stopAutoRefresh = null;
 let unsubscribeEcho = null;
@@ -56,7 +24,7 @@ onUnmounted(() => {
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <AppNavbar title="نظام إدارة الأدوار" subtitle="اختر نوع الطالب" max-width="5xl" />
+        <AppNavbar title="نظام إدارة الأدوار" subtitle="التسجيل عند الموظف" max-width="5xl" />
 
         <main class="mx-auto max-w-3xl px-6 py-10">
             <div
@@ -65,7 +33,7 @@ onUnmounted(() => {
             >
                 <Lock class="mx-auto mb-3 h-10 w-10 text-red-500" />
                 <h2 class="text-xl font-bold text-red-800">النظام مغلق حالياً</h2>
-                <p class="mt-2 text-red-700">{{ queueStore.system.closed_message || 'لا يمكن إصدار تذاكر جديدة في الوقت الحالي.' }}</p>
+                <p class="mt-2 text-red-700">{{ queueStore.system.closed_message || 'لا يمكن إصدار أدوار جديدة في الوقت الحالي.' }}</p>
             </div>
             <div
                 v-else-if="!queueStore.isAcceptingTickets"
@@ -75,41 +43,19 @@ onUnmounted(() => {
                 <h2 class="text-xl font-bold text-amber-800">انتهى استقبال الطلبات اليوم</h2>
                 <p class="mt-2 text-amber-700">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
             </div>
-            <div
-                v-else-if="!visibleStudentKinds.length"
-                class="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center"
-            >
-                <Lock class="mx-auto mb-3 h-10 w-10 text-amber-500" />
-                <h2 class="text-xl font-bold text-amber-800">لا يوجد نوع طالب متاح حالياً</h2>
-                <p class="mt-2 text-amber-700">تم إلغاء خيارات التقديم مؤقتاً. يمكن متابعة الطلبات الحالية.</p>
-            </div>
 
-            <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
-                <h2 class="mb-3 text-center text-3xl font-bold text-slate-800">مرحباً بك</h2>
-                <p class="mb-8 text-center text-slate-500">اختر نوع الطالب للمتابعة</p>
-
-                <div
-                    v-if="visibleStudentKinds.length"
-                    class="grid gap-4"
-                    :class="visibleStudentKinds.length > 1 ? 'sm:grid-cols-2' : 'mx-auto max-w-sm'"
-                >
-                    <RouterLink
-                        v-for="kind in visibleStudentKinds"
-                        :key="kind.to"
-                        :to="kind.to"
-                        class="flex flex-col items-center gap-4 rounded-3xl border border-slate-200 px-6 py-10 text-center transition hover:shadow-lg"
-                        :class="kind.boxClass"
-                    >
-                        <span class="flex h-16 w-16 items-center justify-center rounded-full text-white" :class="kind.iconClass">
-                            <component :is="kind.icon" class="h-8 w-8" />
-                        </span>
-                        <span class="text-xl font-bold text-slate-800">{{ kind.label }}</span>
-                        <span class="text-sm text-slate-500">{{ kind.hint }}</span>
-                    </RouterLink>
-                </div>
-                <p v-else class="text-center text-sm font-semibold text-slate-500">
-                    لا يوجد نوع طالب متاح للمتابعة حالياً.
+            <div class="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
+                <h2 class="text-3xl font-bold text-slate-800">التسجيل عند الموظف</h2>
+                <p class="mt-3 text-slate-500">
+                    إصدار الدور يتم من الموظف. توجه إلى شباك التسجيل لإدخال اسم الطالب ورقم الطلب ونوعه.
                 </p>
+                <RouterLink
+                    to="/login"
+                    class="mt-6 inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-base font-bold text-white hover:bg-indigo-700"
+                >
+                    <UserRound class="h-5 w-5" />
+                    دخول الموظفين
+                </RouterLink>
             </div>
 
             <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">

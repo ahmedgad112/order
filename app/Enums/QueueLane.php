@@ -21,6 +21,22 @@ enum QueueLane: string
         };
     }
 
+    public function studentKind(): StudentKind
+    {
+        return $this === self::CurrentStudent
+            ? StudentKind::CurrentStudent
+            : StudentKind::NewStudent;
+    }
+
+    public function requestType(): ?RequestType
+    {
+        if ($this === self::CurrentStudent) {
+            return null;
+        }
+
+        return RequestType::from($this->value);
+    }
+
     /**
      * @return list<string>
      */

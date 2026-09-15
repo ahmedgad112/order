@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\RequestType;
-use App\Enums\StudentKind;
 use App\Enums\UserRole;
 use App\Models\College;
 use App\Models\QueueSystemSetting;
@@ -65,7 +63,7 @@ class AdminCollegeControllerTest extends TestCase
             ]);
     }
 
-    public function test_guest_can_issue_ticket_for_newly_created_college(): void
+    public function test_staff_can_issue_ticket_after_college_is_created(): void
     {
         QueueSystemSetting::current();
         Sanctum::actingAs(User::factory()->superAdmin()->create());
@@ -75,19 +73,7 @@ class AdminCollegeControllerTest extends TestCase
             'value' => 'renewable_energy',
         ])->assertCreated();
 
-        $this->postJson('/api/public/tickets', [
-            'student_kind' => StudentKind::NewStudent->value,
-            'full_name' => 'محمد أحمد علي',
-            'national_id' => '29501011234567',
-            'request_type' => RequestType::NominationCard->value,
-            'college' => 'renewable_energy',
-            'order_number' => '123456789',
-        ])->assertCreated();
-
-        $this->assertDatabaseHas('queue_tickets', [
-            'college' => 'renewable_energy',
-            'order_number' => '123456789',
-        ]);
+        $this->issueTicketAsStaff()->assertCreated();
     }
 
     public function test_returns_422_when_college_name_is_missing(): void

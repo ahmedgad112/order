@@ -185,14 +185,14 @@ export const useQueueStore = defineStore('queue', () => {
         error.value = null;
 
         try {
-            const { data } = await axios.post('/public/tickets', payload);
-            await fetchPublicStatus();
-            return data.ticket;
+            const { data } = await axios.post('/teller/tickets', payload);
+            await fetchTellerTickets();
+            return data;
         } catch (err) {
             const validation = err.response?.data?.errors;
             error.value = validation
                 ? Object.values(validation).flat()[0]
-                : err.response?.data?.message ?? 'تعذر إصدار التذكرة.';
+                : err.response?.data?.message ?? 'تعذر إصدار الدور.';
             throw err;
         } finally {
             loading.value = false;
