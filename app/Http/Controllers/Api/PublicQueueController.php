@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TrackTicketRequest;
-use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\UserTicketResource;
 use App\Services\QueueService;
 use App\Services\QueueSystemService;
@@ -45,8 +44,8 @@ class PublicQueueController extends Controller
         $status = $this->queueService->getPublicQueueStatus();
 
         return response()->json([
-            'serving' => PublicTicketResource::collection($status['serving']),
-            'waiting' => PublicTicketResource::collection($status['waiting']),
+            'serving' => $status['serving'],
+            'waiting' => $status['waiting'],
             'stats' => $status['stats'],
             'system' => $this->systemService->getStatus(),
         ]);

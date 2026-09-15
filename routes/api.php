@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AdminTicketController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PublicQueueController;
+use App\Http\Controllers\Api\SpeechController;
 use App\Http\Controllers\Api\TellerQueueController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,10 @@ Route::prefix('public')->group(function (): void {
         ->middleware('throttle:20,1');
     Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket'])
         ->middleware('throttle:60,1');
+    Route::post('/ticket-audio', [SpeechController::class, 'ticketAudio'])
+        ->middleware('throttle:30,1');
+    Route::get('/audio/{filename}', [SpeechController::class, 'streamAudio'])
+        ->middleware('throttle:240,1');
 });
 
 Route::post('/login', [AuthController::class, 'login'])
@@ -36,6 +41,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/tickets/{ticket}/document', [TellerQueueController::class, 'showDocument']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
         Route::post('/call-next', [TellerQueueController::class, 'callNext']);
+        Route::post('/tickets/{ticket}/call', [TellerQueueController::class, 'callTicket']);
+        Route::post('/tickets/{ticket}/skip', [TellerQueueController::class, 'skipTicket']);
         Route::post('/tickets/{ticket}/complete', [TellerQueueController::class, 'completeTicket']);
         Route::post('/tickets/{ticket}/cancel', [TellerQueueController::class, 'cancelTicket']);
         Route::post('/tickets/{ticket}/recall', [TellerQueueController::class, 'recallTicket']);
@@ -65,6 +72,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/users', [AdminUserController::class, 'store']);
         Route::put('/users/{user}', [AdminUserController::class, 'update']);
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
+        Route::post('/announce', [SpeechController::class, 'announce']);
+        Route::post('/mic-chunk', [SpeechController::class, 'micChunk'])
+            ->middleware('throttle:360,1');
     });
 
     Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {

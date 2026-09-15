@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
+    BellRing,
     ClipboardList,
     Lock,
     PhoneCall,
@@ -8,6 +9,7 @@ import {
     RefreshCw,
     RotateCcw,
     Search,
+    SkipForward,
     UserX,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
@@ -31,6 +33,9 @@ const busyStep = ref(null);
 const absentId = ref(null);
 const deletingId = ref(null);
 const editingId = ref(null);
+const callingId = ref(null);
+const skippingId = ref(null);
+const recallingId = ref(null);
 const search = ref('');
 const stepFilter = ref('all');
 const loading = ref(false);
@@ -161,6 +166,55 @@ async function handleCallNext() {
             ?? err.response?.data?.errors?.queue?.[0]
             ?? 'تعذر نداء التذكرة التالية.';
     }
+}
+
+async function handleCallTicket(ticket) {
+    callingId.value = ticket.id;
+    actionError.value = '';
+    try {
+        await queueStore.callTicket(ticket.id);
+        actionMessage.value = `تم نداء التذكرة ${ticket.ticket_number}.`;
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر نداء التذكرة.';
+    } finally {
+        callingId.value = null;
+    }
+}
+
+async function handleSkipTicket(ticket) {
+    skippingId.value = ticket.id;
+    actionError.value = '';
+    try {
+        const result = await queueStore.skipTicket(ticket.id);
+        actionMessage.value = result.message ?? `تم تخطي التذكرة ${ticket.ticket_number}.`;
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر تخطي التذكرة.';
+    } finally {
+        skippingId.value = null;
+    }
+}
+
+async function handleRecall(ticket) {
+    recallingId.value = ticket.id;
+    actionError.value = '';
+    try {
+        await queueStore.recallTicket(ticket.id);
+        actionMessage.value = `تم إعادة نداء التذكرة ${ticket.ticket_number}.`;
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر إعادة نداء التذكرة.';
+    } finally {
+        recallingId.value = null;
+    }
+}
+
+function canRecall(ticket) {
+    return ticket.status === 'serving' && ticket.user_id === authStore.user?.id;
 }
 
 async function handleComplete() {
@@ -584,6 +638,33 @@ onUnmounted(() => {
                             </div>
                         </dl>
                         <div class="mt-4 space-y-2 border-t border-slate-200/80 pt-3">
+                            <div v-if="ticket.status === 'waiting'" class="grid grid-cols-2 gap-2">
+                                <button
+                                    class="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                                    :disabled="callingId === ticket.id || !queueStore.isSystemOpen"
+                                    @click="handleCallTicket(ticket)"
+                                >
+                                    <PhoneCall class="h-4 w-4" />
+                                    {{ callingId === ticket.id ? 'جاري...' : 'نداء' }}
+                                </button>
+                                <button
+                                    class="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                                    :disabled="skippingId === ticket.id"
+                                    @click="handleSkipTicket(ticket)"
+                                >
+                                    <SkipForward class="h-4 w-4" />
+                                    {{ skippingId === ticket.id ? 'جاري...' : 'تخطي' }}
+                                </button>
+                            </div>
+                            <button
+                                v-if="canRecall(ticket)"
+                                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+                                :disabled="recallingId === ticket.id"
+                                @click="handleRecall(ticket)"
+                            >
+                                <BellRing class="h-4 w-4" />
+                                {{ recallingId === ticket.id ? 'جاري...' : 'إعادة نداء' }}
+                            </button>
                             <TicketPrintButton :ticket="ticket" />
                             <TicketProcessActions
                                 :ticket="ticket"

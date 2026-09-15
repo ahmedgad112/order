@@ -36,6 +36,7 @@ use Illuminate\Support\Str;
     'document_kind',
     'document_path',
     'status',
+    'deferred_to_id',
     'user_id',
     'called_at',
     'entered_at',
@@ -493,7 +494,10 @@ class QueueTicket extends Model
 
     public function scopeInQueueOrder(Builder $query): Builder
     {
-        return $query->orderBy('id');
+        return $query
+            ->orderByRaw('COALESCE(deferred_to_id, id)')
+            ->orderByRaw('deferred_to_id IS NULL DESC')
+            ->orderBy('id');
     }
 
     public function scopeAtProcessStep(Builder $query, string $step): Builder

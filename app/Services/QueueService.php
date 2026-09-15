@@ -12,6 +12,7 @@ use App\Events\TicketDeletedEvent;
 use App\Events\TicketIssuedEvent;
 use App\Events\TicketRestoredEvent;
 use App\Events\TicketUpdatedEvent;
+use App\Http\Resources\PublicTicketResource;
 use App\Models\QueueTicket;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -24,6 +25,8 @@ use Illuminate\Validation\ValidationException;
 
 class QueueService
 {
+    private const int SKIP_POSITIONS = 5;
+
     public function __construct(private readonly QueueSystemService $systemService) {}
 
     /**
@@ -109,6 +112,7 @@ class QueueService
                 'status' => TicketStatus::Serving,
                 'user_id' => $teller->id,
                 'called_at' => now(),
+                'deferred_to_id' => null,
             ]);
 
             $nextTicket->load('teller');
@@ -117,6 +121,70 @@ class QueueService
 
             return $nextTicket;
         });
+    }
+
+    public function callTicket(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->systemService->assertSystemOpen();
+        $this->assertActiveStaff($teller);
+        $this->assertTicketMatchesTellerLanes($ticket, $teller);
+
+        return DB::transaction(function () use ($ticket, $teller): QueueTicket {
+            $locked = QueueTicket::query()->lockForUpdate()->find($ticket->id);
+
+            if ($locked?->status !== TicketStatus::Waiting) {
+                throw ValidationException::withMessages([
+                    'ticket' => 'يمكن نداء التذاكر في الانتظار فقط.',
+                ]);
+            }
+
+            $locked->update([
+                'status' => TicketStatus::Serving,
+                'user_id' => $teller->id,
+                'called_at' => now(),
+                'deferred_to_id' => null,
+            ]);
+
+            $locked->load('teller');
+
+            $this->broadcastSafely(new TicketCalledEvent($locked));
+
+            return $locked->fresh(['teller']);
+        });
+    }
+
+    public function skipTicket(QueueTicket $ticket, User $teller): QueueTicket
+    {
+        $this->assertActiveStaff($teller);
+        $this->assertTicketMatchesTellerLanes($ticket, $teller);
+
+        $waitingIds = QueueTicket::query()
+            ->today()
+            ->waiting()
+            ->inQueueOrder()
+            ->pluck('id');
+
+        $index = $waitingIds->search($ticket->id);
+
+        if ($index === false) {
+            throw ValidationException::withMessages([
+                'ticket' => 'يمكن تخطي التذاكر في الانتظار فقط.',
+            ]);
+        }
+
+        $targetId = $waitingIds->get(min($index + self::SKIP_POSITIONS, $waitingIds->count() - 1));
+
+        if ($targetId === $ticket->id) {
+            throw ValidationException::withMessages([
+                'ticket' => 'التذكرة بالفعل في نهاية الطابور.',
+            ]);
+        }
+
+        $ticket->update(['deferred_to_id' => $targetId]);
+
+        $this->broadcastSafely(new TicketUpdatedEvent($ticket->id, $ticket->ticketCode()));
+
+        return $ticket->fresh(['teller']);
     }
 
     public function completeTicket(QueueTicket $ticket, User $teller): QueueTicket
@@ -280,6 +348,7 @@ class QueueService
 
         $ticket->update([
             'status' => TicketStatus::Waiting,
+            'deferred_to_id' => null,
             'user_id' => null,
             'called_at' => null,
             'entered_at' => null,
@@ -570,13 +639,15 @@ class QueueService
         $positionInQueue = null;
 
         if ($ticket->status === TicketStatus::Waiting) {
-            $peopleAhead = QueueTicket::query()
+            $waitingIds = QueueTicket::query()
                 ->today()
                 ->waiting()
-                ->where('id', '<', $ticket->id)
-                ->count();
+                ->inQueueOrder()
+                ->pluck('id');
 
-            $positionInQueue = $peopleAhead + 1;
+            $position = $waitingIds->search($ticket->id);
+            $peopleAhead = $position === false ? null : $position;
+            $positionInQueue = $position === false ? null : $position + 1;
         }
 
         return [
@@ -587,7 +658,7 @@ class QueueService
     }
 
     /**
-     * @return array{serving: Collection, waiting: Collection, stats: array<string, int>}
+     * @return array{serving: array<int, array<string, mixed>>, waiting: array<int, array<string, mixed>>, stats: array<string, int>}
      */
     public function getPublicQueueStatus(): array
     {
@@ -608,13 +679,15 @@ class QueueService
 
             $aggregates = QueueTicket::todayAggregates();
 
-            $stats = [
-                'waiting' => $aggregates['waiting'],
-                'serving' => $aggregates['serving'],
-                'completed' => $aggregates['completed'],
+            return [
+                'serving' => PublicTicketResource::collection($serving)->resolve(),
+                'waiting' => PublicTicketResource::collection($waiting)->resolve(),
+                'stats' => [
+                    'waiting' => $aggregates['waiting'],
+                    'serving' => $aggregates['serving'],
+                    'completed' => $aggregates['completed'],
+                ],
             ];
-
-            return compact('serving', 'waiting', 'stats');
         });
     }
 
@@ -625,6 +698,21 @@ class QueueService
         }
 
         $query->forQueueLanes($user->queueLaneValues());
+    }
+
+    private function assertTicketMatchesTellerLanes(QueueTicket $ticket, User $teller): void
+    {
+        if (! $teller->constrainsTicketsToAssignedLanes()) {
+            return;
+        }
+
+        $lane = $ticket->queueLaneValue();
+
+        if ($lane === null || ! $teller->servesQueueLane($lane)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'هذه التذكرة غير مخصصة لنوع الطلب الخاص بك.',
+            ]);
+        }
     }
 
     private function assertTicketOwnedByTeller(QueueTicket $ticket, User $teller): void

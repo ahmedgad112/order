@@ -1,16 +1,96 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { CheckCircle2, Clock, Lock, Ticket, Users, Volume2 } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { CheckCircle2, Clock, Lock, Megaphone, Mic, Ticket, Users, Volume2, VolumeX } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 
 const queueStore = useQueueStore();
 const clock = ref(formatClock());
 const today = ref(formatDate());
-const lastCalledId = ref(null);
+const announcedCallKeys = new Set();
+let callsSeeded = false;
+const voiceEnabled = ref(localStorage.getItem('display_voice') !== '0');
+const liveMic = ref(false);
+const soundReady = ref(false);
+const lastCall = ref(null);
+const footerAnnouncement = ref('');
+let micPending = 0;
+let sharedAudioCtx = null;
+let announcementTimer = null;
+
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+
+function probeAudio() {
+    const probe = new Audio(SILENT_WAV);
+    probe.play()
+        .then(() => { soundReady.value = true; })
+        .catch(() => { soundReady.value = false; });
+}
+
+async function enableSound() {
+    try {
+        sharedAudioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+        await sharedAudioCtx.resume();
+        await new Audio(SILENT_WAV).play();
+        soundReady.value = true;
+    } catch {
+        soundReady.value = false;
+    }
+}
 let clockTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
+
+const audioQueue = [];
+let audioPlaying = false;
+
+function enqueueAudio(url, kind = 'tts') {
+    if (!url) {
+        return;
+    }
+
+    audioQueue.push({ url, kind });
+
+    if (kind === 'mic') {
+        micPending += 1;
+        liveMic.value = true;
+    }
+
+    playNextAudio();
+}
+
+function playNextAudio() {
+    if (audioPlaying || audioQueue.length === 0) {
+        return;
+    }
+
+    const item = audioQueue.shift();
+    audioPlaying = true;
+
+    const audio = new Audio(item.url);
+    const done = () => {
+        audioPlaying = false;
+
+        if (item.kind === 'mic') {
+            micPending -= 1;
+            if (micPending <= 0) {
+                micPending = 0;
+                liveMic.value = false;
+            }
+        }
+
+        playNextAudio();
+    };
+
+    audio.onended = done;
+    audio.onerror = done;
+    audio.play().catch(done);
+}
+
+function toggleVoice() {
+    voiceEnabled.value = !voiceEnabled.value;
+    localStorage.setItem('display_voice', voiceEnabled.value ? '1' : '0');
+}
 
 function formatClock() {
     return new Date().toLocaleTimeString('ar-EG', {
@@ -38,29 +118,100 @@ function displayName(ticket) {
 
 function playChime() {
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
+        sharedAudioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+        if (sharedAudioCtx.state === 'suspended') {
+            sharedAudioCtx.resume();
+        }
+        const ctx = sharedAudioCtx;
+        // Airport PA chime: ding-dong … ding-dong (A5 → E5, repeated)
+        const notes = [
+            { freq: 880, at: 0 },
+            { freq: 659.25, at: 0.55 },
+            { freq: 880, at: 1.5 },
+            { freq: 659.25, at: 2.05 },
+        ];
 
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        notes.forEach(({ freq, at }) => {
+            const start = ctx.currentTime + at;
 
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-        oscillator.start();
-        oscillator.stop(ctx.currentTime + 0.6);
+            [1, 2.76, 5.4].forEach((partial, partialIndex) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const peak = [0.22, 0.08, 0.03][partialIndex];
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq * partial, start);
+                gain.gain.setValueAtTime(0.0001, start);
+                gain.gain.exponentialRampToValueAtTime(peak, start + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, start + (partialIndex === 0 ? 0.55 : 0.3));
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + 0.6);
+            });
+        });
     } catch {
         // audio not available
     }
 }
 
-function onTicketCalled(event) {
-    if (event.ticket?.id && event.ticket.id !== lastCalledId.value) {
-        lastCalledId.value = event.ticket.id;
-        playChime();
+function callKey(ticket) {
+    return `${ticket.id}:${ticket.called_at ?? ''}`;
+}
+
+function noteCall(ticket) {
+    announcedCallKeys.add(callKey(ticket));
+
+    if (announcedCallKeys.size > 60) {
+        announcedCallKeys.delete(announcedCallKeys.values().next().value);
+    }
+}
+
+async function announceCall(ticket) {
+    lastCall.value = {
+        number: ticket.ticket_number,
+        name: displayName(ticket),
+        counter: ticket.counter_name || ticket.teller_name || '',
+    };
+    playChime();
+
+    if (voiceEnabled.value) {
+        try {
+            const audioUrl = await queueStore.requestTicketAudio(ticket.id);
+            enqueueAudio(audioUrl);
+        } catch {
+            // TTS unavailable — chime already played
+        }
+    }
+}
+
+async function onTicketCalled(event) {
+    const ticket = event.ticket;
+
+    if (!ticket?.id || announcedCallKeys.has(callKey(ticket))) {
+        return;
+    }
+
+    noteCall(ticket);
+    await announceCall(ticket);
+}
+
+function onAnnouncement(event) {
+    enqueueAudio(event.audio_url);
+
+    if (event.text) {
+        footerAnnouncement.value = event.text;
+        clearTimeout(announcementTimer);
+        announcementTimer = setTimeout(() => {
+            footerAnnouncement.value = '';
+        }, 12000);
+    }
+}
+
+function onMicChunk(event) {
+    if (event.audio_url) {
+        enqueueAudio(event.audio_url, 'mic');
     }
 }
 
@@ -82,8 +233,45 @@ const servingGridClass = computed(() => {
     return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3';
 });
 
+watch(() => queueStore.serving, (list) => {
+    if (!Array.isArray(list)) {
+        return;
+    }
+
+    if (!callsSeeded) {
+        list.forEach(noteCall);
+        callsSeeded = true;
+
+        const latest = list
+            .filter((ticket) => ticket?.called_at)
+            .sort((a, b) => String(a.called_at).localeCompare(String(b.called_at)))
+            .at(-1);
+
+        if (latest && !lastCall.value) {
+            lastCall.value = {
+                number: latest.ticket_number,
+                name: displayName(latest),
+                counter: latest.counter_name || latest.teller_name || '',
+            };
+        }
+
+        return;
+    }
+
+    const fresh = list.filter((ticket) => ticket?.id && !announcedCallKeys.has(callKey(ticket)));
+
+    if (fresh.length === 0) {
+        return;
+    }
+
+    fresh.forEach(noteCall);
+    fresh.sort((a, b) => String(b.called_at ?? '').localeCompare(String(a.called_at ?? '')));
+    announceCall(fresh[0]);
+});
+
 onMounted(() => {
     queueStore.fetchPublicStatus();
+    probeAudio();
 
     clockTimer = setInterval(() => {
         clock.value = formatClock();
@@ -92,6 +280,8 @@ onMounted(() => {
 
     unsubscribeEcho = queueStore.subscribeEcho({
         TicketCalled: onTicketCalled,
+        AnnouncementMade: onAnnouncement,
+        MicAudioChunk: onMicChunk,
     });
 
     stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 4000);
@@ -101,6 +291,7 @@ onUnmounted(() => {
     if (clockTimer) {
         clearInterval(clockTimer);
     }
+    clearTimeout(announcementTimer);
     unsubscribeEcho?.();
     stopAutoRefresh?.();
 });
@@ -108,6 +299,16 @@ onUnmounted(() => {
 
 <template>
     <div class="flex min-h-screen flex-col bg-gradient-to-br from-blue-50 via-white to-indigo-50 text-slate-900">
+        <button
+            v-if="!soundReady"
+            type="button"
+            class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-slate-900/90 text-white backdrop-blur-sm"
+            @click="enableSound"
+        >
+            <Volume2 class="h-20 w-20 animate-pulse" />
+            <span class="text-3xl font-black">اضغط لتفعيل الصوت</span>
+            <span class="text-lg text-slate-300">الصوت مطلوب لسماع النداء والإعلانات على هذه الشاشة</span>
+        </button>
         <AppNavbar
             title="شاشة عرض الطابور"
             subtitle="جامعة برج العرب التكنولوجية"
@@ -116,7 +317,29 @@ onUnmounted(() => {
             :show-nav="false"
         >
             <div class="flex flex-wrap items-center justify-end gap-3">
-                <div class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+                <button
+                    type="button"
+                    class="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-bold"
+                    :class="voiceEnabled
+                        ? 'border-blue-200 bg-blue-50 text-blue-800'
+                        : 'border-slate-200 bg-white text-slate-400'"
+                    @click="toggleVoice"
+                >
+                    <Volume2 v-if="voiceEnabled" class="h-4 w-4" />
+                    <VolumeX v-else class="h-4 w-4" />
+                    نداء صوتي
+                </button>
+                <div
+                    v-if="liveMic"
+                    class="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-red-700"
+                >
+                    <Mic class="h-4 w-4 animate-pulse" />
+                    <span class="text-sm font-bold">بث مباشر</span>
+                </div>
+                <div
+                    v-else
+                    class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800"
+                >
                     <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
                     <span class="text-sm font-bold">مباشر</span>
                 </div>
@@ -300,5 +523,28 @@ onUnmounted(() => {
                 </aside>
             </div>
         </main>
+
+        <footer class="sticky bottom-0 border-t border-slate-200 bg-white/95 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md">
+            <div class="flex items-center justify-center gap-3 px-4 py-3 sm:px-6">
+                <template v-if="footerAnnouncement">
+                    <Megaphone class="h-6 w-6 shrink-0 animate-pulse text-indigo-600" />
+                    <p class="truncate text-lg font-bold text-indigo-800 sm:text-xl">
+                        {{ footerAnnouncement }}
+                    </p>
+                </template>
+                <template v-else-if="lastCall">
+                    <Volume2 class="h-6 w-6 shrink-0 text-blue-600" />
+                    <p class="text-base font-semibold text-slate-600 sm:text-lg">
+                        النداء الأخير:
+                        <span class="font-black text-blue-700" dir="ltr">{{ lastCall.number }}</span>
+                        <span v-if="lastCall.name"> — {{ lastCall.name }}</span>
+                        <span v-if="lastCall.counter"> — {{ lastCall.counter }}</span>
+                    </p>
+                </template>
+                <p v-else class="text-sm font-semibold text-slate-400">
+                    بانتظار أول نداء
+                </p>
+            </div>
+        </footer>
     </div>
 </template>

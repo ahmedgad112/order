@@ -62,6 +62,12 @@ const routes = [
         component: () => import('../views/AdminRegistrationsView.vue'),
         meta: { title: 'السجل والأرشيف', requiresAuth: true, roles: ['manager', 'super_admin'] },
     },
+    {
+        path: '/mic',
+        name: 'mic',
+        component: () => import('../views/MicView.vue'),
+        meta: { title: 'الميكروفون', requiresAuth: true, roles: ['manager', 'super_admin'] },
+    },
 ];
 
 const router = createRouter({

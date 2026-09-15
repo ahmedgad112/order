@@ -187,6 +187,26 @@ class TellerQueueController extends Controller
         ]);
     }
 
+    public function callTicket(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->callTicket($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم نداء التذكرة.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function skipTicket(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->skipTicket($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم تخطي التذكرة — رجعت 5 مراكز في الطابور.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
     public function completeTicket(Request $request, QueueTicket $ticket): JsonResponse
     {
         $ticket = $this->queueService->completeTicket($ticket, $request->user());

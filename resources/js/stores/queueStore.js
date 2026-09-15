@@ -83,6 +83,8 @@ export const useQueueStore = defineStore('queue', () => {
         TicketUpdated: new Set(),
         QueueSystemUpdated: new Set(),
         QueueDayReset: new Set(),
+        AnnouncementMade: new Set(),
+        MicAudioChunk: new Set(),
     };
 
     const hasWaiting = computed(() => stats.value.waiting > 0);
@@ -214,6 +216,19 @@ export const useQueueStore = defineStore('queue', () => {
         currentTicket.value = data.ticket;
         await fetchTellerTickets();
         return data.ticket;
+    }
+
+    async function callTicket(ticketId) {
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/call`);
+        currentTicket.value = data.ticket;
+        await fetchTellerTickets();
+        return data.ticket;
+    }
+
+    async function skipTicket(ticketId) {
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/skip`);
+        await fetchTellerTickets();
+        return data;
     }
 
     async function completeTicket(ticketId) {
@@ -545,6 +560,21 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
+    async function requestTicketAudio(ticketId) {
+        const { data } = await axios.post('/public/ticket-audio', { ticket_id: ticketId });
+        return data.audio_url;
+    }
+
+    async function sendAnnouncement(payload) {
+        const { data } = await axios.post('/admin/announce', payload);
+        return data;
+    }
+
+    async function sendMicChunk(formData) {
+        const { data } = await axios.post('/admin/mic-chunk', formData);
+        return data;
+    }
+
     function scheduleDataRefresh() {
         clearTimeout(refreshDebounceTimer);
         refreshDebounceTimer = setTimeout(async () => {
@@ -802,6 +832,12 @@ export const useQueueStore = defineStore('queue', () => {
                 .listen('.QueueDayReset', (event) => {
                     handleDayReset(event);
                     runExtras('QueueDayReset', event);
+                })
+                .listen('.AnnouncementMade', (event) => {
+                    runExtras('AnnouncementMade', event);
+                })
+                .listen('.MicAudioChunk', (event) => {
+                    runExtras('MicAudioChunk', event);
                 });
 
             echoBound = true;
@@ -955,6 +991,8 @@ export const useQueueStore = defineStore('queue', () => {
         fetchTellerStatus,
         fetchCurrentTicket,
         callNext,
+        callTicket,
+        skipTicket,
         completeTicket,
         cancelTicket,
         recallTicket,
@@ -1000,6 +1038,9 @@ export const useQueueStore = defineStore('queue', () => {
         handleTicketRestored,
         handleTicketDeleted,
         handleTicketUpdated,
+        requestTicketAudio,
+        sendAnnouncement,
+        sendMicChunk,
         subscribeEcho,
         bindEcho,
         unbindEcho,

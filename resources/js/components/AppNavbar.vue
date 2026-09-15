@@ -6,6 +6,7 @@ import {
     LayoutDashboard,
     LogOut,
     Menu,
+    Mic,
     Monitor,
     Search,
     Ticket,
@@ -92,6 +93,7 @@ const navItems = computed(() => {
             items.push(
                 { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, match: 'admin' },
                 { to: '/admin/registrations', label: 'السجل والأرشيف', icon: ClipboardList, match: 'admin-registrations' },
+                { to: '/mic', label: 'الميكروفون', icon: Mic, match: 'mic' },
             );
         }
 
