@@ -4,6 +4,13 @@ import { Plus, X } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 
+const props = defineProps({
+    requireName: {
+        type: Boolean,
+        default: true,
+    },
+});
+
 const emit = defineEmits(['issued', 'close']);
 
 const authStore = useAuthStore();
@@ -58,6 +65,7 @@ function emptyForm() {
         full_name: '',
         order_number: '',
         request_type: '',
+        count: '1',
     };
 }
 
@@ -68,16 +76,26 @@ function restrictOrderNumber(event) {
 function validateClient() {
     const errors = {};
 
-    if (!form.value.full_name || form.value.full_name.trim().length < 3) {
+    if (props.requireName && (!form.value.full_name || form.value.full_name.trim().length < 3)) {
         errors.full_name = 'اسم الطالب مطلوب (3 أحرف على الأقل).';
     }
 
-    if (!/^\d{9}$/.test(form.value.order_number)) {
+    if (props.requireName && !/^\d{9}$/.test(form.value.order_number)) {
         errors.order_number = 'يجب أن يتكون رقم الطلب من 9 أرقام.';
     }
 
     if (!form.value.request_type) {
         errors.request_type = 'يجب اختيار نوع الطلب.';
+    }
+
+    if (!props.requireName) {
+        const count = Number.parseInt(form.value.count, 10);
+
+        if (!Number.isInteger(count) || count < 1) {
+            errors.count = 'يجب إصدار دور واحد على الأقل.';
+        } else if (count > 50) {
+            errors.count = 'يمكن إصدار 50 دور كحد أقصى في المرة الواحدة.';
+        }
     }
 
     fieldErrors.value = errors;
@@ -94,11 +112,18 @@ async function submitForm() {
     fieldErrors.value = {};
 
     try {
-        const result = await queueStore.issueTicket({
-            full_name: form.value.full_name.trim(),
-            order_number: form.value.order_number,
+        const payload = {
             request_type: form.value.request_type,
-        });
+        };
+
+        if (props.requireName) {
+            payload.full_name = form.value.full_name.trim();
+            payload.order_number = form.value.order_number;
+        } else {
+            payload.count = Number.parseInt(form.value.count, 10) || 1;
+        }
+
+        const result = await queueStore.issueTicket(payload);
 
         emit('issued', result);
         form.value = emptyForm();
@@ -126,9 +151,11 @@ async function submitForm() {
                 <div>
                     <h3 class="flex items-center gap-2 text-xl font-bold text-slate-900">
                         <Plus class="h-5 w-5 text-indigo-600" />
-                        دور جديد
+                        {{ requireName ? 'دور جديد' : 'دور بالنوع' }}
                     </h3>
-                    <p class="mt-1 text-sm text-slate-500">اسم الطالب ورقم الطلب والنوع فقط</p>
+                    <p class="mt-1 text-sm text-slate-500">
+                        {{ requireName ? 'اسم الطالب ورقم الطلب والنوع فقط' : 'نوع الطلب وعدد الأدوار — الأرقام بتتسجل وتتطبع ورا بعض' }}
+                    </p>
                 </div>
                 <button
                     type="button"
@@ -153,7 +180,7 @@ async function submitForm() {
             </div>
 
             <form v-else class="space-y-4" @submit.prevent="submitForm">
-                <div>
+                <div v-if="requireName">
                     <label class="mb-1 block text-sm font-semibold text-slate-700">اسم الطالب</label>
                     <input
                         v-model="form.full_name"
@@ -165,7 +192,7 @@ async function submitForm() {
                     <p v-if="fieldErrors.full_name" class="mt-1 text-sm text-red-600">{{ fieldErrors.full_name }}</p>
                 </div>
 
-                <div>
+                <div v-if="requireName">
                     <label class="mb-1 block text-sm font-semibold text-slate-700">رقم الطلب</label>
                     <input
                         v-model="form.order_number"
@@ -198,6 +225,20 @@ async function submitForm() {
                     <p v-if="fieldErrors.request_type" class="mt-1 text-sm text-red-600">{{ fieldErrors.request_type }}</p>
                 </div>
 
+                <div v-if="!requireName">
+                    <label class="mb-1 block text-sm font-semibold text-slate-700">عدد الأدوار</label>
+                    <input
+                        v-model="form.count"
+                        type="number"
+                        min="1"
+                        max="50"
+                        required
+                        class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    />
+                    <p class="mt-1 text-xs text-slate-500">كل دور بيتسجل في النظام ويتطبع في ورقة لوحده.</p>
+                    <p v-if="fieldErrors.count" class="mt-1 text-sm text-red-600">{{ fieldErrors.count }}</p>
+                </div>
+
                 <p v-if="fieldErrors.general" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
                     {{ fieldErrors.general }}
                 </p>
@@ -208,7 +249,7 @@ async function submitForm() {
                         :disabled="saving || !canIssue"
                         class="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
                     >
-                        {{ saving ? 'جاري الإصدار...' : 'إصدار الدور' }}
+                        {{ saving ? 'جاري الإصدار...' : (requireName ? 'إصدار الدور' : 'إصدار وطباعة') }}
                     </button>
                     <button
                         type="button"

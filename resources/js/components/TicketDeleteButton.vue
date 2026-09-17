@@ -17,7 +17,9 @@ const emit = defineEmits(['delete']);
 const authStore = useAuthStore();
 
 function requestDelete() {
-    if (!confirm(`هل تريد حذف طلب "${props.ticket.full_name}" (تذكرة ${props.ticket.ticket_number})؟`)) {
+    const label = props.ticket.full_name || props.ticket.order_number || props.ticket.ticket_number;
+
+    if (!confirm(`هل تريد حذف طلب "${label}" (تذكرة ${props.ticket.ticket_number})؟`)) {
         return;
     }
 

@@ -34,6 +34,23 @@ class QueueService
      */
     public function issueTicket(array $data, ?User $staff = null): QueueTicket
     {
+        $ticket = $this->issueTickets($data, $staff, 1)->first();
+
+        if (! $ticket instanceof QueueTicket) {
+            throw ValidationException::withMessages([
+                'queue' => 'تعذر إصدار الدور.',
+            ]);
+        }
+
+        return $ticket;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return Collection<int, QueueTicket>
+     */
+    public function issueTickets(array $data, ?User $staff = null, int $count = 1): Collection
+    {
         $this->systemService->assertAcceptingTickets();
 
         [$studentKind, $requestType] = RequestType::resolveLane($data['request_type']);
@@ -44,7 +61,7 @@ class QueueService
             ]);
         }
 
-        $ticket = DB::transaction(function () use ($data, $studentKind, $requestType): QueueTicket {
+        $tickets = DB::transaction(function () use ($data, $studentKind, $requestType, $count): Collection {
             $sessionStartedAt = QueueTicket::currentSessionStartedAt();
             $maxNumber = QueueTicket::query()
                 ->today()
@@ -53,20 +70,26 @@ class QueueService
                 ->orderByDesc('ticket_number')
                 ->value('ticket_number');
 
-            return QueueTicket::query()->create([
-                'ticket_number' => ($maxNumber ?? 0) + 1,
-                'session_started_at' => $sessionStartedAt,
-                'full_name' => $data['full_name'],
-                'student_kind' => $studentKind,
-                'request_type' => $requestType,
-                'order_number' => $data['order_number'],
-                'status' => TicketStatus::Waiting,
-            ]);
+            $created = collect();
+
+            for ($offset = 1; $offset <= $count; $offset++) {
+                $created->push(QueueTicket::query()->create([
+                    'ticket_number' => ($maxNumber ?? 0) + $offset,
+                    'session_started_at' => $sessionStartedAt,
+                    'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : null,
+                    'student_kind' => $studentKind,
+                    'request_type' => $requestType,
+                    'order_number' => filled($data['order_number'] ?? null) ? $data['order_number'] : null,
+                    'status' => TicketStatus::Waiting,
+                ]));
+            }
+
+            return $created;
         });
 
-        $this->broadcastSafely(new TicketIssuedEvent($ticket));
+        $tickets->each(fn (QueueTicket $ticket) => $this->broadcastSafely(new TicketIssuedEvent($ticket)));
 
-        return $ticket;
+        return $tickets;
     }
 
     public function callNext(User $teller): QueueTicket

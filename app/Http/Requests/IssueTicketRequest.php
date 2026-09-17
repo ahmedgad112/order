@@ -22,9 +22,10 @@ class IssueTicketRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'full_name' => ['required', 'string', 'min:3', 'max:255'],
-            'order_number' => ['required', 'digits:9'],
+            'full_name' => ['nullable', 'string', 'min:3', 'max:255'],
+            'order_number' => ['nullable', 'digits:9'],
             'request_type' => ['required', 'string', Rule::in($this->allowedTypeValues())],
+            'count' => ['nullable', 'integer', 'min:1', 'max:50'],
         ];
     }
 
@@ -34,26 +35,31 @@ class IssueTicketRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'full_name.required' => 'اسم الطالب مطلوب.',
             'full_name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل.',
-            'order_number.required' => 'رقم الطلب مطلوب.',
             'order_number.digits' => 'يجب أن يتكون رقم الطلب من 9 أرقام بالضبط.',
             'request_type.required' => 'يجب اختيار نوع الطلب.',
             'request_type.in' => 'نوع الطلب غير متاح حالياً.',
+            'count.integer' => 'عدد الأدوار يجب أن يكون رقماً.',
+            'count.min' => 'يجب إصدار دور واحد على الأقل.',
+            'count.max' => 'يمكن إصدار 50 دور كحد أقصى في المرة الواحدة.',
         ];
     }
 
     protected function prepareForValidation(): void
     {
         if ($this->exists('full_name') && is_string($this->full_name)) {
+            $trimmedName = trim($this->full_name);
+
             $this->merge([
-                'full_name' => trim($this->full_name),
+                'full_name' => $trimmedName === '' ? null : $trimmedName,
             ]);
         }
 
         if ($this->exists('order_number') && is_string($this->order_number)) {
+            $trimmedOrderNumber = trim($this->order_number);
+
             $this->merge([
-                'order_number' => trim($this->order_number),
+                'order_number' => $trimmedOrderNumber === '' ? null : $trimmedOrderNumber,
             ]);
         }
     }
@@ -65,7 +71,22 @@ class IssueTicketRequest extends FormRequest
                 return;
             }
 
-            $orderNumber = $this->string('order_number')->toString();
+            $count = (int) ($this->input('count') ?? 1);
+
+            if ($count > 1 && (filled($this->input('full_name')) || filled($this->input('order_number')))) {
+                $validator->errors()->add(
+                    'count',
+                    'يمكن إصدار أكثر من دور فقط من غير اسم ورقم طلب.',
+                );
+
+                return;
+            }
+
+            $orderNumber = $this->input('order_number');
+
+            if (! filled($orderNumber)) {
+                return;
+            }
 
             $hasDuplicate = QueueTicket::query()
                 ->today()

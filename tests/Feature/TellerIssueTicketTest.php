@@ -43,6 +43,186 @@ class TellerIssueTicketTest extends TestCase
         ]);
     }
 
+    public function test_staff_creates_ticket_with_request_type_only(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
+            ->assertJsonPath('ticket.full_name', null)
+            ->assertJsonPath('ticket.order_number', null)
+            ->assertJsonPath('ticket.request_type', 'nomination_card')
+            ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'full_name' => null,
+            'order_number' => null,
+            'request_type' => 'nomination_card',
+            'student_kind' => StudentKind::NewStudent->value,
+            'status' => TicketStatus::Waiting->value,
+        ]);
+    }
+
+    public function test_staff_creates_type_only_ticket_when_name_and_order_number_are_empty(): void
+    {
+        QueueSystemSetting::current();
+
+        $this->issueTicketAsStaff([
+            'full_name' => '',
+            'order_number' => '',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
+            ->assertJsonPath('ticket.full_name', null)
+            ->assertJsonPath('ticket.order_number', null);
+    }
+
+    public function test_staff_creates_multiple_type_only_tickets_with_sequential_numbers(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'OT1');
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'OT2')
+            ->assertJsonPath('ticket.full_name', null)
+            ->assertJsonPath('ticket.order_number', null);
+
+        $this->assertDatabaseCount('queue_tickets', 2);
+    }
+
+    public function test_staff_issues_batch_of_type_only_tickets_in_one_request(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+            'count' => 3,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('message', 'تم إصدار 3 أدوار بنجاح.')
+            ->assertJsonPath('ticket.ticket_number', 'OT1')
+            ->assertJsonPath('tickets.0.ticket_number', 'OT1')
+            ->assertJsonPath('tickets.1.ticket_number', 'OT2')
+            ->assertJsonPath('tickets.2.ticket_number', 'OT3')
+            ->assertJsonPath('tickets.0.full_name', null)
+            ->assertJsonPath('tickets.0.order_number', null)
+            ->assertJsonCount(3, 'tickets');
+
+        $this->assertDatabaseCount('queue_tickets', 3);
+        $this->assertDatabaseHas('queue_tickets', [
+            'ticket_number' => 1,
+            'request_type' => 'nomination_card',
+            'full_name' => null,
+            'order_number' => null,
+            'status' => TicketStatus::Waiting->value,
+        ]);
+        $this->assertDatabaseHas('queue_tickets', [
+            'ticket_number' => 2,
+            'request_type' => 'nomination_card',
+            'status' => TicketStatus::Waiting->value,
+        ]);
+        $this->assertDatabaseHas('queue_tickets', [
+            'ticket_number' => 3,
+            'request_type' => 'nomination_card',
+            'status' => TicketStatus::Waiting->value,
+        ]);
+    }
+
+    public function test_batch_type_only_tickets_continue_the_existing_series(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+        ])->assertCreated();
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+            'count' => 2,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'OT2')
+            ->assertJsonPath('tickets.0.ticket_number', 'OT2')
+            ->assertJsonPath('tickets.1.ticket_number', 'OT3');
+
+        $this->assertDatabaseCount('queue_tickets', 3);
+    }
+
+    public function test_returns_422_when_batch_count_exceeds_limit(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+            'count' => 51,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.count.0', 'يمكن إصدار 50 دور كحد أقصى في المرة الواحدة.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
+    }
+
+    public function test_returns_422_when_batch_count_includes_student_name(): void
+    {
+        QueueSystemSetting::current();
+
+        $this->issueTicketAsStaff([
+            'count' => 3,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.count.0', 'يمكن إصدار أكثر من دور فقط من غير اسم ورقم طلب.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
+    }
+
+    public function test_returns_422_when_batch_count_is_zero(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+            'count' => 0,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.count.0', 'يجب إصدار دور واحد على الأقل.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
+    }
+
+    public function test_public_queue_status_includes_ticket_issued_with_type_only(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/tickets', [
+            'request_type' => 'nomination_card',
+        ])->assertCreated();
+
+        $this->getJson('/api/public/queue-status')
+            ->assertOk()
+            ->assertJsonPath('stats.waiting', 1)
+            ->assertJsonPath('waiting.0.ticket_number', 'OT1')
+            ->assertJsonPath('waiting.0.full_name', null)
+            ->assertJsonPath('waiting.0.masked_name', '');
+    }
+
     public function test_staff_creates_current_student_ticket_from_type(): void
     {
         QueueSystemSetting::current();
@@ -100,9 +280,9 @@ class TellerIssueTicketTest extends TestCase
 
         $this->postJson('/api/teller/tickets', [])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.full_name.0', 'اسم الطالب مطلوب.')
-            ->assertJsonPath('errors.order_number.0', 'رقم الطلب مطلوب.')
-            ->assertJsonPath('errors.request_type.0', 'يجب اختيار نوع الطلب.');
+            ->assertJsonPath('errors.request_type.0', 'يجب اختيار نوع الطلب.')
+            ->assertJsonMissingPath('errors.full_name')
+            ->assertJsonMissingPath('errors.order_number');
 
         $this->assertDatabaseCount('queue_tickets', 0);
     }

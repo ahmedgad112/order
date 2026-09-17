@@ -171,6 +171,47 @@ class SpeechAnnouncementTest extends TestCase
         $this->assertStringStartsWith('tts-', basename(Storage::files('announcements')[0]));
     }
 
+    public function test_ticket_announcement_text_uses_egyptian_arabic_speech(): void
+    {
+        $teller = User::factory()->teller('شباك 1')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 1,
+            'full_name' => 'محمد أحمد علي',
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رقم أو تي واحد، محمد أحمد علي، روح على شباك واحد', $text);
+    }
+
+    public function test_ticket_announcement_text_omits_name_and_speaks_type_only_number(): void
+    {
+        $teller = User::factory()->teller('شباك 12')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 12,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رقم أو تي اتناشر، روح على شباك اتناشر', $text);
+    }
+
+    public function test_ticket_announcement_text_speaks_current_student_prefix(): void
+    {
+        $ticket = QueueTicket::factory()->currentStudent()->create([
+            'ticket_number' => 8,
+            'full_name' => null,
+            'user_id' => null,
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رقم أو تمانية، روح على الشباك', $text);
+    }
+
     public function test_stream_audio_serves_stored_file(): void
     {
         Storage::put('announcements/test-file.mp3', 'fake-audio');

@@ -13,6 +13,7 @@ const voiceEnabled = ref(localStorage.getItem('display_voice') !== '0');
 const liveMic = ref(false);
 const soundReady = ref(false);
 const lastCall = ref(null);
+const lastCalledId = ref(null);
 const footerAnnouncement = ref('');
 let micPending = 0;
 let sharedAudioCtx = null;
@@ -244,6 +245,7 @@ function noteCall(ticket) {
 }
 
 async function announceCall(ticket) {
+    lastCalledId.value = ticket.id;
     lastCall.value = {
         number: ticket.ticket_number,
         name: displayName(ticket),
@@ -358,6 +360,7 @@ watch(() => queueStore.serving, (list) => {
             .at(-1);
 
         if (latest && !lastCall.value) {
+            lastCalledId.value = latest.id;
             lastCall.value = {
                 number: latest.ticket_number,
                 name: displayName(latest),
@@ -568,7 +571,7 @@ onUnmounted(() => {
                             </p>
 
                             <div class="text-center">
-                                <p class="text-3xl font-black text-slate-800 sm:text-4xl">{{ displayName(ticket) }}</p>
+                            <p v-if="displayName(ticket)" class="text-3xl font-black text-slate-800 sm:text-4xl">{{ displayName(ticket) }}</p>
                                 <p v-if="ticket.request_type_label" class="mt-2 text-sm font-semibold text-slate-500">
                                     {{ ticket.request_type_label }}
                                 </p>
@@ -608,7 +611,7 @@ onUnmounted(() => {
                                     {{ index + 1 }}
                                 </span>
                                 <div class="min-w-0">
-                                    <p class="truncate font-semibold text-slate-700">{{ displayName(ticket) }}</p>
+                                    <p v-if="displayName(ticket)" class="truncate font-semibold text-slate-700">{{ displayName(ticket) }}</p>
                                     <p v-if="ticket.request_type_label" class="truncate text-xs text-slate-500">
                                         {{ ticket.request_type_label }}
                                     </p>

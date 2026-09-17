@@ -25,11 +25,16 @@ class TellerQueueController extends Controller
 
     public function store(IssueTicketRequest $request): JsonResponse
     {
-        $ticket = $this->queueService->issueTicket($request->validated(), $request->user());
+        $payload = $request->safe()->except(['count']);
+        $count = (int) ($request->validated('count') ?? 1);
+        $tickets = $this->queueService->issueTickets($payload, $request->user(), $count);
 
         return response()->json([
-            'message' => 'تم إصدار الدور بنجاح.',
-            'ticket' => new TicketResource($ticket),
+            'message' => $tickets->count() === 1
+                ? 'تم إصدار الدور بنجاح.'
+                : 'تم إصدار '.$tickets->count().' أدوار بنجاح.',
+            'ticket' => new TicketResource($tickets->first()),
+            'tickets' => TicketResource::collection($tickets),
         ], 201);
     }
 

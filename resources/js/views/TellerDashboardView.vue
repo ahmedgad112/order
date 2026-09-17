@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
     BellRing,
     ClipboardList,
+    Hash,
     Lock,
     PhoneCall,
     Plus,
@@ -40,7 +41,9 @@ const search = ref('');
 const stepFilter = ref('all');
 const loading = ref(false);
 const showIssueForm = ref(false);
+const issueRequiresName = ref(true);
 const issuedTicket = ref(null);
+const issuedTickets = ref([]);
 
 const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 
@@ -132,11 +135,26 @@ function canMarkAbsent(ticket) {
     return ['waiting', 'serving'].includes(ticket.status);
 }
 
+function openIssueForm(requireName) {
+    issueRequiresName.value = requireName;
+    showIssueForm.value = true;
+}
+
+function ticketPersonLabel(ticket) {
+    return ticket.full_name || ticket.order_number || ticket.ticket_number;
+}
+
 function handleIssued(result) {
     showIssueForm.value = false;
-    issuedTicket.value = result.ticket;
+    issuedTickets.value = result.tickets?.length ? result.tickets : (result.ticket ? [result.ticket] : []);
+    issuedTicket.value = issuedTickets.value[0] ?? null;
     actionMessage.value = result.message ?? 'تم إصدار الدور بنجاح.';
     actionError.value = '';
+}
+
+function closeIssuedModal() {
+    issuedTicket.value = null;
+    issuedTickets.value = [];
 }
 
 async function handleProcessMark(ticket, step) {
@@ -423,10 +441,19 @@ onUnmounted(() => {
                     type="button"
                     class="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
                     :disabled="!queueStore.isAcceptingTickets"
-                    @click="showIssueForm = true"
+                    @click="openIssueForm(true)"
                 >
                     <Plus class="h-5 w-5" />
                     دور جديد
+                </button>
+                <button
+                    type="button"
+                    class="flex items-center justify-center gap-2 rounded-2xl bg-slate-800 px-5 py-3 font-bold text-white hover:bg-slate-900 disabled:opacity-50"
+                    :disabled="!queueStore.isAcceptingTickets"
+                    @click="openIssueForm(false)"
+                >
+                    <Hash class="h-5 w-5" />
+                    دور بالنوع
                 </button>
             </section>
 
@@ -507,7 +534,7 @@ onUnmounted(() => {
                         class="rounded-2xl border border-blue-100 bg-blue-50 p-4"
                     >
                         <p class="text-xs font-semibold text-blue-600">تذكرة <span dir="ltr">{{ ticket.ticket_number }}</span></p>
-                        <p class="mt-1 text-xl font-black text-slate-900">{{ ticket.full_name || ticket.masked_name }}</p>
+                        <p class="mt-1 text-xl font-black text-slate-900">{{ ticketPersonLabel(ticket) }}</p>
                         <p class="mt-2 text-sm text-slate-600">{{ tellerLabel(ticket) }}</p>
                         <div v-if="ticket.student_kind === 'current_student'" class="mt-3">
                             <TicketDocumentLink :ticket="ticket" preview />
@@ -594,7 +621,7 @@ onUnmounted(() => {
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div>
                                 <p class="text-2xl font-black text-indigo-600" dir="ltr">{{ ticket.ticket_number }}</p>
-                                <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
+                                <p class="mt-1 font-semibold text-slate-800">{{ ticketPersonLabel(ticket) }}</p>
                             </div>
                             <span
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold"
@@ -624,7 +651,7 @@ onUnmounted(() => {
                                 <dt class="text-slate-500">رقم الجلوس</dt>
                                 <dd class="font-mono text-slate-700">{{ ticket.seat_number ?? '—' }}</dd>
                             </div>
-                            <div v-else class="flex justify-between gap-3">
+                            <div v-else-if="ticket.order_number" class="flex justify-between gap-3">
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>
@@ -735,7 +762,7 @@ onUnmounted(() => {
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div>
                                 <p class="text-2xl font-black text-orange-600" dir="ltr">{{ ticket.ticket_number }}</p>
-                                <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
+                                <p class="mt-1 font-semibold text-slate-800">{{ ticketPersonLabel(ticket) }}</p>
                             </div>
                         </div>
                         <dl class="mb-4 space-y-2 text-sm">
@@ -755,7 +782,7 @@ onUnmounted(() => {
                                 <dt class="text-slate-500">رقم الجلوس</dt>
                                 <dd class="font-mono text-slate-700">{{ ticket.seat_number ?? '—' }}</dd>
                             </div>
-                            <div v-else class="flex justify-between gap-3">
+                            <div v-else-if="ticket.order_number" class="flex justify-between gap-3">
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>
@@ -800,6 +827,7 @@ onUnmounted(() => {
 
         <StaffIssueTicketModal
             v-if="showIssueForm"
+            :require-name="issueRequiresName"
             @issued="handleIssued"
             @close="showIssueForm = false"
         />
@@ -807,11 +835,13 @@ onUnmounted(() => {
         <IssuedTicketModal
             v-if="issuedTicket"
             :ticket="issuedTicket"
+            :tickets="issuedTickets"
             allow-print
             :allow-download="false"
             :show-admission-links="false"
+            :auto-print="!issueRequiresName"
             heading="تم إصدار الدور"
-            @close="issuedTicket = null"
+            @close="closeIssuedModal"
         />
     </div>
 </template>

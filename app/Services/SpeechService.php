@@ -74,17 +74,203 @@ class SpeechService
 
     public function ticketAnnouncementText(QueueTicket $ticket): string
     {
-        $counter = $ticket->teller?->counter_name ?: 'الشباك';
-
-        $parts = ['تذكرة رقم '.$ticket->ticketCode()];
+        $parts = ['رقم '.$this->spokenTicketCode($ticket)];
 
         if (filled($ticket->full_name)) {
             $parts[] = $ticket->full_name;
         }
 
-        $parts[] = 'توجه إلى '.$counter;
+        $counter = $ticket->teller?->counter_name ?: 'الشباك';
+        $parts[] = 'روح على '.$this->spokenMixedText($counter);
 
         return implode('، ', $parts);
+    }
+
+    private function spokenTicketCode(QueueTicket $ticket): string
+    {
+        return trim($this->spokenLetters($ticket->ticketPrefix()).' '.$this->spokenNumber((int) $ticket->ticket_number));
+    }
+
+    private function spokenLetters(string $letters): string
+    {
+        $names = [
+            'A' => 'إيه',
+            'B' => 'بي',
+            'C' => 'سي',
+            'D' => 'دي',
+            'E' => 'إي',
+            'F' => 'إف',
+            'G' => 'جي',
+            'H' => 'إتش',
+            'I' => 'آي',
+            'J' => 'جيه',
+            'K' => 'كي',
+            'L' => 'إل',
+            'M' => 'إم',
+            'N' => 'إن',
+            'O' => 'أو',
+            'P' => 'بي',
+            'Q' => 'كيو',
+            'R' => 'آر',
+            'S' => 'إس',
+            'T' => 'تي',
+            'U' => 'يو',
+            'V' => 'في',
+            'W' => 'دبليو',
+            'X' => 'إكس',
+            'Y' => 'واي',
+            'Z' => 'زي',
+        ];
+
+        $spoken = [];
+
+        foreach (str_split(strtoupper($letters)) as $letter) {
+            $spoken[] = $names[$letter] ?? $letter;
+        }
+
+        return implode(' ', $spoken);
+    }
+
+    private function spokenMixedText(string $text): string
+    {
+        return (string) preg_replace_callback(
+            '/[0-9٠-٩]+/u',
+            fn (array $matches): string => $this->spokenNumber($this->integerFromDigits($matches[0])),
+            $text,
+        );
+    }
+
+    private function integerFromDigits(string $digits): int
+    {
+        return (int) strtr($digits, [
+            '٠' => '0',
+            '١' => '1',
+            '٢' => '2',
+            '٣' => '3',
+            '٤' => '4',
+            '٥' => '5',
+            '٦' => '6',
+            '٧' => '7',
+            '٨' => '8',
+            '٩' => '9',
+        ]);
+    }
+
+    private function spokenNumber(int $number): string
+    {
+        if ($number === 0) {
+            return 'صفر';
+        }
+
+        $thousands = intdiv($number, 1000);
+        $remainder = $number % 1000;
+        $parts = [];
+
+        if ($thousands > 0) {
+            $parts[] = match ($thousands) {
+                1 => 'ألف',
+                2 => 'ألفين',
+                3 => 'تلات آلاف',
+                4 => 'أربع آلاف',
+                5 => 'خمس آلاف',
+                6 => 'ست آلاف',
+                7 => 'سبع آلاف',
+                8 => 'تمن آلاف',
+                9 => 'تسع آلاف',
+                default => $this->spokenHundreds($thousands).' ألف',
+            };
+        }
+
+        if ($remainder > 0) {
+            $parts[] = $this->spokenHundreds($remainder);
+        }
+
+        return implode(' و', $parts);
+    }
+
+    private function spokenHundreds(int $number): string
+    {
+        if ($number < 100) {
+            return $this->spokenTens($number);
+        }
+
+        $hundred = intdiv($number, 100);
+        $rest = $number % 100;
+
+        $hundredWord = match ($hundred) {
+            1 => 'مية',
+            2 => 'ميتين',
+            3 => 'تلت مية',
+            4 => 'أربع مية',
+            5 => 'خمس مية',
+            6 => 'ست مية',
+            7 => 'سبع مية',
+            8 => 'تمن مية',
+            9 => 'تسع مية',
+            default => (string) $number,
+        };
+
+        if ($rest === 0) {
+            return $hundredWord;
+        }
+
+        return $hundredWord.' و'.$this->spokenTens($rest);
+    }
+
+    private function spokenTens(int $number): string
+    {
+        $ones = [
+            1 => 'واحد',
+            2 => 'اتنين',
+            3 => 'تلاتة',
+            4 => 'أربعة',
+            5 => 'خمسة',
+            6 => 'ستة',
+            7 => 'سبعة',
+            8 => 'تمانية',
+            9 => 'تسعة',
+        ];
+
+        if ($number < 10) {
+            return $ones[$number] ?? (string) $number;
+        }
+
+        $teens = [
+            10 => 'عشرة',
+            11 => 'حداشر',
+            12 => 'اتناشر',
+            13 => 'تلتاشر',
+            14 => 'أربعتاشر',
+            15 => 'خمستاشر',
+            16 => 'ستاشر',
+            17 => 'سبعتاشر',
+            18 => 'تمنتاشر',
+            19 => 'تسعتاشر',
+        ];
+
+        if ($number < 20) {
+            return $teens[$number];
+        }
+
+        $tens = [
+            20 => 'عشرين',
+            30 => 'تلاتين',
+            40 => 'أربعين',
+            50 => 'خمسين',
+            60 => 'ستين',
+            70 => 'سبعين',
+            80 => 'تمانين',
+            90 => 'تسعين',
+        ];
+
+        $ten = intdiv($number, 10) * 10;
+        $one = $number % 10;
+
+        if ($one === 0) {
+            return $tens[$ten];
+        }
+
+        return $ones[$one].' و'.$tens[$ten];
     }
 
     public function storeAudio(string $binary, string $extension): string

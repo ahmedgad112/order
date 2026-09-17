@@ -27,15 +27,20 @@ export function loadEcho() {
             : configuredHost;
         const pageIsHttps = window.location.protocol === 'https:';
         const pagePort = Number(window.location.port || (pageIsHttps ? 443 : 80));
-        const reverbPort = Number(import.meta.env.VITE_REVERB_PORT ?? 0);
+        const configuredPort = Number(import.meta.env.VITE_REVERB_PORT ?? 0);
+        const forceTLS = pageIsHttps || (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https';
+        const usesDevPort = !configuredPort || configuredPort === 8080;
+        const socketPort = forceTLS
+            ? (usesDevPort ? pagePort : configuredPort)
+            : (configuredPort || 8080);
 
         echoInstance = new Echo({
             broadcaster: 'reverb',
             key: reverbKey,
             wsHost,
-            wsPort: reverbPort || 8080,
-            wssPort: reverbPort || (pageIsHttps ? pagePort : 8080),
-            forceTLS: pageIsHttps || (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https',
+            wsPort: socketPort,
+            wssPort: socketPort,
+            forceTLS,
             enabledTransports: ['ws', 'wss'],
         });
 

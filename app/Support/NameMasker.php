@@ -4,8 +4,12 @@ namespace App\Support;
 
 class NameMasker
 {
-    public static function mask(string $fullName): string
+    public static function mask(?string $fullName): string
     {
+        if ($fullName === null || trim($fullName) === '') {
+            return '';
+        }
+
         $parts = preg_split('/\s+/u', trim($fullName), 2);
 
         if ($parts === false || count($parts) < 2) {

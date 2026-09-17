@@ -1,0 +1,7 @@
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/halwuecc/orded.gaddevelopment.site"
+PassengerBaseURI "/app"
+PassengerNodejs "/home/halwuecc/nodevenv/orded.gaddevelopment.site/24/bin/node"
+PassengerAppType node
+PassengerStartupFile reverb-proxy.mjs
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END

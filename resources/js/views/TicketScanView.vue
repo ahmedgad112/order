@@ -221,7 +221,7 @@ onUnmounted(() => {
                                 <User class="h-4 w-4" />
                                 الاسم الكامل
                             </dt>
-                            <dd class="text-base font-bold text-slate-900">{{ ticket.full_name }}</dd>
+                            <dd class="text-base font-bold text-slate-900">{{ ticket.full_name || '—' }}</dd>
                         </div>
                         <div v-if="ticket.student_kind !== 'current_student'" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
                             <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
@@ -260,7 +260,7 @@ onUnmounted(() => {
                             </dt>
                             <dd class="font-mono text-base font-bold text-slate-900">{{ ticket.seat_number ?? '—' }}</dd>
                         </div>
-                        <div v-else class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                        <div v-else-if="ticket.order_number" class="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-4">
                             <dt class="flex items-center gap-2 text-sm font-semibold text-slate-500">
                                 <FileText class="h-4 w-4" />
                                 رقم الطلب

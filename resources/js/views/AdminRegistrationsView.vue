@@ -393,7 +393,7 @@ onUnmounted(() => {
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div>
                                 <p class="text-2xl font-black text-indigo-600" dir="ltr">{{ ticket.ticket_number }}</p>
-                                <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name }}</p>
+                                <p class="mt-1 font-semibold text-slate-800">{{ ticket.full_name || ticket.order_number || ticket.ticket_number }}</p>
                             </div>
                             <span
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold"
@@ -423,7 +423,7 @@ onUnmounted(() => {
                                 <dt class="text-slate-500">رقم الجلوس</dt>
                                 <dd class="font-mono text-slate-700">{{ ticket.seat_number ?? '—' }}</dd>
                             </div>
-                            <div v-else class="flex justify-between gap-3">
+                            <div v-else-if="ticket.order_number" class="flex justify-between gap-3">
                                 <dt class="text-slate-500">رقم الطلب</dt>
                                 <dd class="text-slate-700">{{ ticket.order_number }}</dd>
                             </div>

@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Proxy Laravel Reverb's HTTP API. WebSocket /app is served by the Node.js
+    # passenger app so LiteSpeed can upgrade the connection.
+    RewriteRule ^apps/(.*)$ http://127.0.0.1:8080/apps/$1 [P,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

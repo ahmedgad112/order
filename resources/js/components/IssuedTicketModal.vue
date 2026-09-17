@@ -1,5 +1,5 @@
 <script setup>
-import { computed, defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, ref } from 'vue';
 import { ImageDown, Printer, Ticket } from 'lucide-vue-next';
 
 const TicketQrCode = defineAsyncComponent(() => import('./TicketQrCode.vue'));
@@ -8,6 +8,10 @@ const props = defineProps({
     ticket: {
         type: Object,
         required: true,
+    },
+    tickets: {
+        type: Array,
+        default: () => [],
     },
     allowPrint: {
         type: Boolean,
@@ -21,6 +25,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    autoPrint: {
+        type: Boolean,
+        default: false,
+    },
     heading: {
         type: String,
         default: 'تم إصدار تذكرتك بنجاح',
@@ -29,7 +37,20 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
-const displayName = computed(() => props.ticket.masked_name || props.ticket.full_name || '');
+const printableTickets = computed(() => (
+    props.tickets.length > 0 ? props.tickets : [props.ticket]
+));
+const previewTicket = computed(() => printableTickets.value[0] ?? props.ticket);
+const ticketCodesLabel = computed(() => printableTickets.value
+    .map((item) => item.ticket_number)
+    .join(' · '));
+const modalHeading = computed(() => {
+    if (printableTickets.value.length > 1) {
+        return `تم إصدار ${printableTickets.value.length} أدوار`;
+    }
+
+    return props.heading;
+});
 const hasBothActions = computed(() => props.allowPrint && props.allowDownload);
 
 const savingImage = ref(false);
@@ -41,6 +62,22 @@ const universityName = 'جامعة برج العرب التكنولوجية';
 const universityWelcome = 'ترحب بكم';
 const admissionApplyUrl = 'https://batechu.com/admission';
 const admissionTrackUrl = 'https://batechu.com/admission/track';
+
+function ticketDisplayName(ticket) {
+    if (ticket?.masked_name) {
+        return ticket.masked_name;
+    }
+
+    if (ticket?.full_name) {
+        return ticket.full_name;
+    }
+
+    if (ticket?.order_number) {
+        return `رقم الطلب ${ticket.order_number}`;
+    }
+
+    return '';
+}
 
 function ticketScanUrl(ticket) {
     if (!ticket?.public_token) {
@@ -83,8 +120,11 @@ async function renderTicketToCanvas(ticket) {
     ctx.fillText(String(ticket.ticket_number), width / 2, 160);
     ctx.direction = 'rtl';
 
-    ctx.font = `bold 16px ${ticketFontFamily}`;
-    ctx.fillText(displayName.value, width / 2, 214);
+    const name = ticketDisplayName(ticket);
+    if (name) {
+        ctx.font = `bold 16px ${ticketFontFamily}`;
+        ctx.fillText(name, width / 2, 214);
+    }
 
     const qrCanvas = document.createElement('canvas');
     const QRCode = (await import('qrcode')).default;
@@ -155,13 +195,35 @@ function printTicket() {
     window.print();
 }
 
+async function waitForPrintImages() {
+    await nextTick();
+
+    const deadline = Date.now() + 4000;
+
+    while (Date.now() < deadline) {
+        const root = ticketCaptureRef.value;
+        const images = root ? [...root.querySelectorAll('img')] : [];
+
+        if (
+            images.length >= printableTickets.value.length
+            && images.every((image) => image.complete && image.naturalWidth > 0)
+        ) {
+            return;
+        }
+
+        await new Promise((resolve) => {
+            window.setTimeout(resolve, 50);
+        });
+    }
+}
+
 async function saveAsImage() {
     savingImage.value = true;
     imageSaveError.value = '';
 
     try {
-        const canvas = await renderTicketToCanvas(props.ticket);
-        const filename = `ticket-${props.ticket.ticket_number}.png`;
+        const canvas = await renderTicketToCanvas(previewTicket.value);
+        const filename = `ticket-${previewTicket.value.ticket_number}.png`;
 
         const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
             || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -185,6 +247,15 @@ function close() {
     imageSaveError.value = '';
     emit('close');
 }
+
+onMounted(async () => {
+    if (!props.autoPrint || !props.allowPrint) {
+        return;
+    }
+
+    await waitForPrintImages();
+    printTicket();
+});
 </script>
 
 <template>
@@ -194,43 +265,56 @@ function close() {
         @click.self="close"
     >
         <div class="my-6 w-full max-w-md animate-[fadeIn_0.3s_ease] rounded-3xl bg-white p-8 text-center shadow-2xl sm:my-0">
-            <div id="ticket-print-area" ref="ticketCaptureRef" class="rounded-2xl bg-white p-2">
-                <p class="ticket-welcome text-base font-extrabold leading-snug text-slate-900">
-                    <span class="block">{{ universityName }}</span>
-                    <span class="block">{{ universityWelcome }}</span>
-                </p>
-                <div class="ticket-print-hide mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-                    <Ticket class="h-8 w-8" />
-                </div>
-                <p class="text-sm text-slate-900">{{ heading }}</p>
-                <p class="ticket-number my-3 text-6xl font-black text-slate-900" dir="ltr">{{ ticket.ticket_number }}</p>
-                <p class="text-lg font-semibold text-slate-900">{{ displayName }}</p>
-                <div class="mt-5 flex justify-center">
-                    <TicketQrCode v-if="ticketScanUrl(ticket)" :value="ticketScanUrl(ticket)" :size="176" />
-                </div>
-                <p class="mt-3 text-sm font-semibold text-slate-900">امسح الرمز لعرض بياناتك</p>
-                <p class="mt-1 text-sm text-slate-900">يرجى الانتظار حتى يتم نداؤك</p>
-                <p class="mt-4 text-xs text-slate-900">{{ new Date().toLocaleString('ar-EG') }}</p>
-                <div v-if="showAdmissionLinks" class="ticket-print-hide mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
-                    <a
-                        :href="admissionApplyUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="rounded-2xl bg-slate-100 px-4 py-3"
-                    >
-                        <span class="block text-sm font-bold text-slate-900">تقدم الطلب</span>
-                        <span class="mt-1 block text-xs text-slate-900" dir="ltr">{{ admissionApplyUrl }}</span>
-                    </a>
-                    <a
-                        :href="admissionTrackUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="rounded-2xl bg-slate-100 px-4 py-3"
-                    >
-                        <span class="block text-sm font-bold text-slate-900">تتبع طلبك</span>
-                        <span class="mt-1 block text-xs text-slate-900" dir="ltr">{{ admissionTrackUrl }}</span>
-                    </a>
-                </div>
+            <p
+                v-if="printableTickets.length > 1"
+                class="ticket-print-hide mb-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700"
+            >
+                {{ ticketCodesLabel }}
+            </p>
+            <div id="ticket-print-area" ref="ticketCaptureRef">
+                <article
+                    v-for="(item, index) in printableTickets"
+                    :key="item.id"
+                    class="ticket-print-area ticket-print-page rounded-2xl bg-white p-2"
+                    :class="{ hidden: index > 0 }"
+                >
+                    <p class="ticket-welcome text-base font-extrabold leading-snug text-slate-900">
+                        <span class="block">{{ universityName }}</span>
+                        <span class="block">{{ universityWelcome }}</span>
+                    </p>
+                    <div class="ticket-print-hide mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+                        <Ticket class="h-8 w-8" />
+                    </div>
+                    <p class="text-sm text-slate-900">{{ index === 0 ? modalHeading : heading }}</p>
+                    <p class="ticket-number my-3 text-6xl font-black text-slate-900" dir="ltr">{{ item.ticket_number }}</p>
+                    <p v-if="ticketDisplayName(item)" class="text-lg font-semibold text-slate-900">{{ ticketDisplayName(item) }}</p>
+                    <div class="mt-5 flex justify-center">
+                        <TicketQrCode v-if="ticketScanUrl(item)" :value="ticketScanUrl(item)" :size="176" />
+                    </div>
+                    <p class="mt-3 text-sm font-semibold text-slate-900">امسح الرمز لعرض بياناتك</p>
+                    <p class="mt-1 text-sm text-slate-900">يرجى الانتظار حتى يتم نداؤك</p>
+                    <p class="mt-4 text-xs text-slate-900">{{ new Date().toLocaleString('ar-EG') }}</p>
+                    <div v-if="showAdmissionLinks" class="ticket-print-hide mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4">
+                        <a
+                            :href="admissionApplyUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="rounded-2xl bg-slate-100 px-4 py-3"
+                        >
+                            <span class="block text-sm font-bold text-slate-900">تقدم الطلب</span>
+                            <span class="mt-1 block text-xs text-slate-900" dir="ltr">{{ admissionApplyUrl }}</span>
+                        </a>
+                        <a
+                            :href="admissionTrackUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="rounded-2xl bg-slate-100 px-4 py-3"
+                        >
+                            <span class="block text-sm font-bold text-slate-900">تتبع طلبك</span>
+                            <span class="mt-1 block text-xs text-slate-900" dir="ltr">{{ admissionTrackUrl }}</span>
+                        </a>
+                    </div>
+                </article>
             </div>
 
             <p v-if="imageSaveError" class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -249,7 +333,7 @@ function close() {
                     @click="printTicket"
                 >
                     <Printer class="h-5 w-5" />
-                    طباعة
+                    {{ printableTickets.length > 1 ? 'طباعة الكل' : 'طباعة' }}
                 </button>
                 <button
                     v-if="allowDownload"
