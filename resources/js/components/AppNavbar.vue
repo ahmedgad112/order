@@ -11,6 +11,7 @@ import {
     Search,
     Ticket,
     UserRound,
+    Users,
     X,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
@@ -92,6 +93,13 @@ const navItems = computed(() => {
         if (authStore.isAdmin) {
             items.push(
                 { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, match: 'admin' },
+            );
+
+            if (authStore.canManageUsers) {
+                items.push({ to: '/admin/users', label: 'المستخدمون', icon: Users, match: 'admin-users' });
+            }
+
+            items.push(
                 { to: '/admin/registrations', label: 'السجل والأرشيف', icon: ClipboardList, match: 'admin-registrations' },
                 { to: '/mic', label: 'الميكروفون', icon: Mic, match: 'mic' },
             );

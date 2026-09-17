@@ -8,6 +8,7 @@ import {
     GraduationCap,
     Lock,
     Power,
+    Settings,
     Timer,
     Unlock,
     Users,
@@ -17,7 +18,6 @@ import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import AdminCatalogManagement from '../components/AdminCatalogManagement.vue';
 import AdminRequestTypesManagement from '../components/AdminRequestTypesManagement.vue';
-import AdminUserManagement from '../components/AdminUserManagement.vue';
 import AppNavbar from '../components/AppNavbar.vue';
 
 const authStore = useAuthStore();
@@ -66,13 +66,7 @@ const studentKinds = computed(() => {
 });
 
 async function refresh() {
-    const tasks = [queueStore.fetchAdminDashboard()];
-
-    if (authStore.canManageUsers) {
-        tasks.push(queueStore.fetchUsers());
-    }
-
-    await Promise.all(tasks);
+    await queueStore.fetchAdminDashboard();
 }
 
 async function handleCloseSystem() {
@@ -272,48 +266,6 @@ onUnmounted(() => {
                 <p v-if="actionError" class="mt-4 text-sm font-semibold text-red-700">{{ actionError }}</p>
             </section>
 
-            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div class="mb-4 flex items-center gap-2">
-                    <GraduationCap class="h-5 w-5 text-indigo-600" />
-                    <h2 class="text-lg font-bold text-slate-900">اختر نوع الطالب للمتابعة</h2>
-                </div>
-                <p class="mb-4 text-sm text-slate-600">
-                    فعّل أو ألغِ الخيارات اللي تظهر للطالب في شاشة البداية. الخيار الملغي مش هيظهر خالص.
-                </p>
-                <div class="grid gap-3 sm:grid-cols-2">
-                    <label
-                        v-for="kind in studentKinds"
-                        :key="kind.value"
-                        class="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
-                        :class="kind.enabled ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'"
-                    >
-                        <span>
-                            <span class="block text-sm font-semibold text-slate-800">{{ kind.label }}</span>
-                            <span
-                                class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
-                                :class="kind.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'"
-                            >
-                                {{ kind.enabled ? 'مفعّل' : 'ملغي' }}
-                            </span>
-                        </span>
-                        <input
-                            type="checkbox"
-                            class="h-4 w-4 accent-indigo-600"
-                            :checked="kind.enabled"
-                            :disabled="!authStore.canControlSystem || actionLoading"
-                            @change="toggleStudentKind(kind.value, $event.target.checked)"
-                        />
-                    </label>
-                </div>
-                <p v-if="!authStore.canControlSystem" class="mt-3 text-sm font-semibold text-slate-500">
-                    تفعيل أنواع الطلاب وإلغاؤها متاح للسوبر أدمن فقط.
-                </p>
-            </section>
-
-            <AdminRequestTypesManagement />
-
-            <AdminCatalogManagement />
-
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <article class="rounded-3xl bg-white p-5 shadow-sm">
                     <div class="mb-3 flex items-center justify-between">
@@ -415,7 +367,53 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <AdminUserManagement v-if="authStore.canManageUsers" />
+            <div class="flex items-center gap-3 pt-2">
+                <Settings class="h-5 w-5 text-slate-400" />
+                <h2 class="text-lg font-bold text-slate-700">إعدادات النظام</h2>
+                <div class="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="mb-4 flex items-center gap-2">
+                    <GraduationCap class="h-5 w-5 text-indigo-600" />
+                    <h2 class="text-lg font-bold text-slate-900">اختر نوع الطالب للمتابعة</h2>
+                </div>
+                <p class="mb-4 text-sm text-slate-600">
+                    فعّل أو ألغِ الخيارات اللي تظهر للطالب في شاشة البداية. الخيار الملغي مش هيظهر خالص.
+                </p>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label
+                        v-for="kind in studentKinds"
+                        :key="kind.value"
+                        class="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+                        :class="kind.enabled ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'"
+                    >
+                        <span>
+                            <span class="block text-sm font-semibold text-slate-800">{{ kind.label }}</span>
+                            <span
+                                class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                :class="kind.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'"
+                            >
+                                {{ kind.enabled ? 'مفعّل' : 'ملغي' }}
+                            </span>
+                        </span>
+                        <input
+                            type="checkbox"
+                            class="h-4 w-4 accent-indigo-600"
+                            :checked="kind.enabled"
+                            :disabled="!authStore.canControlSystem || actionLoading"
+                            @change="toggleStudentKind(kind.value, $event.target.checked)"
+                        />
+                    </label>
+                </div>
+                <p v-if="!authStore.canControlSystem" class="mt-3 text-sm font-semibold text-slate-500">
+                    تفعيل أنواع الطلاب وإلغاؤها متاح للسوبر أدمن فقط.
+                </p>
+            </section>
+
+            <AdminRequestTypesManagement />
+
+            <AdminCatalogManagement />
         </main>
 
         <div

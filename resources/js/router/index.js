@@ -63,6 +63,12 @@ const routes = [
         meta: { title: 'السجل والأرشيف', requiresAuth: true, roles: ['manager', 'super_admin'] },
     },
     {
+        path: '/admin/users',
+        name: 'admin-users',
+        component: () => import('../views/AdminUsersView.vue'),
+        meta: { title: 'إدارة المستخدمين', requiresAuth: true, roles: ['manager', 'super_admin'] },
+    },
+    {
         path: '/mic',
         name: 'mic',
         component: () => import('../views/MicView.vue'),
@@ -109,8 +115,9 @@ const prefetchByRoute = {
     track: ['student-choice'],
     login: ['teller', 'admin'],
     teller: ['admin', 'admin-registrations'],
-    admin: ['teller', 'admin-registrations'],
-    'admin-registrations': ['admin', 'teller'],
+    admin: ['teller', 'admin-registrations', 'admin-users'],
+    'admin-registrations': ['admin', 'teller', 'admin-users'],
+    'admin-users': ['admin', 'admin-registrations'],
 };
 
 router.afterEach((to) => {
