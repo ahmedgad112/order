@@ -182,7 +182,7 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
-        $this->assertSame('رقم أو تي واحد، محمد أحمد علي، روح على شباك واحد', $text);
+        $this->assertSame('رقم أو تي واحد، محمد أحمد علي، برجاء التوجه إلى شباك واحد', $text);
     }
 
     public function test_ticket_announcement_text_omits_name_and_speaks_type_only_number(): void
@@ -196,7 +196,7 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
-        $this->assertSame('رقم أو تي اتناشر، روح على شباك اتناشر', $text);
+        $this->assertSame('رقم أو تي اتناشر، برجاء التوجه إلى شباك اتناشر', $text);
     }
 
     public function test_ticket_announcement_text_speaks_current_student_prefix(): void
@@ -209,7 +209,7 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
-        $this->assertSame('رقم أو تمانية، روح على الشباك', $text);
+        $this->assertSame('رقم أو تمانية، برجاء التوجه إلى الشباك', $text);
     }
 
     public function test_stream_audio_serves_stored_file(): void

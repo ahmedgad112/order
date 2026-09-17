@@ -81,7 +81,7 @@ class SpeechService
         }
 
         $counter = $ticket->teller?->counter_name ?: 'الشباك';
-        $parts[] = 'روح على '.$this->spokenMixedText($counter);
+        $parts[] = 'برجاء التوجه إلى '.$this->spokenMixedText($counter);
 
         return implode('، ', $parts);
     }
