@@ -31,6 +31,7 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/me', [AuthController::class, 'updateProfile']);
     Route::put('/me/password', [AuthController::class, 'changePassword'])
         ->middleware('throttle:6,1');
 
@@ -71,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/queue-lanes/{lane}/tellers', [AdminSystemController::class, 'updateLaneTellers']);
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);
+        Route::post('/users/bulk', [AdminUserController::class, 'bulkStore']);
         Route::put('/users/{user}', [AdminUserController::class, 'update']);
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
         Route::post('/announce', [SpeechController::class, 'announce']);

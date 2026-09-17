@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -89,6 +90,62 @@ class AdminUserManagementTest extends TestCase
             ->assertJsonPath('errors.user.0', 'ليس لديك صلاحية لتعديل هذا المستخدم.');
 
         $this->assertSame($superAdmin->name, $superAdmin->fresh()->name);
+    }
+
+    public function test_manager_can_bulk_create_employees(): void
+    {
+        $manager = User::factory()->manager()->create();
+        Sanctum::actingAs($manager);
+
+        $this->postJson('/api/admin/users/bulk', [
+            'base_name' => 'موظف',
+            'count' => 3,
+            'counter_base' => 'شباك',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('created', 3)
+            ->assertJsonCount(3, 'users');
+
+        $employee = User::query()->where('email', 'teller1@queue.local')->first();
+
+        $this->assertNotNull($employee);
+        $this->assertSame('موظف 1', $employee->name);
+        $this->assertSame('شباك 1', $employee->counter_name);
+        $this->assertSame(UserRole::Teller, $employee->role);
+        $this->assertTrue($employee->is_active);
+        $this->assertTrue(Hash::check('123456789', $employee->password));
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'teller3@queue.local',
+            'name' => 'موظف 3',
+            'counter_name' => 'شباك 3',
+        ]);
+    }
+
+    public function test_bulk_creation_continues_numbering_after_existing_employees(): void
+    {
+        User::factory()->teller()->create(['email' => 'teller2@queue.local']);
+        $manager = User::factory()->manager()->create();
+        Sanctum::actingAs($manager);
+
+        $this->postJson('/api/admin/users/bulk', [
+            'count' => 2,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('created', 2);
+
+        $this->assertDatabaseHas('users', ['email' => 'teller3@queue.local']);
+        $this->assertDatabaseHas('users', ['email' => 'teller4@queue.local']);
+    }
+
+    public function test_employee_cannot_bulk_create_employees(): void
+    {
+        $employee = User::factory()->teller()->create();
+        Sanctum::actingAs($employee);
+
+        $this->postJson('/api/admin/users/bulk', [
+            'count' => 2,
+        ])->assertForbidden();
     }
 
     public function test_employee_cannot_access_user_management(): void

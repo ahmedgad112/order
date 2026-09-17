@@ -74,6 +74,14 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
+    async function updateProfile(payload) {
+        const { data } = await axios.put('/me', payload);
+
+        user.value = data.user;
+
+        return data.message;
+    }
+
     async function changePassword(payload) {
         const { data } = await axios.put('/me/password', payload);
 
@@ -99,6 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
         bootstrap,
         login,
         logout,
+        updateProfile,
         changePassword,
     };
 });

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\BulkStoreUsersRequest;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
@@ -11,11 +12,17 @@ use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdminUserController extends Controller
 {
+    private const BULK_DEFAULT_PASSWORD = '123456789';
+
+    private const BULK_EMAIL_DOMAIN = 'queue.local';
+
     public function index(Request $request): JsonResponse
     {
         $actor = $request->user();
@@ -58,6 +65,62 @@ class AdminUserController extends Controller
         return response()->json([
             'message' => 'تم إنشاء المستخدم بنجاح.',
             'user' => new UserResource($user),
+        ], 201);
+    }
+
+    public function bulkStore(BulkStoreUsersRequest $request): JsonResponse
+    {
+        if (! $request->user()->canAssignRole(UserRole::Teller)) {
+            throw ValidationException::withMessages([
+                'role' => 'ليس لديك صلاحية لإنشاء هذا الدور.',
+            ]);
+        }
+
+        $data = $request->validated();
+        $baseName = trim((string) ($data['base_name'] ?? '')) !== ''
+            ? trim((string) $data['base_name'])
+            : 'موظف';
+        $counterBase = trim((string) ($data['counter_base'] ?? '')) !== ''
+            ? trim((string) $data['counter_base'])
+            : 'شباك';
+        $count = (int) $data['count'];
+        $queueLanes = array_values(array_unique($data['queue_lanes'] ?? RequestType::laneValues()));
+        $hashedPassword = Hash::make(self::BULK_DEFAULT_PASSWORD);
+
+        $users = DB::transaction(function () use ($count, $baseName, $counterBase, $queueLanes, $hashedPassword) {
+            $created = [];
+            $nextIndex = $this->nextBulkTellerIndex();
+
+            while (count($created) < $count) {
+                $email = 'teller'.$nextIndex.'@'.self::BULK_EMAIL_DOMAIN;
+
+                if (User::query()->where('email', $email)->exists()) {
+                    $nextIndex++;
+
+                    continue;
+                }
+
+                $created[] = User::query()->create([
+                    'name' => $baseName.' '.$nextIndex,
+                    'email' => $email,
+                    'password' => $hashedPassword,
+                    'role' => UserRole::Teller,
+                    'counter_name' => $counterBase.' '.$nextIndex,
+                    'queue_lanes' => $queueLanes,
+                    'is_active' => true,
+                ]);
+
+                $nextIndex++;
+            }
+
+            return $created;
+        });
+
+        return response()->json([
+            'message' => 'تم إنشاء '.count($users).' مستخدم بنجاح.',
+            'created' => count($users),
+            'default_password' => self::BULK_DEFAULT_PASSWORD,
+            'users' => UserResource::collection(collect($users)),
         ], 201);
     }
 
@@ -152,5 +215,16 @@ class AdminUserController extends Controller
             'message' => 'تم تعطيل المستخدم بنجاح.',
             'user' => new UserResource($user->fresh()),
         ]);
+    }
+
+    private function nextBulkTellerIndex(): int
+    {
+        $maxIndex = User::query()
+            ->where('email', 'like', 'teller%@'.self::BULK_EMAIL_DOMAIN)
+            ->pluck('email')
+            ->map(fn (string $email): int => (int) preg_replace('/\D/', '', Str::before($email, '@')))
+            ->max();
+
+        return ($maxIndex ?? 0) + 1;
     }
 }

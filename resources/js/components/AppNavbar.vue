@@ -15,7 +15,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
-import ChangePasswordButton from './ChangePasswordButton.vue';
+import AccountSettingsButton from './AccountSettingsButton.vue';
 
 const props = defineProps({
     title: {
@@ -217,7 +217,7 @@ async function logout() {
                 </nav>
 
                 <div v-if="authStore.isAuthenticated && !isDisplay" class="hidden items-center gap-2 lg:flex">
-                    <ChangePasswordButton />
+                    <AccountSettingsButton />
                     <button
                         type="button"
                         class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -261,7 +261,7 @@ async function logout() {
                 </RouterLink>
 
                 <template v-if="authStore.isAuthenticated">
-                    <ChangePasswordButton block />
+                    <AccountSettingsButton block />
                     <button
                         type="button"
                         class="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"

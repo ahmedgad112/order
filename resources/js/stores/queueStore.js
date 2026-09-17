@@ -386,6 +386,12 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
+    async function bulkCreateUsers(payload) {
+        const { data } = await axios.post('/admin/users/bulk', payload);
+        await Promise.all([fetchUsers(), fetchAdminDashboard()]);
+        return data;
+    }
+
     async function updateUser(userId, payload) {
         const { data } = await axios.put(`/admin/users/${userId}`, payload);
         await Promise.all([fetchUsers(), fetchAdminDashboard()]);
@@ -1060,6 +1066,7 @@ export const useQueueStore = defineStore('queue', () => {
         fetchTellers,
         fetchUsers,
         createUser,
+        bulkCreateUsers,
         updateUser,
         deactivateUser,
         fetchRegistrations,

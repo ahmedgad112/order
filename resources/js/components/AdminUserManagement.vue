@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Pencil, Plus, Shield, UserCog, UserX } from 'lucide-vue-next';
+import { Pencil, Plus, Shield, UserCog, Users, UserX } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import PasswordInput from './PasswordInput.vue';
@@ -14,6 +14,19 @@ const editingUser = ref(null);
 const formError = ref('');
 const saving = ref(false);
 const savingLaneUserId = ref(null);
+const showBulkForm = ref(false);
+const bulkError = ref('');
+const bulkSaving = ref(false);
+const bulkFeedback = ref('');
+
+const emptyBulkForm = () => ({
+    base_name: 'موظف',
+    count: 5,
+    counter_base: 'شباك',
+    queue_lanes: [],
+});
+
+const bulkForm = ref(emptyBulkForm());
 
 const emptyForm = () => ({
     name: '',
@@ -153,6 +166,45 @@ async function saveUserLanes(user, lanes) {
     }
 }
 
+function openBulkCreate() {
+    bulkForm.value = {
+        ...emptyBulkForm(),
+        queue_lanes: availableQueueLanes.value.map((lane) => lane.value),
+    };
+    bulkError.value = '';
+    showBulkForm.value = true;
+}
+
+function closeBulkForm() {
+    showBulkForm.value = false;
+    bulkForm.value = emptyBulkForm();
+    bulkError.value = '';
+}
+
+async function submitBulkForm() {
+    bulkSaving.value = true;
+    bulkError.value = '';
+    bulkFeedback.value = '';
+
+    try {
+        const result = await queueStore.bulkCreateUsers({
+            base_name: bulkForm.value.base_name.trim(),
+            count: Number(bulkForm.value.count),
+            counter_base: bulkForm.value.counter_base.trim(),
+            queue_lanes: bulkForm.value.queue_lanes,
+        });
+        bulkFeedback.value = result.message ?? 'تم إنشاء المستخدمين بنجاح.';
+        closeBulkForm();
+    } catch (err) {
+        const errors = err.response?.data?.errors;
+        bulkError.value = errors
+            ? Object.values(errors).flat()[0]
+            : err.response?.data?.message ?? 'تعذر إنشاء المستخدمين.';
+    } finally {
+        bulkSaving.value = false;
+    }
+}
+
 async function handleDeactivate(user) {
     if (!confirm(`هل تريد تعطيل المستخدم "${user.name}"؟`)) {
         return;
@@ -180,15 +232,27 @@ async function handleDeactivate(user) {
                     {{ authStore.isSuperAdmin ? 'إنشاء وتعديل حسابات السوبر أدمن والمديرين والموظفين' : 'إنشاء وتعديل حسابات الموظفين' }}
                 </p>
             </div>
-            <button
-                class="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                @click="openCreate"
-            >
-                <Plus class="h-4 w-4" />
-                إضافة مستخدم
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    class="flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+                    @click="openBulkCreate"
+                >
+                    <Users class="h-4 w-4" />
+                    إضافة جماعية
+                </button>
+                <button
+                    class="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+                    @click="openCreate"
+                >
+                    <Plus class="h-4 w-4" />
+                    إضافة مستخدم
+                </button>
+            </div>
         </div>
 
+        <p v-if="bulkFeedback" class="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700">
+            {{ bulkFeedback }}
+        </p>
         <p v-if="formError && !showForm" class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
             {{ formError }}
         </p>
@@ -361,6 +425,84 @@ async function handleDeactivate(user) {
                             type="button"
                             class="flex-1 rounded-xl border border-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-50"
                             @click="closeForm"
+                        >
+                            إلغاء
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div
+            v-if="showBulkForm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+            @click.self="closeBulkForm"
+        >
+            <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+                <h3 class="text-xl font-bold text-slate-900">إضافة موظفين دفعة واحدة</h3>
+                <p class="mt-1 text-sm text-slate-500">
+                    سيتم إنشاء حسابات موظفين بكلمة مرور موحدة: <span class="font-bold text-slate-700">123456789</span>
+                </p>
+
+                <form class="mt-6 space-y-4" @submit.prevent="submitBulkForm">
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">الاسم الأساسي</label>
+                        <input
+                            v-model="bulkForm.base_name"
+                            type="text"
+                            required
+                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            placeholder="موظف"
+                        />
+                        <p class="mt-1 text-xs text-slate-500">سيصبح: {{ bulkForm.base_name.trim() || 'موظف' }} 1، {{ bulkForm.base_name.trim() || 'موظف' }} 2، ...</p>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">عدد المستخدمين</label>
+                        <input
+                            v-model.number="bulkForm.count"
+                            type="number"
+                            required
+                            min="1"
+                            max="50"
+                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">اسم الشباك الأساسي</label>
+                        <input
+                            v-model="bulkForm.counter_base"
+                            type="text"
+                            required
+                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            placeholder="شباك"
+                        />
+                        <p class="mt-1 text-xs text-slate-500">سيصبح: {{ bulkForm.counter_base.trim() || 'شباك' }} 1، {{ bulkForm.counter_base.trim() || 'شباك' }} 2، ...</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-slate-700">أنواع الطلب المخصصة</label>
+                        <QueueLaneSelect v-model="bulkForm.queue_lanes" :options="availableQueueLanes" />
+                        <p class="text-xs text-slate-500">تنطبق على جميع الموظفين المنشأين.</p>
+                    </div>
+
+                    <p v-if="bulkError" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {{ bulkError }}
+                    </p>
+
+                    <div class="flex gap-3 pt-2">
+                        <button
+                            type="submit"
+                            :disabled="bulkSaving"
+                            class="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+                        >
+                            {{ bulkSaving ? 'جاري الإنشاء...' : `إنشاء ${bulkForm.count || ''} موظف` }}
+                        </button>
+                        <button
+                            type="button"
+                            class="flex-1 rounded-xl border border-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                            @click="closeBulkForm"
                         >
                             إلغاء
                         </button>
