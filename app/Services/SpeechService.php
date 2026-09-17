@@ -3,7 +3,11 @@
 namespace App\Services;
 
 use Afaya\EdgeTTS\Service\EdgeTTS;
+use App\Enums\ProcessStep;
+use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
+use App\Models\StepAnnouncement;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -72,29 +76,43 @@ class SpeechService
         return $tts->toRaw();
     }
 
-    public function ticketAnnouncementText(QueueTicket $ticket): string
+    public function ticketAnnouncementText(QueueTicket $ticket, ProcessStep|string|null $step = null): string
     {
-        $parts = ['رَقَم '.$this->spokenTicketCode($ticket)];
+        $text = strtr(QueueSystemSetting::current()->callTemplate(), [
+            '{order}' => $this->spokenTicketCode($ticket),
+            '{name}' => trim((string) $ticket->full_name),
+            '{counter}' => $this->destinationText($ticket, $step),
+            '{type}' => RequestType::findBySlug($ticket->request_type)?->label ?? '',
+        ]);
 
-        if (filled($ticket->full_name)) {
-            $parts[] = $ticket->full_name;
+        $text = $this->spokenMixedText($text);
+        $text = (string) preg_replace('/(?:\s*،\s*){2,}/u', '، ', $text);
+        $text = (string) preg_replace('/^\s*،\s*|،\s*$/u', '', $text);
+
+        return trim($text);
+    }
+
+    private function destinationText(QueueTicket $ticket, ProcessStep|string|null $step): string
+    {
+        if ($step !== null) {
+            $custom = StepAnnouncement::destinationFor($step);
+
+            if ($custom !== null) {
+                return str_replace('شباك', 'شِبَاك', $custom);
+            }
         }
 
         $counter = trim((string) ($ticket->resolvedCounterName() ?? ''));
 
         if ($counter === '') {
-            $counter = 'الشِّبَاك';
-        } else {
-            if (! str_contains($counter, 'شباك')) {
-                $counter = 'شباك '.$counter;
-            }
-
-            $counter = str_replace('شباك', 'شِبَاك', $counter);
+            return 'الشِّبَاك';
         }
 
-        $parts[] = 'بُرْجَاء التَّوَجُّه إِلَى '.$this->spokenMixedText($counter);
+        if (! str_contains($counter, 'شباك')) {
+            $counter = 'شباك '.$counter;
+        }
 
-        return implode('، ', $parts);
+        return str_replace('شباك', 'شِبَاك', $counter);
     }
 
     private function spokenTicketCode(QueueTicket $ticket): string

@@ -2,8 +2,10 @@
 
 namespace App\Events;
 
+use App\Enums\ProcessStep;
 use App\Http\Resources\PublicTicketResource;
 use App\Models\QueueTicket;
+use App\Models\StepAnnouncement;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -14,7 +16,10 @@ class TicketCalledEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public QueueTicket $ticket) {}
+    public function __construct(
+        public QueueTicket $ticket,
+        public ?ProcessStep $step = null,
+    ) {}
 
     /**
      * @return array<int, Channel>
@@ -38,6 +43,8 @@ class TicketCalledEvent implements ShouldBroadcastNow
 
         return [
             'ticket' => (new PublicTicketResource($this->ticket))->resolve(),
+            'step' => $this->step?->value,
+            'muted' => $this->step !== null && ! StepAnnouncement::isEnabledFor($this->step),
         ];
     }
 }

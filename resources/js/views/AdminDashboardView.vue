@@ -18,6 +18,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import AdminCatalogManagement from '../components/AdminCatalogManagement.vue';
 import AdminRequestTypesManagement from '../components/AdminRequestTypesManagement.vue';
+import AdminStepAnnouncements from '../components/AdminStepAnnouncements.vue';
 import AppNavbar from '../components/AppNavbar.vue';
 
 const authStore = useAuthStore();
@@ -412,6 +413,8 @@ onUnmounted(() => {
             </section>
 
             <AdminRequestTypesManagement />
+
+            <AdminStepAnnouncements />
 
             <AdminCatalogManagement />
         </main>

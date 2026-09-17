@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateCallTemplateRequest;
 use App\Http\Requests\UpdateEnabledRequestTypesRequest;
 use App\Http\Requests\UpdateEnabledStudentKindsRequest;
 use App\Http\Requests\UpdateQueueLaneTellersRequest;
+use App\Models\QueueSystemSetting;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,6 +98,20 @@ class AdminSystemController extends Controller
         return response()->json([
             'message' => 'تم تحديث أنواع الطلاب في شاشة الاختيار.',
             'system' => $system,
+        ]);
+    }
+
+    public function updateCallTemplate(UpdateCallTemplateRequest $request): JsonResponse
+    {
+        $template = trim((string) ($request->validated('call_template') ?? ''));
+
+        QueueSystemSetting::current()->update([
+            'call_template' => $template === '' ? null : $template,
+        ]);
+
+        return response()->json([
+            'message' => 'تم حفظ نص النداء.',
+            'system' => $this->systemService->broadcastStatus(),
         ]);
     }
 

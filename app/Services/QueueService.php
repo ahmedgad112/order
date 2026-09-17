@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ProcessStep;
 use App\Enums\TicketStatus;
 use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
@@ -421,7 +422,7 @@ class QueueService
             'entered_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::Entered);
 
         return $ticket->fresh(['teller']);
     }
@@ -439,7 +440,7 @@ class QueueService
             'paid_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::Paid);
 
         return $ticket->fresh(['teller']);
     }
@@ -458,7 +459,7 @@ class QueueService
             'file_withdrawn_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::FileWithdrawn);
 
         return $ticket->fresh(['teller']);
     }
@@ -482,7 +483,7 @@ class QueueService
             'documents_reviewed_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::DocumentsReviewed);
 
         return $ticket->fresh(['teller']);
     }
@@ -501,7 +502,7 @@ class QueueService
             'medical_checked_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::MedicalChecked);
 
         return $ticket->fresh(['teller']);
     }
@@ -520,7 +521,7 @@ class QueueService
             'face_printed_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::FacePrinted);
 
         return $ticket->fresh(['teller']);
     }
@@ -543,7 +544,7 @@ class QueueService
             'file_delivered_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket);
+        $this->announceTicketCall($ticket, ProcessStep::FileDelivered);
 
         return $ticket->fresh(['teller']);
     }
@@ -786,11 +787,11 @@ class QueueService
         ];
     }
 
-    private function announceTicketCall(QueueTicket $ticket): void
+    private function announceTicketCall(QueueTicket $ticket, ?ProcessStep $step = null): void
     {
         $ticket->load('teller');
-        $this->broadcastSafely(new TicketCalledEvent($ticket));
-        GenerateTicketAudioJob::dispatch($ticket->id);
+        $this->broadcastSafely(new TicketCalledEvent($ticket, $step));
+        GenerateTicketAudioJob::dispatch($ticket->id, $step?->value);
     }
 
     private function broadcastSafely(object $event): void

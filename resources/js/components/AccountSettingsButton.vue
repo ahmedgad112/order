@@ -104,12 +104,13 @@ async function submitPassword() {
         <span :class="block ? '' : 'hidden sm:inline'">إعدادات الحساب</span>
     </button>
 
-    <div
-        v-if="showForm"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-        @click.self="closeForm"
-    >
-        <div class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+    <Teleport to="body">
+        <div
+            v-if="showForm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+            @click.self="closeForm"
+        >
+            <div class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
             <h3 class="text-xl font-bold text-slate-900">إعدادات الحساب</h3>
             <p class="mt-1 text-sm text-slate-500">يمكنك تحديث اسمك وبريدك الإلكتروني أو تغيير كلمة المرور.</p>
 
@@ -223,6 +224,7 @@ async function submitPassword() {
             >
                 إغلاق
             </button>
+            </div>
         </div>
-    </div>
+    </Teleport>
 </template>

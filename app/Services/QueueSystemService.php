@@ -301,6 +301,7 @@ class QueueSystemService
             'day_ended_message' => $dayOpen ? null : 'انتهى استقبال الطلبات اليوم. يمكن متابعة الطلبات الحالية.',
             'last_reset_at' => $settings->last_reset_at?->toIso8601String(),
             'current_session_started_at' => $settings->currentSessionStartedAt()->toIso8601String(),
+            'call_template' => $settings->callTemplate(),
             'request_types' => RequestType::payload(),
             'student_kinds' => StudentKind::payload($settings->enabledStudentKindValues()),
             'completion_service_options' => ProcessStep::admissionCompletionPayload(),

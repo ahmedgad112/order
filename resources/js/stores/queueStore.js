@@ -601,8 +601,8 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
-    async function requestTicketAudio(ticketId) {
-        const { data } = await axios.post('/public/ticket-audio', { ticket_id: ticketId });
+    async function requestTicketAudio(ticketId, step = null) {
+        const { data } = await axios.post('/public/ticket-audio', { ticket_id: ticketId, step });
         return data.audio_url;
     }
 

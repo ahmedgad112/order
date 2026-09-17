@@ -244,19 +244,27 @@ function noteCall(ticket) {
     }
 }
 
-async function announceCall(ticket) {
+async function announceCall(ticket, step = null, muted = false) {
     lastCalledId.value = ticket.id;
     lastCall.value = {
         number: ticket.ticket_number,
         name: displayName(ticket),
         counter: ticket.counter_name || ticket.teller_name || '',
     };
+
+    if (muted) {
+        return;
+    }
+
     playChime();
 
     if (voiceEnabled.value) {
         try {
-            const audioUrl = await queueStore.requestTicketAudio(ticket.id);
-            enqueueAudio(audioUrl);
+            const audioUrl = await queueStore.requestTicketAudio(ticket.id, step);
+
+            if (audioUrl) {
+                enqueueAudio(audioUrl);
+            }
         } catch {
             // TTS unavailable — chime already played
         }
@@ -271,7 +279,7 @@ async function onTicketCalled(event) {
     }
 
     noteCall(ticket);
-    await announceCall(ticket);
+    await announceCall(ticket, event.step ?? null, Boolean(event.muted));
 }
 
 function onAnnouncement(event) {

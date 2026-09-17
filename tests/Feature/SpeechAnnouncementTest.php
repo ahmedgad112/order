@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Events\AnnouncementMadeEvent;
 use App\Events\MicAudioChunkEvent;
 use App\Jobs\GenerateTicketAudioJob;
+use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
+use App\Models\StepAnnouncement;
 use App\Models\User;
 use App\Services\SpeechService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -241,6 +243,50 @@ class SpeechAnnouncementTest extends TestCase
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
         $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك الدفع', $text);
+    }
+
+    public function test_step_announcement_speaks_flow_destination(): void
+    {
+        $teller = User::factory()->teller('شباك 3')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket, 'paid');
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى سحب الملف', $text);
+    }
+
+    public function test_step_announcement_uses_custom_destination(): void
+    {
+        StepAnnouncement::forStep('paid')->update(['destination' => 'شباك الدفع']);
+        $teller = User::factory()->teller('شباك 3')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket, 'paid');
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك الدفع', $text);
+    }
+
+    public function test_ticket_announcement_uses_custom_call_template(): void
+    {
+        QueueSystemSetting::current()->update(['call_template' => 'العميل {order} إلى {counter}']);
+        $teller = User::factory()->teller('شباك 2')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 5,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('العميل أَو تِي خَمْسَة إلى شِبَاك اِتْنِين', $text);
     }
 
     public function test_ticket_announcement_text_speaks_current_student_prefix(): void

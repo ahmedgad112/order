@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
     'enabled_student_kinds',
     'current_session_started_at',
     'closed_message',
+    'call_template',
     'closed_at',
     'closed_by',
     'last_reset_at',
@@ -23,6 +24,8 @@ use Illuminate\Support\Carbon;
 ])]
 class QueueSystemSetting extends Model
 {
+    public const string DEFAULT_CALL_TEMPLATE = 'رَقَم {order}، {name}، بُرْجَاء التَّوَجُّه إِلَى {counter}';
+
     protected function casts(): array
     {
         return [
@@ -47,6 +50,13 @@ class QueueSystemSetting extends Model
     public function currentSessionStartedAt(): Carbon
     {
         return $this->current_session_started_at ?? now()->startOfDay();
+    }
+
+    public function callTemplate(): string
+    {
+        $template = trim((string) ($this->call_template ?? ''));
+
+        return $template === '' ? self::DEFAULT_CALL_TEMPLATE : $template;
     }
 
     public function isDayOpen(): bool

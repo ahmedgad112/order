@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AdminCollegeController;
 use App\Http\Controllers\Api\AdminFacultyController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AdminRequestTypeController;
+use App\Http\Controllers\Api\AdminStepAnnouncementController;
 use App\Http\Controllers\Api\AdminSystemController;
 use App\Http\Controllers\Api\AdminTicketController;
 use App\Http\Controllers\Api\AdminUserController;
@@ -92,6 +93,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/system/open-day', [AdminSystemController::class, 'openDay']);
         Route::put('/system/request-types', [AdminSystemController::class, 'updateRequestTypes']);
         Route::put('/system/student-kinds', [AdminSystemController::class, 'updateStudentKinds']);
+        Route::put('/system/call-template', [AdminSystemController::class, 'updateCallTemplate']);
+        Route::get('/step-announcements', [AdminStepAnnouncementController::class, 'index']);
+        Route::put('/step-announcements', [AdminStepAnnouncementController::class, 'update']);
         Route::apiResource('/request-types', AdminRequestTypeController::class)
             ->only(['index', 'store', 'update', 'destroy']);
         Route::get('/faculties', [AdminFacultyController::class, 'index']);

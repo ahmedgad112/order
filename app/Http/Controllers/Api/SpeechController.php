@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ProcessStep;
 use App\Events\AnnouncementMadeEvent;
 use App\Events\MicAudioChunkEvent;
 use App\Http\Controllers\Controller;
@@ -9,12 +10,14 @@ use App\Http\Requests\AnnounceRequest;
 use App\Http\Requests\MicChunkRequest;
 use App\Models\AnnouncementLog;
 use App\Models\QueueTicket;
+use App\Models\StepAnnouncement;
 use App\Services\SpeechService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SpeechController extends Controller
@@ -25,7 +28,14 @@ class SpeechController extends Controller
     {
         $validated = $request->validate([
             'ticket_id' => ['required', 'integer', 'min:1'],
+            'step' => ['sometimes', 'nullable', 'string', Rule::in(ProcessStep::values())],
         ]);
+
+        $step = $validated['step'] ?? null;
+
+        if ($step !== null && ! StepAnnouncement::isEnabledFor($step)) {
+            return response()->json(['audio_url' => null]);
+        }
 
         $ticket = QueueTicket::query()
             ->today()
@@ -37,7 +47,7 @@ class SpeechController extends Controller
 
         try {
             $filename = $this->speech->synthesizeToFile(
-                $this->speech->ticketAnnouncementText($ticket),
+                $this->speech->ticketAnnouncementText($ticket, $step),
             );
         } catch (\Throwable $exception) {
             Log::warning('Ticket TTS failed: '.$exception->getMessage());
