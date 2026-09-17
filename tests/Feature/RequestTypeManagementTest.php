@@ -268,6 +268,45 @@ class RequestTypeManagementTest extends TestCase
             ->assertJsonPath('queue_lanes.4.teller_ids.0', $teller->id);
     }
 
+    public function test_request_type_counter_name_is_stored_and_returned(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->postJson('/api/admin/request-types', [
+            'label' => 'دفع الرسوم',
+            'college_mode' => 'text',
+            'counter_name' => 'شباك الدفع',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('request_types.4.counter_name', 'شباك الدفع');
+
+        $this->assertSame(
+            'شباك الدفع',
+            RequestType::query()->where('label', 'دفع الرسوم')->value('counter_name'),
+        );
+    }
+
+    public function test_request_type_counter_name_can_be_updated_and_cleared(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $type = RequestType::findBySlug('transfer');
+
+        $this->putJson('/api/admin/request-types/'.$type->id, [
+            'counter_name' => 'شباك التحويل',
+        ])->assertOk();
+
+        $this->assertSame('شباك التحويل', $type->fresh()->counter_name);
+
+        $this->putJson('/api/admin/request-types/'.$type->id, [
+            'counter_name' => null,
+        ])->assertOk();
+
+        $this->assertNull($type->fresh()->counter_name);
+    }
+
     public function test_completion_services_can_be_configured_per_type(): void
     {
         QueueSystemSetting::current();

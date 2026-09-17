@@ -74,14 +74,25 @@ class SpeechService
 
     public function ticketAnnouncementText(QueueTicket $ticket): string
     {
-        $parts = ['رقم '.$this->spokenTicketCode($ticket)];
+        $parts = ['رَقَم '.$this->spokenTicketCode($ticket)];
 
         if (filled($ticket->full_name)) {
             $parts[] = $ticket->full_name;
         }
 
-        $counter = $ticket->teller?->counter_name ?: 'الشباك';
-        $parts[] = 'برجاء التوجه إلى '.$this->spokenMixedText($counter);
+        $counter = trim((string) ($ticket->resolvedCounterName() ?? ''));
+
+        if ($counter === '') {
+            $counter = 'الشِّبَاك';
+        } else {
+            if (! str_contains($counter, 'شباك')) {
+                $counter = 'شباك '.$counter;
+            }
+
+            $counter = str_replace('شباك', 'شِبَاك', $counter);
+        }
+
+        $parts[] = 'بُرْجَاء التَّوَجُّه إِلَى '.$this->spokenMixedText($counter);
 
         return implode('، ', $parts);
     }
@@ -94,32 +105,32 @@ class SpeechService
     private function spokenLetters(string $letters): string
     {
         $names = [
-            'A' => 'إيه',
-            'B' => 'بي',
-            'C' => 'سي',
-            'D' => 'دي',
-            'E' => 'إي',
-            'F' => 'إف',
-            'G' => 'جي',
-            'H' => 'إتش',
+            'A' => 'إِيه',
+            'B' => 'بِي',
+            'C' => 'سِي',
+            'D' => 'دِي',
+            'E' => 'إِي',
+            'F' => 'إِف',
+            'G' => 'جِي',
+            'H' => 'إِتْش',
             'I' => 'آي',
-            'J' => 'جيه',
-            'K' => 'كي',
-            'L' => 'إل',
-            'M' => 'إم',
-            'N' => 'إن',
-            'O' => 'أو',
-            'P' => 'بي',
-            'Q' => 'كيو',
+            'J' => 'جِيه',
+            'K' => 'كِي',
+            'L' => 'إِل',
+            'M' => 'إِم',
+            'N' => 'إِن',
+            'O' => 'أَو',
+            'P' => 'بِي',
+            'Q' => 'كِيُو',
             'R' => 'آر',
-            'S' => 'إس',
-            'T' => 'تي',
-            'U' => 'يو',
-            'V' => 'في',
-            'W' => 'دبليو',
-            'X' => 'إكس',
-            'Y' => 'واي',
-            'Z' => 'زي',
+            'S' => 'إِس',
+            'T' => 'تِي',
+            'U' => 'يُو',
+            'V' => 'فِي',
+            'W' => 'دَبْلِيُو',
+            'X' => 'إِكْس',
+            'Y' => 'وَاي',
+            'Z' => 'زِي',
         ];
 
         $spoken = [];
@@ -159,7 +170,7 @@ class SpeechService
     private function spokenNumber(int $number): string
     {
         if ($number === 0) {
-            return 'صفر';
+            return 'صِفْر';
         }
 
         $thousands = intdiv($number, 1000);
@@ -168,16 +179,16 @@ class SpeechService
 
         if ($thousands > 0) {
             $parts[] = match ($thousands) {
-                1 => 'ألف',
-                2 => 'ألفين',
-                3 => 'تلات آلاف',
-                4 => 'أربع آلاف',
-                5 => 'خمس آلاف',
-                6 => 'ست آلاف',
-                7 => 'سبع آلاف',
-                8 => 'تمن آلاف',
-                9 => 'تسع آلاف',
-                default => $this->spokenHundreds($thousands).' ألف',
+                1 => 'أَلْف',
+                2 => 'أَلْفَيْن',
+                3 => 'تَلَات آلَاف',
+                4 => 'أَرْبَع آلَاف',
+                5 => 'خَمْس آلَاف',
+                6 => 'سِتّ آلَاف',
+                7 => 'سَبْع آلَاف',
+                8 => 'تِمْن آلَاف',
+                9 => 'تِسْع آلَاف',
+                default => $this->spokenHundreds($thousands).' أَلْف',
             };
         }
 
@@ -185,7 +196,7 @@ class SpeechService
             $parts[] = $this->spokenHundreds($remainder);
         }
 
-        return implode(' و', $parts);
+        return implode(' وَ', $parts);
     }
 
     private function spokenHundreds(int $number): string
@@ -198,15 +209,15 @@ class SpeechService
         $rest = $number % 100;
 
         $hundredWord = match ($hundred) {
-            1 => 'مية',
-            2 => 'ميتين',
-            3 => 'تلت مية',
-            4 => 'أربع مية',
-            5 => 'خمس مية',
-            6 => 'ست مية',
-            7 => 'سبع مية',
-            8 => 'تمن مية',
-            9 => 'تسع مية',
+            1 => 'مِيَّة',
+            2 => 'مِيتِين',
+            3 => 'تِلْت مِيَّة',
+            4 => 'أَرْبَع مِيَّة',
+            5 => 'خَمْس مِيَّة',
+            6 => 'سِتّ مِيَّة',
+            7 => 'سَبْع مِيَّة',
+            8 => 'تِمْن مِيَّة',
+            9 => 'تِسْع مِيَّة',
             default => (string) $number,
         };
 
@@ -214,21 +225,21 @@ class SpeechService
             return $hundredWord;
         }
 
-        return $hundredWord.' و'.$this->spokenTens($rest);
+        return $hundredWord.' وَ'.$this->spokenTens($rest);
     }
 
     private function spokenTens(int $number): string
     {
         $ones = [
-            1 => 'واحد',
-            2 => 'اتنين',
-            3 => 'تلاتة',
-            4 => 'أربعة',
-            5 => 'خمسة',
-            6 => 'ستة',
-            7 => 'سبعة',
-            8 => 'تمانية',
-            9 => 'تسعة',
+            1 => 'وَاحِد',
+            2 => 'اِتْنِين',
+            3 => 'تَلَاتَة',
+            4 => 'أَرْبَعَة',
+            5 => 'خَمْسَة',
+            6 => 'سِتَّة',
+            7 => 'سَبْعَة',
+            8 => 'تَمَانْيَة',
+            9 => 'تِسْعَة',
         ];
 
         if ($number < 10) {
@@ -236,16 +247,16 @@ class SpeechService
         }
 
         $teens = [
-            10 => 'عشرة',
-            11 => 'حداشر',
-            12 => 'اتناشر',
-            13 => 'تلتاشر',
-            14 => 'أربعتاشر',
-            15 => 'خمستاشر',
-            16 => 'ستاشر',
-            17 => 'سبعتاشر',
-            18 => 'تمنتاشر',
-            19 => 'تسعتاشر',
+            10 => 'عَشَرَة',
+            11 => 'حِدَاشَر',
+            12 => 'اِتْنَاشَر',
+            13 => 'تَلَتَّاشَر',
+            14 => 'أَرْبَعْتَاشَر',
+            15 => 'خَمِسْتَاشَر',
+            16 => 'سِتَّاشَر',
+            17 => 'سَبَعْتَاشَر',
+            18 => 'تَمَنْتَاشَر',
+            19 => 'تِسَعْتَاشَر',
         ];
 
         if ($number < 20) {
@@ -253,14 +264,14 @@ class SpeechService
         }
 
         $tens = [
-            20 => 'عشرين',
-            30 => 'تلاتين',
-            40 => 'أربعين',
-            50 => 'خمسين',
-            60 => 'ستين',
-            70 => 'سبعين',
-            80 => 'تمانين',
-            90 => 'تسعين',
+            20 => 'عِشْرِين',
+            30 => 'تَلَاتِين',
+            40 => 'أَرْبَعِين',
+            50 => 'خَمْسِين',
+            60 => 'سِتِّين',
+            70 => 'سَبْعِين',
+            80 => 'تَمَانِين',
+            90 => 'تِسْعِين',
         ];
 
         $ten = intdiv($number, 10) * 10;
@@ -270,7 +281,7 @@ class SpeechService
             return $tens[$ten];
         }
 
-        return $ones[$one].' و'.$tens[$ten];
+        return $ones[$one].' وَ'.$tens[$ten];
     }
 
     public function storeAudio(string $binary, string $extension): string

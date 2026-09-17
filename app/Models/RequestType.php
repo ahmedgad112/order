@@ -16,6 +16,7 @@ use Illuminate\Validation\ValidationException;
     'code_prefix',
     'college_mode',
     'college_label',
+    'counter_name',
     'requires_completion_service',
     'completion_services',
     'enabled',
@@ -187,7 +188,7 @@ class RequestType extends Model
     }
 
     /**
-     * @return array{value: string, label: string, enabled: bool, code_prefix: string, college_mode: string, college_label: string|null, requires_completion_service: bool, completion_services: list<array{value: string, label: string}>}
+     * @return array{value: string, label: string, enabled: bool, code_prefix: string, college_mode: string, college_label: string|null, counter_name: string|null, requires_completion_service: bool, completion_services: list<array{value: string, label: string}>}
      */
     public function toPayload(): array
     {
@@ -199,6 +200,7 @@ class RequestType extends Model
             'code_prefix' => $this->code_prefix,
             'college_mode' => $this->college_mode ?? self::COLLEGE_MODE_TEXT,
             'college_label' => $this->college_label,
+            'counter_name' => $this->counter_name,
             'requires_completion_service' => $this->requires_completion_service,
             'completion_services' => $this->completionServicePayload(),
         ];

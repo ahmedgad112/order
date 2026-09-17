@@ -48,7 +48,8 @@ class ScannedTicketResource extends JsonResource
                 : null,
             'status' => $this->status->value,
             'status_label' => $this->statusLabel(),
-            'counter_name' => $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
+            'counter_name' => $this->requestTypeCounter()
+                ?? $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'people_ahead' => $this->peopleAhead,
             'position_in_queue' => $this->positionInQueue,

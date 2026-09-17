@@ -32,6 +32,7 @@ class AdminRequestTypeController extends Controller
             'code_prefix' => RequestType::nextAvailablePrefix(),
             'college_mode' => $data['college_mode'],
             'college_label' => $data['college_label'] ?? null,
+            'counter_name' => $data['counter_name'] ?? null,
             'requires_completion_service' => $data['requires_completion_service'] ?? false,
             'completion_services' => $this->completionServices($data),
             'enabled' => $data['enabled'] ?? true,
@@ -64,6 +65,9 @@ class AdminRequestTypeController extends Controller
             'label' => $data['label'] ?? $requestType->label,
             'college_mode' => $data['college_mode'] ?? $requestType->college_mode,
             'college_label' => $data['college_label'] ?? $requestType->college_label,
+            'counter_name' => array_key_exists('counter_name', $data)
+                ? $data['counter_name']
+                : $requestType->counter_name,
             'requires_completion_service' => $data['requires_completion_service']
                 ?? $requestType->requires_completion_service,
             'completion_services' => $this->completionServices($data, $requestType),

@@ -103,6 +103,18 @@ class QueueTicket extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function requestTypeCounter(): ?string
+    {
+        $counter = RequestType::findBySlug($this->request_type)?->counter_name;
+
+        return filled($counter) ? $counter : null;
+    }
+
+    public function resolvedCounterName(): ?string
+    {
+        return $this->requestTypeCounter() ?? $this->teller?->counter_name;
+    }
+
     public function isCurrentStudent(): bool
     {
         return $this->student_kind === StudentKind::CurrentStudent;

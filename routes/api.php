@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminAnnouncementPresetController;
 use App\Http\Controllers\Api\AdminCollegeController;
 use App\Http\Controllers\Api\AdminFacultyController;
 use App\Http\Controllers\Api\AdminReportController;
@@ -76,6 +77,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/users/{user}', [AdminUserController::class, 'update']);
         Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
         Route::post('/announce', [SpeechController::class, 'announce']);
+        Route::apiResource('/announcement-presets', AdminAnnouncementPresetController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
         Route::post('/mic-chunk', [SpeechController::class, 'micChunk'])
             ->middleware('throttle:360,1');
         Route::post('/mic-recording', [SpeechController::class, 'micRecording'])

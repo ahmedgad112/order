@@ -18,6 +18,7 @@ const emptyForm = () => ({
     label: '',
     college_mode: 'text',
     college_label: '',
+    counter_name: '',
     requires_completion_service: false,
     completion_services: [],
     enabled: true,
@@ -55,6 +56,7 @@ function openEdit(item) {
         label: item.label,
         college_mode: item.college_mode ?? 'text',
         college_label: item.college_label ?? '',
+        counter_name: item.counter_name ?? '',
         requires_completion_service: Boolean(item.requires_completion_service),
         completion_services: (item.completion_services ?? []).map((service) => service.value),
         enabled: item.enabled !== false,
@@ -87,6 +89,7 @@ async function submitForm() {
         label: form.value.label.trim(),
         college_mode: form.value.college_mode,
         college_label: form.value.college_label?.trim() || null,
+        counter_name: form.value.counter_name?.trim() || null,
         requires_completion_service: form.value.requires_completion_service,
         completion_services: form.value.requires_completion_service
             ? form.value.completion_services
@@ -196,6 +199,12 @@ async function handleDelete(item) {
                             {{ type.enabled ? 'مفعّل' : 'ملغي' }}
                         </span>
                         <span
+                            v-if="type.counter_name"
+                            class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700"
+                        >
+                            {{ type.counter_name }}
+                        </span>
+                        <span
                             v-if="type.requires_completion_service"
                             class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700"
                         >
@@ -283,6 +292,20 @@ async function handleDelete(item) {
                                 placeholder="مثال: الكلية المراد الالتحاق بها"
                             />
                         </div>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">الشباك المعلن في النداء (اختياري)</label>
+                        <input
+                            v-model="form.counter_name"
+                            type="text"
+                            maxlength="100"
+                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            placeholder="مثال: شباك الدفع"
+                        />
+                        <p class="mt-1 text-xs text-slate-500">
+                            يُنطق في النداء ويظهر على الشاشة بدلاً من شباك الموظف. اتركه فارغاً لاستخدام شباك الموظف.
+                        </p>
                     </div>
 
                     <label class="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">

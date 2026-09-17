@@ -39,7 +39,8 @@ class TicketResource extends JsonResource
                 : null,
             'status' => $this->status->value,
             'user_id' => $this->user_id,
-            'counter_name' => $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
+            'counter_name' => $this->requestTypeCounter()
+                ?? $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'called_at' => $this->called_at?->toIso8601String(),
             'entered_at' => $this->entered_at?->toIso8601String(),

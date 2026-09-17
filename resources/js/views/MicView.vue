@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { Megaphone, Mic, MicOff, Play, Radio, Send, ShieldAlert, Square, Trash2 } from 'lucide-vue-next';
+import { Megaphone, Mic, MicOff, Pencil, Play, Plus, Radio, Send, ShieldAlert, Square, Trash2 } from 'lucide-vue-next';
 import { axios } from '../bootstrap';
 import AppNavbar from '../components/AppNavbar.vue';
 
@@ -19,6 +19,14 @@ const announceText = ref('');
 const announceVoice = ref('ar-EG-SalmaNeural');
 const announceRate = ref('0%');
 const announceLoading = ref(false);
+
+const presets = ref([]);
+const showPresetForm = ref(false);
+const editingPreset = ref(null);
+const presetForm = ref({ label: '', text: '' });
+const presetSaving = ref(false);
+const presetError = ref('');
+const presetSendingId = ref(null);
 
 const voiceOptions = [
     { value: 'ar-EG-SalmaNeural', label: 'عربي مصري — سلمى (أنثى)' },
@@ -267,6 +275,88 @@ async function sendTextAnnouncement() {
     }
 }
 
+// ---- Saved messages (presets) ----
+
+async function loadPresets() {
+    try {
+        const { data } = await axios.get('/admin/announcement-presets');
+        presets.value = data.presets ?? [];
+    } catch {
+        presets.value = [];
+    }
+}
+
+function openPresetForm(preset = null) {
+    editingPreset.value = preset;
+    presetForm.value = preset
+        ? { label: preset.label, text: preset.text }
+        : { label: '', text: announceText.value.trim() };
+    presetError.value = '';
+    showPresetForm.value = true;
+}
+
+function closePresetForm() {
+    showPresetForm.value = false;
+    editingPreset.value = null;
+    presetForm.value = { label: '', text: '' };
+    presetError.value = '';
+}
+
+async function savePreset() {
+    presetSaving.value = true;
+    presetError.value = '';
+
+    try {
+        const payload = {
+            label: presetForm.value.label.trim(),
+            text: presetForm.value.text.trim(),
+        };
+        const { data } = editingPreset.value
+            ? await axios.put(`/admin/announcement-presets/${editingPreset.value.id}`, payload)
+            : await axios.post('/admin/announcement-presets', payload);
+        presets.value = data.presets ?? [];
+        closePresetForm();
+    } catch (err) {
+        presetError.value = Object.values(err.response?.data?.errors ?? {}).flat()[0]
+            ?? err.response?.data?.message
+            ?? 'تعذر حفظ الرسالة.';
+    } finally {
+        presetSaving.value = false;
+    }
+}
+
+async function deletePreset(preset) {
+    if (!confirm(`حذف الرسالة "${preset.label}"؟`)) {
+        return;
+    }
+
+    try {
+        const { data } = await axios.delete(`/admin/announcement-presets/${preset.id}`);
+        presets.value = data.presets ?? [];
+    } catch {
+        micError.value = 'تعذر حذف الرسالة.';
+    }
+}
+
+async function sendPreset(preset) {
+    presetSendingId.value = preset.id;
+    micError.value = '';
+    sendSuccess.value = '';
+
+    try {
+        const { data } = await axios.post('/admin/announce', {
+            text: preset.text,
+            voice: announceVoice.value,
+            rate: announceRate.value,
+        });
+        sendSuccess.value = data?.message || 'تم إرسال الإعلان الصوتي.';
+    } catch {
+        micError.value = 'تعذر إرسال الإعلان.';
+    } finally {
+        presetSendingId.value = null;
+    }
+}
+
 function formatSeconds(total) {
     const minutes = Math.floor(total / 60);
     const seconds = total % 60;
@@ -295,6 +385,7 @@ function releaseStream() {
 onMounted(() => {
     // Request mic access up front so pressing the button starts instantly.
     acquireStream();
+    loadPresets();
 });
 
 onUnmounted(() => {
@@ -480,6 +571,110 @@ onUnmounted(() => {
                         <Megaphone class="h-5 w-5" />
                         {{ announceLoading ? 'جاري الإرسال...' : 'إرسال الإعلان' }}
                     </button>
+
+                    <div class="mt-6 border-t border-slate-200 pt-4 text-right">
+                        <div class="mb-2 flex items-center justify-between">
+                            <h3 class="text-sm font-bold text-slate-700">رسائل جاهزة</h3>
+                            <button
+                                type="button"
+                                class="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                                @click="showPresetForm ? closePresetForm() : openPresetForm()"
+                            >
+                                <Plus class="h-3.5 w-3.5" />
+                                حفظ رسالة جاهزة
+                            </button>
+                        </div>
+
+                        <ul v-if="presets.length" class="space-y-2">
+                            <li
+                                v-for="preset in presets"
+                                :key="preset.id"
+                                class="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                            >
+                                <button
+                                    type="button"
+                                    class="min-w-0 flex-1 text-right"
+                                    title="استخدام في مربع النص"
+                                    @click="announceText = preset.text"
+                                >
+                                    <span class="block truncate text-sm font-semibold text-slate-800">{{ preset.label }}</span>
+                                    <span class="block truncate text-xs text-slate-500">{{ preset.text }}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded-lg bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                    :disabled="presetSendingId === preset.id"
+                                    title="إرسال فوري"
+                                    @click="sendPreset(preset)"
+                                >
+                                    <Megaphone class="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-100"
+                                    title="تعديل"
+                                    @click="openPresetForm(preset)"
+                                >
+                                    <Pencil class="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded-lg border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50"
+                                    title="حذف"
+                                    @click="deletePreset(preset)"
+                                >
+                                    <Trash2 class="h-4 w-4" />
+                                </button>
+                            </li>
+                        </ul>
+                        <p v-else class="text-xs text-slate-400">لا توجد رسائل محفوظة — احفظ رسالة تعيد استخدامها.</p>
+
+                        <div
+                            v-if="showPresetForm"
+                            class="mt-3 space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3"
+                        >
+                            <div>
+                                <label class="mb-1 block text-xs font-semibold text-slate-600">اسم الرسالة</label>
+                                <input
+                                    v-model="presetForm.label"
+                                    type="text"
+                                    maxlength="80"
+                                    class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                                    placeholder="مثال: نداء استراحة"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-semibold text-slate-600">نص الرسالة</label>
+                                <textarea
+                                    v-model="presetForm.text"
+                                    rows="2"
+                                    maxlength="500"
+                                    class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                                    placeholder="النص الذي سيُنطق على الشاشة"
+                                />
+                            </div>
+                            <p v-if="presetError" class="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
+                                {{ presetError }}
+                            </p>
+                            <div class="flex gap-2">
+                                <button
+                                    type="button"
+                                    class="flex-1 rounded-xl bg-indigo-600 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+                                    :disabled="presetSaving"
+                                    @click="savePreset"
+                                >
+                                    {{ presetSaving ? 'جاري الحفظ...' : (editingPreset ? 'حفظ التعديل' : 'حفظ الرسالة') }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+                                    @click="closePresetForm"
+                                >
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </template>
 
                 <p v-if="sendSuccess" class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">

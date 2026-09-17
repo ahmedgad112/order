@@ -40,7 +40,8 @@ class AdminTicketResource extends JsonResource
                 : null,
             'status' => $this->status->value,
             'status_label' => $this->statusLabel(),
-            'counter_name' => $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
+            'counter_name' => $this->requestTypeCounter()
+                ?? $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'called_at' => $this->called_at?->toIso8601String(),
             'entered_at' => $this->entered_at?->toIso8601String(),

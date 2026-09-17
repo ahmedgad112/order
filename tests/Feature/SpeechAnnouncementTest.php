@@ -6,6 +6,7 @@ use App\Events\AnnouncementMadeEvent;
 use App\Events\MicAudioChunkEvent;
 use App\Jobs\GenerateTicketAudioJob;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Models\User;
 use App\Services\SpeechService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -182,7 +183,7 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
-        $this->assertSame('رقم أو تي واحد، محمد أحمد علي، برجاء التوجه إلى شباك واحد', $text);
+        $this->assertSame('رَقَم أَو تِي وَاحِد، محمد أحمد علي، بُرْجَاء التَّوَجُّه إِلَى شِبَاك وَاحِد', $text);
     }
 
     public function test_ticket_announcement_text_omits_name_and_speaks_type_only_number(): void
@@ -196,7 +197,50 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
-        $this->assertSame('رقم أو تي اتناشر، برجاء التوجه إلى شباك اتناشر', $text);
+        $this->assertSame('رَقَم أَو تِي اِتْنَاشَر، بُرْجَاء التَّوَجُّه إِلَى شِبَاك اِتْنَاشَر', $text);
+    }
+
+    public function test_ticket_announcement_text_prefixes_counter_names_without_shebak(): void
+    {
+        $teller = User::factory()->teller('الدفع')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك الدفع', $text);
+    }
+
+    public function test_ticket_announcement_text_prefixes_numeric_counter_names(): void
+    {
+        $teller = User::factory()->teller('3')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك تَلَاتَة', $text);
+    }
+
+    public function test_ticket_announcement_prefers_request_type_counter_over_teller_counter(): void
+    {
+        RequestType::findBySlug('nomination_card')->update(['counter_name' => 'الدفع']);
+        $teller = User::factory()->teller('شباك 3')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك الدفع', $text);
     }
 
     public function test_ticket_announcement_text_speaks_current_student_prefix(): void
@@ -209,7 +253,7 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
 
-        $this->assertSame('رقم أو تمانية، برجاء التوجه إلى الشباك', $text);
+        $this->assertSame('رَقَم أَو تَمَانْيَة، بُرْجَاء التَّوَجُّه إِلَى الشِّبَاك', $text);
     }
 
     public function test_stream_audio_serves_stored_file(): void

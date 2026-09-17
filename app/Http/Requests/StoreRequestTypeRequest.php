@@ -23,6 +23,7 @@ class StoreRequestTypeRequest extends FormRequest
             'label' => ['required', 'string', 'min:2', 'max:255'],
             'college_mode' => ['required', 'string', Rule::in(RequestType::COLLEGE_MODES)],
             'college_label' => ['nullable', 'string', 'max:255'],
+            'counter_name' => ['nullable', 'string', 'max:100'],
             'requires_completion_service' => ['sometimes', 'boolean'],
             'completion_services' => ['nullable', 'array'],
             'completion_services.*' => [
