@@ -18,6 +18,8 @@ const footerAnnouncement = ref('');
 let micPending = 0;
 let sharedAudioCtx = null;
 let announcementTimer = null;
+const seenAnnouncementKeys = new Set();
+let announcementsSeeded = false;
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
 const CHIME_URL = '/audio/airport-ding.wav';
@@ -294,6 +296,38 @@ function onAnnouncement(event) {
     }
 }
 
+function announcementKeys(event) {
+    const keys = [];
+
+    if (event?.id != null) {
+        keys.push(`id:${event.id}`);
+    }
+
+    if (event?.audio_url) {
+        keys.push(`audio:${event.audio_url}`);
+    }
+
+    return keys;
+}
+
+function rememberAnnouncement(event) {
+    announcementKeys(event).forEach((key) => seenAnnouncementKeys.add(key));
+}
+
+function consumeAnnouncement(event) {
+    if (!event || (!event.id && !event.audio_url && !event.text)) {
+        return;
+    }
+
+    if (announcementKeys(event).some((key) => seenAnnouncementKeys.has(key))) {
+        rememberAnnouncement(event);
+        return;
+    }
+
+    rememberAnnouncement(event);
+    onAnnouncement(event);
+}
+
 function onMicChunk(event) {
     if (event.final && !event.audio_url) {
         armMicIdle(2500);
@@ -390,8 +424,24 @@ watch(() => queueStore.serving, (list) => {
     announceCall(fresh[0]);
 });
 
-onMounted(() => {
-    queueStore.fetchPublicStatus();
+watch(() => queueStore.announcement, (event) => {
+    if (!announcementsSeeded) {
+        if (event) {
+            rememberAnnouncement(event);
+        }
+
+        return;
+    }
+
+    consumeAnnouncement(event);
+});
+
+onMounted(async () => {
+    await queueStore.fetchPublicStatus();
+    if (queueStore.announcement) {
+        rememberAnnouncement(queueStore.announcement);
+    }
+    announcementsSeeded = true;
     probeAudio();
 
     clockTimer = setInterval(() => {
@@ -401,7 +451,7 @@ onMounted(() => {
 
     unsubscribeEcho = queueStore.subscribeEcho({
         TicketCalled: onTicketCalled,
-        AnnouncementMade: onAnnouncement,
+        AnnouncementMade: consumeAnnouncement,
         MicAudioChunk: onMicChunk,
     });
 

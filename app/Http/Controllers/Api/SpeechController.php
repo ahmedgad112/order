@@ -73,23 +73,21 @@ class SpeechController extends Controller
     {
         $data = $request->validated();
 
+        $filename = null;
+        $audioUrl = '';
+
         try {
             $filename = $this->speech->synthesizeToFile(
                 $data['text'],
                 $data['voice'] ?? null,
                 $data['rate'] ?? null,
             );
+            $audioUrl = $this->speech->audioUrl($filename);
         } catch (\Throwable $exception) {
             Log::warning('Announcement TTS failed: '.$exception->getMessage());
-
-            return response()->json([
-                'message' => 'تعذر توليد الرسالة الصوتية. تأكد من اتصال الخادم بالإنترنت.',
-            ], 502);
         }
 
-        $audioUrl = $this->speech->audioUrl($filename);
-
-        AnnouncementLog::create([
+        $log = AnnouncementLog::create([
             'user_id' => $request->user()->id,
             'text' => $data['text'],
             'voice' => $data['voice'] ?? SpeechService::DEFAULT_VOICE,
@@ -97,11 +95,13 @@ class SpeechController extends Controller
             'audio_filename' => $filename,
         ]);
 
-        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, $data['text']));
+        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, $data['text'], $log->id));
 
         return response()->json([
-            'message' => 'تم إرسال الإعلان الصوتي.',
-            'audio_url' => $audioUrl,
+            'message' => $audioUrl !== ''
+                ? 'تم إرسال الإعلان الصوتي.'
+                : 'تم إرسال الإعلان النصي.',
+            'audio_url' => $audioUrl !== '' ? $audioUrl : null,
         ]);
     }
 
@@ -145,7 +145,7 @@ class SpeechController extends Controller
         $filename = $this->speech->storeUploadedAudio($file);
         $audioUrl = $this->speech->audioUrl($filename);
 
-        AnnouncementLog::create([
+        $log = AnnouncementLog::create([
             'user_id' => $request->user()->id,
             'text' => 'تسجيل صوتي',
             'voice' => 'recording',
@@ -153,7 +153,7 @@ class SpeechController extends Controller
             'audio_filename' => $filename,
         ]);
 
-        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, 'تسجيل صوتي'));
+        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, 'تسجيل صوتي', $log->id));
 
         return response()->json([
             'message' => 'تم إرسال التسجيل إلى شاشة العرض.',

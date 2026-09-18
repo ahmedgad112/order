@@ -15,6 +15,7 @@ class AnnouncementMadeEvent implements ShouldBroadcastNow
     public function __construct(
         public string $audioUrl,
         public string $text,
+        public ?int $id = null,
     ) {}
 
     /**
@@ -36,7 +37,8 @@ class AnnouncementMadeEvent implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'audio_url' => $this->audioUrl,
+            'id' => $this->id,
+            'audio_url' => $this->audioUrl !== '' ? $this->audioUrl : null,
             'text' => $this->text,
         ];
     }

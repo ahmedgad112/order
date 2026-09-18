@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Afaya\EdgeTTS\Service\EdgeTTS;
 use App\Enums\ProcessStep;
+use App\Models\AnnouncementLog;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
@@ -369,6 +370,30 @@ class SpeechService
     public function audioUrl(string $filename): string
     {
         return url('/api/public/audio/'.$filename);
+    }
+
+    /**
+     * @return array{id: int, text: string, audio_url: string|null}|null
+     */
+    public function latestPublicAnnouncement(): ?array
+    {
+        $log = AnnouncementLog::query()->latest('id')->first();
+
+        if (! $log instanceof AnnouncementLog) {
+            return null;
+        }
+
+        $audioUrl = null;
+
+        if (is_string($log->audio_filename) && $log->audio_filename !== '' && $this->audioPath($log->audio_filename) !== null) {
+            $audioUrl = $this->audioUrl($log->audio_filename);
+        }
+
+        return [
+            'id' => $log->id,
+            'text' => $log->text,
+            'audio_url' => $audioUrl,
+        ];
     }
 
     private function extensionForMime(string $mime): string

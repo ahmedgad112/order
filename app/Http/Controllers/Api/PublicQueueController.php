@@ -7,6 +7,7 @@ use App\Http\Requests\TrackTicketRequest;
 use App\Http\Resources\UserTicketResource;
 use App\Services\QueueService;
 use App\Services\QueueSystemService;
+use App\Services\SpeechService;
 use Illuminate\Http\JsonResponse;
 
 class PublicQueueController extends Controller
@@ -14,6 +15,7 @@ class PublicQueueController extends Controller
     public function __construct(
         private readonly QueueService $queueService,
         private readonly QueueSystemService $systemService,
+        private readonly SpeechService $speech,
     ) {}
 
     public function issueTicket(): JsonResponse
@@ -48,6 +50,7 @@ class PublicQueueController extends Controller
             'waiting' => $status['waiting'],
             'stats' => $status['stats'],
             'system' => $this->systemService->getStatus(),
+            'announcement' => $this->speech->latestPublicAnnouncement(),
         ]);
     }
 }

@@ -70,8 +70,10 @@ export const useQueueStore = defineStore('queue', () => {
     });
     const loading = ref(false);
     const error = ref(null);
+    const announcement = ref(null);
 
     let echoBound = false;
+    let echoLive = false;
     let echoSubscribers = 0;
     let refreshDebounceTimer = null;
     const extraHandlers = {
@@ -114,6 +116,9 @@ export const useQueueStore = defineStore('queue', () => {
         stats.value = data.stats ?? { waiting: 0, serving: 0, completed: 0 };
         if (data.system) {
             system.value = data.system;
+        }
+        if (Object.prototype.hasOwnProperty.call(data, 'announcement')) {
+            announcement.value = data.announcement ?? null;
         }
     }
 
@@ -897,6 +902,7 @@ export const useQueueStore = defineStore('queue', () => {
                 });
 
             echoBound = true;
+            bindEchoConnectionState(echo);
             armLiveRefreshers();
         })();
 
@@ -911,13 +917,14 @@ export const useQueueStore = defineStore('queue', () => {
 
         window.Echo.leave('queue-channel');
         echoBound = false;
+        echoLive = false;
         echoBindPromise = null;
         armLiveRefreshers();
     }
 
     /**
      * Subscribe to the shared queue channel. Returns an unsubscribe function.
-     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'TicketUpdated'|'QueueSystemUpdated'|'QueueDayReset', Function>>} handlers
+     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'TicketUpdated'|'QueueSystemUpdated'|'QueueDayReset'|'AnnouncementMade'|'MicAudioChunk', Function>>} handlers
      */
     function subscribeEcho(handlers = {}) {
         Object.entries(handlers).forEach(([eventName, handler]) => {
@@ -972,6 +979,27 @@ export const useQueueStore = defineStore('queue', () => {
         liveRefreshers.forEach((controller) => controller.arm());
     }
 
+    function bindEchoConnectionState(echo) {
+        const pusher = echo?.connector?.pusher;
+
+        if (!pusher?.connection) {
+            echoLive = false;
+            return;
+        }
+
+        const sync = () => {
+            echoLive = pusher.connection.state === 'connected';
+            armLiveRefreshers();
+        };
+
+        pusher.connection.bind('state_change', sync);
+        pusher.connection.bind('connected', sync);
+        pusher.connection.bind('disconnected', sync);
+        pusher.connection.bind('unavailable', sync);
+        pusher.connection.bind('failed', sync);
+        sync();
+    }
+
     function startAutoRefresh(callback, intervalMs = 5000) {
         let inFlight = false;
         let timer = null;
@@ -994,7 +1022,7 @@ export const useQueueStore = defineStore('queue', () => {
         const controller = {
             arm() {
                 clearInterval(timer);
-                const ms = echoBound ? Math.max(intervalMs, 25000) : intervalMs;
+                const ms = echoLive ? Math.max(intervalMs, 25000) : intervalMs;
                 timer = setInterval(tick, ms);
             },
             stop() {
@@ -1013,6 +1041,7 @@ export const useQueueStore = defineStore('queue', () => {
         serving,
         waiting,
         stats,
+        announcement,
         currentTicket,
         absentTickets,
         tellerTickets,

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Events\AnnouncementMadeEvent;
 use App\Events\MicAudioChunkEvent;
 use App\Jobs\GenerateTicketAudioJob;
+use App\Models\AnnouncementLog;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
@@ -61,7 +62,57 @@ class SpeechAnnouncementTest extends TestCase
             'rate' => '0%',
         ]);
 
-        Event::assertDispatched(AnnouncementMadeEvent::class);
+        Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
+            return $event->text === 'على الجميع التوجه إلى القاعة الرئيسية'
+                && $event->id !== null
+                && str_contains($event->audioUrl, '/api/public/audio/');
+        });
+
+        $this->getJson('/api/public/queue-status')
+            ->assertOk()
+            ->assertJsonPath('announcement.text', 'على الجميع التوجه إلى القاعة الرئيسية')
+            ->assertJsonPath('announcement.id', AnnouncementLog::query()->latest('id')->value('id'));
+    }
+
+    public function test_text_announcement_is_sent_when_tts_fails(): void
+    {
+        Event::fake();
+
+        $speech = Mockery::mock(SpeechService::class)->makePartial();
+        $speech->shouldReceive('synthesizeToFile')->andThrow(new \RuntimeException('tts down'));
+        $this->app->instance(SpeechService::class, $speech);
+
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/announce', [
+            'text' => 'على الجميع التوجه إلى القاعة الرئيسية',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'تم إرسال الإعلان النصي.')
+            ->assertJsonPath('audio_url', null);
+
+        $this->assertDatabaseHas('announcement_logs', [
+            'text' => 'على الجميع التوجه إلى القاعة الرئيسية',
+            'audio_filename' => null,
+        ]);
+
+        Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
+            return $event->text === 'على الجميع التوجه إلى القاعة الرئيسية'
+                && $event->audioUrl === ''
+                && $event->id !== null;
+        });
+
+        $this->getJson('/api/public/queue-status')
+            ->assertOk()
+            ->assertJsonPath('announcement.text', 'على الجميع التوجه إلى القاعة الرئيسية')
+            ->assertJsonPath('announcement.audio_url', null);
+    }
+
+    public function test_public_queue_status_returns_null_announcement_when_none_exist(): void
+    {
+        $this->getJson('/api/public/queue-status')
+            ->assertOk()
+            ->assertJsonPath('announcement', null);
     }
 
     public function test_super_admin_can_send_announcement(): void
@@ -340,6 +391,7 @@ class SpeechAnnouncementTest extends TestCase
 
         Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
             return $event->text === 'تسجيل صوتي'
+                && $event->id !== null
                 && str_contains($event->audioUrl, '/api/public/audio/');
         });
     }
