@@ -20,11 +20,9 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-100">
-        <AppNavbar title="إدارة المستخدمين" :subtitle="navbarSubtitle" />
-
-        <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+    <AppNavbar title="إدارة المستخدمين" :subtitle="navbarSubtitle">
+        <main class="mx-auto w-full max-w-7xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
             <AdminUserManagement />
         </main>
-    </div>
+    </AppNavbar>
 </template>

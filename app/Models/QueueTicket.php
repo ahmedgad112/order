@@ -477,6 +477,23 @@ class QueueTicket extends Model
         return ProcessStep::values();
     }
 
+    /**
+     * @return list<string>
+     */
+    public static function searchFieldValues(): array
+    {
+        return [
+            'all',
+            'full_name',
+            'national_id',
+            'order_number',
+            'ticket_number',
+            'seat_number',
+            'department',
+            'college',
+        ];
+    }
+
     public function scopeForAdmissionProcess(Builder $query): Builder
     {
         return $query->where(function (Builder $kindQuery): void {
@@ -567,28 +584,25 @@ class QueueTicket extends Model
         };
     }
 
-    public function scopeMatchingSearch(Builder $query, string $search): Builder
+    public function scopeMatchingSearch(Builder $query, string $search, ?string $field = null): Builder
     {
-        $catalogLabels = College::labelsBySlug() + Faculty::labelsBySlug();
-        $matchingCollegeValues = array_keys(array_filter(
-            $catalogLabels,
-            function (string $label, string $slug) use ($search): bool {
-                return str_contains($label, $search)
-                    || str_contains($slug, $search);
-            },
-            ARRAY_FILTER_USE_BOTH,
-        ));
+        $field = in_array($field, self::searchFieldValues(), true) ? $field : 'all';
 
+        return match ($field) {
+            'full_name', 'national_id', 'order_number', 'seat_number', 'department' => $query->where($field, 'like', '%'.$search.'%'),
+            'ticket_number' => self::constrainTicketCodeSearch($query, $search),
+            'college' => self::constrainCollegeSearch($query, $search),
+            default => self::constrainAllFieldsSearch($query, $search),
+        };
+    }
+
+    private static function constrainTicketCodeSearch(Builder $query, string $search): Builder
+    {
         $parsedTicketCode = self::parseTicketCode($search);
 
-        return $query->where(function (Builder $q) use ($search, $matchingCollegeValues, $parsedTicketCode): void {
-            $q->where('full_name', 'like', "%{$search}%")
-                ->orWhere('national_id', 'like', "%{$search}%")
-                ->orWhere('order_number', 'like', "%{$search}%")
-                ->orWhere('seat_number', 'like', "%{$search}%")
-                ->orWhere('department', 'like', "%{$search}%")
-                ->orWhere('ticket_number', 'like', "%{$search}%")
-                ->orWhere('college', 'like', "%{$search}%")
+        return $query->where(function (Builder $ticketQuery) use ($search, $parsedTicketCode): void {
+            $ticketQuery
+                ->where('ticket_number', 'like', '%'.$search.'%')
                 ->when(
                     $parsedTicketCode !== null,
                     function (Builder $codeQuery) use ($parsedTicketCode): void {
@@ -604,11 +618,47 @@ class QueueTicket extends Model
                                 ->where('ticket_number', $ticketCodeNumber);
                         });
                     },
-                )
+                );
+        });
+    }
+
+    private static function constrainCollegeSearch(Builder $query, string $search): Builder
+    {
+        $catalogLabels = College::labelsBySlug() + Faculty::labelsBySlug();
+        $matchingCollegeValues = array_keys(array_filter(
+            $catalogLabels,
+            function (string $label, string $slug) use ($search): bool {
+                return str_contains($label, $search)
+                    || str_contains($slug, $search);
+            },
+            ARRAY_FILTER_USE_BOTH,
+        ));
+
+        return $query->where(function (Builder $collegeQuery) use ($search, $matchingCollegeValues): void {
+            $collegeQuery
+                ->where('college', 'like', '%'.$search.'%')
                 ->when(
                     $matchingCollegeValues !== [],
-                    fn (Builder $collegeQuery) => $collegeQuery->orWhereIn('college', $matchingCollegeValues),
+                    fn (Builder $matchingQuery) => $matchingQuery->orWhereIn('college', $matchingCollegeValues),
                 );
+        });
+    }
+
+    private static function constrainAllFieldsSearch(Builder $query, string $search): Builder
+    {
+        return $query->where(function (Builder $allFieldsQuery) use ($search): void {
+            $allFieldsQuery
+                ->where('full_name', 'like', '%'.$search.'%')
+                ->orWhere('national_id', 'like', '%'.$search.'%')
+                ->orWhere('order_number', 'like', '%'.$search.'%')
+                ->orWhere('seat_number', 'like', '%'.$search.'%')
+                ->orWhere('department', 'like', '%'.$search.'%')
+                ->orWhere(function (Builder $ticketQuery) use ($search): void {
+                    self::constrainTicketCodeSearch($ticketQuery, $search);
+                })
+                ->orWhere(function (Builder $collegeQuery) use ($search): void {
+                    self::constrainCollegeSearch($collegeQuery, $search);
+                });
         });
     }
 }

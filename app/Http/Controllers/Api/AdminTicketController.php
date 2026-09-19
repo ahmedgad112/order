@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateTicketRequest;
 use App\Http\Resources\AdminTicketResource;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Services\QueueService;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
@@ -24,17 +25,23 @@ class AdminTicketController extends Controller
         $validated = $request->validate([
             'status' => ['sometimes', 'nullable', 'string'],
             'step' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...QueueTicket::processStepValues()])],
+            'request_type' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...RequestType::laneValues()])],
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'search_by' => ['sometimes', 'nullable', 'string', Rule::in(QueueTicket::searchFieldValues())],
             'date' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
         ], [
             'step.in' => 'خطوة الطلب غير صحيحة.',
+            'request_type.in' => 'نوع الطلب غير صحيح.',
+            'search_by.in' => 'حقل البحث غير صحيح.',
             'date.date_format' => 'تاريخ الأرشيف غير صحيح.',
             'date.before_or_equal' => 'لا يمكن عرض تسجيلات تاريخ في المستقبل.',
         ]);
 
         $status = $validated['status'] ?? null;
         $step = $validated['step'] ?? null;
+        $requestType = $validated['request_type'] ?? null;
         $search = $validated['search'] ?? null;
+        $searchBy = $validated['search_by'] ?? null;
         $date = filled($validated['date'] ?? null)
             ? $validated['date']
             : today()->toDateString();
@@ -52,8 +59,12 @@ class AdminTicketController extends Controller
             $query->atProcessStep($step);
         }
 
+        if (filled($requestType) && $requestType !== 'all') {
+            $query->forQueueLanes([$requestType]);
+        }
+
         if (filled($search)) {
-            $query->matchingSearch($search);
+            $query->matchingSearch($search, $searchBy);
         }
 
         $tickets = $query->get();

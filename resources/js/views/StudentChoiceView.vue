@@ -23,10 +23,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <AppNavbar title="نظام إدارة الأدوار" subtitle="التسجيل عند الموظف" max-width="5xl" />
-
-        <main class="mx-auto max-w-3xl px-6 py-10">
+    <AppNavbar
+        title="نظام إدارة الأدوار"
+        subtitle="التسجيل عند الموظف"
+        page-class="bg-gradient-to-br from-blue-50 via-white to-indigo-50"
+    >
+        <main class="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
             <div
                 v-if="!queueStore.isSystemOpen"
                 class="mb-6 rounded-3xl border border-red-200 bg-red-50 p-6 text-center"
@@ -44,7 +46,7 @@ onUnmounted(() => {
                 <p class="mt-2 text-amber-700">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
             </div>
 
-            <div class="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
+            <div class="rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-xl sm:p-8">
                 <h2 class="text-3xl font-bold text-slate-800">التسجيل عند الموظف</h2>
                 <p class="mt-3 text-slate-500">
                     إصدار الدور يتم من الموظف. توجه إلى شباك التسجيل لإدخال اسم الطالب ورقم الطلب ونوعه.
@@ -69,5 +71,5 @@ onUnmounted(() => {
                 </RouterLink>
             </div>
         </main>
-    </div>
+    </AppNavbar>
 </template>

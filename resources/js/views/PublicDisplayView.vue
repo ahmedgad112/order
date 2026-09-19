@@ -246,12 +246,12 @@ function noteCall(ticket) {
     }
 }
 
-async function announceCall(ticket, step = null, muted = false) {
+async function announceCall(ticket, step = null, muted = false, counter = null) {
     lastCalledId.value = ticket.id;
     lastCall.value = {
         number: ticket.ticket_number,
         name: displayName(ticket),
-        counter: ticket.counter_name || ticket.teller_name || '',
+        counter: counter || ticket.counter_name || ticket.teller_name || '',
     };
 
     if (muted) {
@@ -281,7 +281,7 @@ async function onTicketCalled(event) {
     }
 
     noteCall(ticket);
-    await announceCall(ticket, event.step ?? null, Boolean(event.muted));
+    await announceCall(ticket, event.step ?? null, Boolean(event.muted), event.counter ?? null);
 }
 
 function onAnnouncement(event) {

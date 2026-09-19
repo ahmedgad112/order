@@ -9,6 +9,7 @@ use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RequestTypeManagementTest extends TestCase
@@ -47,6 +48,97 @@ class RequestTypeManagementTest extends TestCase
         $this->assertNotNull($type->slug);
         $this->assertSame('OA', $type->code_prefix);
         $this->assertTrue($type->enabled);
+    }
+
+    public function test_super_admin_can_create_request_type_with_custom_prefix(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->postJson('/api/admin/request-types', [
+            'label' => 'منحة تفوق',
+            'code_prefix' => 'xy',
+            'college_mode' => 'text',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('request_types.4.code_prefix', 'XY');
+
+        $type = RequestType::query()->where('label', 'منحة تفوق')->firstOrFail();
+
+        $this->assertSame('XY', $type->code_prefix);
+
+        $this->issueTicketAsStaff([
+            'request_type' => $type->slug,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('ticket.ticket_number', 'XY1');
+    }
+
+    public function test_returns_422_when_code_prefix_is_already_used(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->postJson('/api/admin/request-types', [
+            'label' => 'منحة تفوق',
+            'code_prefix' => 'OT',
+            'college_mode' => 'text',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.code_prefix.0', 'رمز نوع الطلب مستخدم بالفعل.');
+    }
+
+    #[DataProvider('reservedCodePrefixes')]
+    public function test_returns_422_when_code_prefix_is_reserved_for_students(string $prefix): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->postJson('/api/admin/request-types', [
+            'label' => 'منحة تفوق',
+            'code_prefix' => $prefix,
+            'college_mode' => 'text',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.code_prefix.0', 'هذا الرمز محجوز لتذاكر الطلاب.');
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function reservedCodePrefixes(): array
+    {
+        return [
+            'new_student' => ['N'],
+            'current_student' => ['o'],
+        ];
+    }
+
+    #[DataProvider('invalidCodePrefixes')]
+    public function test_returns_422_when_code_prefix_is_invalid(string $prefix): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->postJson('/api/admin/request-types', [
+            'label' => 'منحة تفوق',
+            'code_prefix' => $prefix,
+            'college_mode' => 'text',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code_prefix']);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidCodePrefixes(): array
+    {
+        return [
+            'digits' => ['12'],
+            'too_long' => ['ABCDE'],
+            'special_characters' => ['O-T'],
+        ];
     }
 
     public function test_generated_prefixes_do_not_collide(): void
@@ -170,6 +262,51 @@ class RequestTypeManagementTest extends TestCase
         $this->assertSame('select', $fresh->college_mode);
         $this->assertSame('OB', $fresh->code_prefix);
         $this->assertSame('transfer', $fresh->slug);
+    }
+
+    public function test_super_admin_can_update_code_prefix(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $type = RequestType::findBySlug('nomination_card');
+        $ticket = QueueTicket::factory()->create([
+            'request_type' => 'nomination_card',
+            'ticket_number' => 5,
+        ]);
+
+        $this->assertSame('OT5', $ticket->ticketCode());
+
+        $this->putJson('/api/admin/request-types/'.$type->id, [
+            'code_prefix' => 'sch',
+        ])
+            ->assertOk()
+            ->assertJsonPath('request_types.0.code_prefix', 'SCH');
+
+        $this->assertSame('SCH', $type->fresh()->code_prefix);
+        $this->assertSame('SCH5', $ticket->fresh()->ticketCode());
+
+        $parsed = QueueTicket::parseTicketCode('SCH5');
+
+        $this->assertNotNull($parsed);
+        $this->assertSame('nomination_card', $parsed[1]);
+        $this->assertSame(5, $parsed[2]);
+    }
+
+    public function test_returns_422_when_updated_code_prefix_belongs_to_another_type(): void
+    {
+        QueueSystemSetting::current();
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $type = RequestType::findBySlug('transfer');
+
+        $this->putJson('/api/admin/request-types/'.$type->id, [
+            'code_prefix' => 'OT',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.code_prefix.0', 'رمز نوع الطلب مستخدم بالفعل.');
+
+        $this->assertSame('OB', $type->fresh()->code_prefix);
     }
 
     public function test_disabling_type_hides_it_from_issue_options_but_keeps_tickets(): void

@@ -15,15 +15,15 @@ use Illuminate\Support\Str;
 
 class SpeechService
 {
-    public const string AUDIO_DIRECTORY = 'announcements';
+    public const AUDIO_DIRECTORY = 'announcements';
 
-    public const int FILE_TTL_SECONDS = 1800;
+    public const FILE_TTL_SECONDS = 1800;
 
-    public const int TTS_TTL_SECONDS = 604800;
+    public const TTS_TTL_SECONDS = 604800;
 
-    public const string DEFAULT_VOICE = 'ar-EG-SalmaNeural';
+    public const DEFAULT_VOICE = 'ar-EG-SalmaNeural';
 
-    public const string DEFAULT_RATE = '0%';
+    public const DEFAULT_RATE = '0%';
 
     /**
      * @return array<string, string>
@@ -82,7 +82,8 @@ class SpeechService
         $text = strtr(QueueSystemSetting::current()->callTemplate(), [
             '{order}' => $this->spokenTicketCode($ticket),
             '{name}' => trim((string) $ticket->full_name),
-            '{counter}' => $this->destinationText($ticket, $step),
+            '{counter}' => $this->destinationText($ticket),
+            '{destination}' => $this->spokenStepDestination($step),
             '{type}' => RequestType::findBySlug($ticket->request_type)?->label ?? '',
         ]);
 
@@ -93,27 +94,50 @@ class SpeechService
         return trim($text);
     }
 
-    private function destinationText(QueueTicket $ticket, ProcessStep|string|null $step): string
+    public function destinationLabel(QueueTicket $ticket): string
     {
-        if ($step !== null) {
-            $custom = StepAnnouncement::destinationFor($step);
+        return self::formatCounterName($ticket->resolvedCounterName());
+    }
 
-            if ($custom !== null) {
-                return str_replace('شباك', 'شِبَاك', $custom);
-            }
-        }
-
-        $counter = trim((string) ($ticket->resolvedCounterName() ?? ''));
+    public static function formatCounterName(?string $counter): string
+    {
+        $counter = trim((string) $counter);
 
         if ($counter === '') {
-            return 'الشِّبَاك';
+            return 'الشباك';
         }
 
         if (! str_contains($counter, 'شباك')) {
-            $counter = 'شباك '.$counter;
+            return 'شباك '.$counter;
         }
 
-        return str_replace('شباك', 'شِبَاك', $counter);
+        return $counter;
+    }
+
+    private function destinationText(QueueTicket $ticket): string
+    {
+        $label = $this->destinationLabel($ticket);
+
+        if ($label === 'الشباك') {
+            return 'الشِّبَاك';
+        }
+
+        return str_replace('شباك', 'شِبَاك', $label);
+    }
+
+    private function spokenStepDestination(ProcessStep|string|null $step): string
+    {
+        if ($step === null) {
+            return '';
+        }
+
+        $destination = StepAnnouncement::destinationFor($step);
+
+        if ($destination === null) {
+            return '';
+        }
+
+        return str_replace('شباك', 'شِبَاك', $destination);
     }
 
     private function spokenTicketCode(QueueTicket $ticket): string

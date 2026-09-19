@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Events\TicketCalledEvent;
 use App\Jobs\GenerateTicketAudioJob;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\StepAnnouncement;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -87,6 +89,27 @@ class StepAnnouncementTest extends TestCase
         Queue::assertPushed(
             GenerateTicketAudioJob::class,
             fn (GenerateTicketAudioJob $job): bool => $job->step === 'paid',
+        );
+    }
+
+    public function test_marking_step_broadcasts_teller_counter_name(): void
+    {
+        Event::fake([TicketCalledEvent::class]);
+        QueueSystemSetting::current();
+        Sanctum::actingAs($teller = User::factory()->teller('شباك 1')->create());
+        $ticket = QueueTicket::factory()->serving($teller)->create();
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")->assertOk();
+
+        Event::assertDispatched(
+            TicketCalledEvent::class,
+            function (TicketCalledEvent $event) use ($ticket): bool {
+                $payload = $event->broadcastWith();
+
+                return $event->ticket->id === $ticket->id
+                    && $payload['step'] === 'paid'
+                    && $payload['counter'] === 'شباك 1';
+            },
         );
     }
 

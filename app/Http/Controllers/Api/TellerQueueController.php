@@ -8,6 +8,7 @@ use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\ScannedTicketResource;
 use App\Http\Resources\TicketResource;
 use App\Models\QueueTicket;
+use App\Models\RequestType;
 use App\Services\QueueService;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
@@ -43,9 +44,13 @@ class TellerQueueController extends Controller
         $validated = $request->validate([
             'status' => ['sometimes', 'nullable', 'string'],
             'step' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...QueueTicket::processStepValues()])],
+            'request_type' => ['sometimes', 'nullable', 'string', Rule::in(['all', ...RequestType::laneValues()])],
             'search' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'search_by' => ['sometimes', 'nullable', 'string', Rule::in(QueueTicket::searchFieldValues())],
         ], [
             'step.in' => 'خطوة الطلب غير صحيحة.',
+            'request_type.in' => 'نوع الطلب غير صحيح.',
+            'search_by.in' => 'حقل البحث غير صحيح.',
         ]);
 
         $result = $this->queueService->getTellerTickets(
@@ -53,6 +58,8 @@ class TellerQueueController extends Controller
             filled($validated['status'] ?? null) ? $validated['status'] : null,
             filled($validated['search'] ?? null) ? $validated['search'] : null,
             filled($validated['step'] ?? null) ? $validated['step'] : null,
+            filled($validated['request_type'] ?? null) ? $validated['request_type'] : null,
+            filled($validated['search_by'] ?? null) ? $validated['search_by'] : null,
         );
 
         return response()->json([

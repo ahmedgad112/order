@@ -125,7 +125,8 @@ function resetTemplate() {
                     المتغيرات المتاحة:
                     <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{order}</code> رقم الدور،
                     <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{name}</code> اسم الطالب،
-                    <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{counter}</code> الشباك أو الوجهة،
+                    <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{counter}</code> اسم شباك الموظف أو نوع الطلب،
+                    <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{destination}</code> وجهة الخطوة،
                     <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{type}</code> نوع الطلب.
                     اترك الحقل فارغاً للعودة إلى النص الافتراضي.
                 </p>
@@ -156,7 +157,9 @@ function resetTemplate() {
 
             <h3 class="mb-2 text-sm font-bold text-slate-700">نداء خطوات المعاملة</h3>
             <p class="mb-3 text-xs text-slate-500">
-                حدد لكل خطوة الوجهة المعلنة عند الضغط عليها. اترك الوجهة فارغة ليُعلن رقم الشباك الافتراضي، أو اكتب نصاً مثل «قسم الكشف الطبي».
+                النداء يقول اسم شباك الموظف أو نوع الطلب دائماً. الوجهة هنا اختيارية وتُنطق فقط إذا أضفت
+                <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{destination}</code>
+                إلى نص النداء.
             </p>
 
             <ul class="space-y-2">
@@ -180,7 +183,7 @@ function resetTemplate() {
                         type="text"
                         maxlength="120"
                         class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-indigo-400"
-                        placeholder="الافتراضي: رقم الشباك"
+                        placeholder="اختياري: وجهة الخطوة"
                     />
                 </li>
             </ul>

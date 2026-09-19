@@ -26,7 +26,7 @@ use Illuminate\Validation\ValidationException;
 
 class QueueService
 {
-    private const int SKIP_POSITIONS = 5;
+    private const SKIP_POSITIONS = 5;
 
     public function __construct(private readonly QueueSystemService $systemService) {}
 
@@ -558,7 +558,7 @@ class QueueService
      *     current: QueueTicket|null
      * }
      */
-    public function getTellerTickets(User $teller, ?string $status = null, ?string $search = null, ?string $step = null): array
+    public function getTellerTickets(User $teller, ?string $status = null, ?string $search = null, ?string $step = null, ?string $requestType = null, ?string $searchBy = null): array
     {
         $query = QueueTicket::query()
             ->today()
@@ -575,8 +575,12 @@ class QueueService
             $query->atProcessStep($step);
         }
 
+        if ($requestType && $requestType !== 'all') {
+            $query->forQueueLanes([$requestType]);
+        }
+
         if ($search) {
-            $query->matchingSearch($search);
+            $query->matchingSearch($search, $searchBy);
         }
 
         $serving = QueueTicket::query()

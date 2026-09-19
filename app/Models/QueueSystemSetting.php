@@ -24,7 +24,7 @@ use Illuminate\Support\Carbon;
 ])]
 class QueueSystemSetting extends Model
 {
-    public const string DEFAULT_CALL_TEMPLATE = 'رَقَم {order}، {name}، بُرْجَاء التَّوَجُّه إِلَى {counter}';
+    public const DEFAULT_CALL_TEMPLATE = 'رَقَم {order}، {name}، بُرْجَاء التَّوَجُّه إِلَى {counter}';
 
     protected function casts(): array
     {

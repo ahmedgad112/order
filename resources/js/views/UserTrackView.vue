@@ -171,10 +171,12 @@ watch(searchType, () => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-        <AppNavbar title="متابعة التذكرة" subtitle="اعرف مكانك في الطابور" max-width="3xl" />
-
-        <main class="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+    <AppNavbar
+        title="متابعة التذكرة"
+        subtitle="اعرف مكانك في الطابور"
+        page-class="bg-gradient-to-br from-indigo-50 via-white to-purple-50"
+    >
+        <main class="mx-auto w-full max-w-3xl space-y-6 px-3 py-6 sm:px-6 sm:py-10">
             <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
                 <h2 class="mb-6 text-center text-2xl font-bold text-slate-800">ابحث عن تذكرتك</h2>
 
@@ -363,5 +365,5 @@ watch(searchType, () => {
                 {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم' }}
             </div>
         </main>
-    </div>
+    </AppNavbar>
 </template>

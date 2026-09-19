@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Pencil, Plus, Shield, UserCog, Users, UserX } from 'lucide-vue-next';
+import { Pencil, Plus, Shield, Trash2, UserCog, Users, UserX } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import PasswordInput from './PasswordInput.vue';
@@ -218,6 +218,20 @@ async function handleDeactivate(user) {
             ?? 'تعذر تعطيل المستخدم.';
     }
 }
+
+async function handleDelete(user) {
+    if (!confirm(`هل تريد حذف المستخدم "${user.name}" نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+        return;
+    }
+
+    try {
+        await queueStore.deleteUser(user.id);
+    } catch (err) {
+        formError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.user?.[0]
+            ?? 'تعذر حذف المستخدم.';
+    }
+}
 </script>
 
 <template>
@@ -229,7 +243,7 @@ async function handleDeactivate(user) {
                     إدارة المستخدمين
                 </h2>
                 <p class="text-sm text-slate-500">
-                    {{ authStore.isSuperAdmin ? 'إنشاء وتعديل حسابات السوبر أدمن والمديرين والموظفين' : 'إنشاء وتعديل حسابات الموظفين' }}
+                    {{ authStore.isSuperAdmin ? 'إنشاء وتعديل وحذف حسابات السوبر أدمن والمديرين والموظفين' : 'إنشاء وتعديل وحذف حسابات الموظفين' }}
                 </p>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -304,7 +318,7 @@ async function handleDeactivate(user) {
                         </dd>
                     </div>
                 </dl>
-                <div class="flex gap-2 border-t border-slate-200/80 pt-3">
+                <div class="flex flex-wrap gap-2 border-t border-slate-200/80 pt-3">
                     <button
                         v-if="canManageUser(user)"
                         class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white"
@@ -315,11 +329,19 @@ async function handleDeactivate(user) {
                     </button>
                     <button
                         v-if="user.id !== authStore.user?.id && user.is_active && canManageUser(user)"
-                        class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-200 px-3 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-50"
                         @click="handleDeactivate(user)"
                     >
                         <UserX class="h-4 w-4" />
                         تعطيل
+                    </button>
+                    <button
+                        v-if="user.id !== authStore.user?.id && canManageUser(user)"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                        @click="handleDelete(user)"
+                    >
+                        <Trash2 class="h-4 w-4" />
+                        حذف
                     </button>
                 </div>
             </article>

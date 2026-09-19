@@ -16,6 +16,7 @@ const feedback = ref('');
 
 const emptyForm = () => ({
     label: '',
+    code_prefix: '',
     college_mode: 'text',
     college_label: '',
     counter_name: '',
@@ -54,6 +55,7 @@ function openEdit(item) {
     editingItem.value = item;
     form.value = {
         label: item.label,
+        code_prefix: item.code_prefix ?? '',
         college_mode: item.college_mode ?? 'text',
         college_label: item.college_label ?? '',
         counter_name: item.counter_name ?? '',
@@ -85,6 +87,7 @@ async function submitForm() {
     formError.value = '';
     feedback.value = '';
 
+    const prefix = form.value.code_prefix.trim().toUpperCase();
     const payload = {
         label: form.value.label.trim(),
         college_mode: form.value.college_mode,
@@ -96,6 +99,10 @@ async function submitForm() {
             : [],
         enabled: form.value.enabled,
     };
+
+    if (isEditing.value || prefix) {
+        payload.code_prefix = prefix;
+    }
 
     try {
         const result = isEditing.value
@@ -260,16 +267,33 @@ async function handleDelete(item) {
                 <h3 class="text-xl font-bold text-slate-900">{{ formTitle }}</h3>
 
                 <form class="mt-6 space-y-4" @submit.prevent="submitForm">
-                    <div>
-                        <label class="mb-1 block text-sm font-semibold text-slate-700">اسم نوع الطلب</label>
-                        <input
-                            v-model="form.label"
-                            type="text"
-                            required
-                            minlength="2"
-                            class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                            placeholder="مثال: منحة تفوق"
-                        />
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">اسم نوع الطلب</label>
+                            <input
+                                v-model="form.label"
+                                type="text"
+                                required
+                                minlength="2"
+                                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                                placeholder="مثال: منحة تفوق"
+                            />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">رمز التذكرة</label>
+                            <input
+                                v-model="form.code_prefix"
+                                type="text"
+                                maxlength="4"
+                                dir="ltr"
+                                :required="isEditing"
+                                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 font-mono uppercase outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                                :placeholder="isEditing ? 'مثال: OT' : 'تلقائي إن تُرك فارغاً'"
+                            />
+                            <p class="mt-1 text-xs text-slate-500">
+                                يظهر في رقم التذكرة مثل OT1. حروف إنجليزية من 1 إلى 4، بدون N أو O وحدهما. تغيير الرمز يغيّر أرقام التذاكر الحالية من هذا النوع.
+                            </p>
+                        </div>
                     </div>
 
                     <div class="grid gap-3 sm:grid-cols-2">

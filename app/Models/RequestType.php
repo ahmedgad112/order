@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 #[Fillable([
@@ -274,6 +275,39 @@ class RequestType extends Model
     }
 
     /**
+     * Single-letter prefixes reserved for student-kind ticket series.
+     *
+     * @return list<string>
+     */
+    public static function reservedPrefixes(): array
+    {
+        return [
+            StudentKind::NewStudent->ticketPrefix(),
+            StudentKind::CurrentStudent->ticketPrefix(),
+        ];
+    }
+
+    public static function normalizePrefix(?string $prefix): string
+    {
+        return strtoupper(trim((string) $prefix));
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    public static function prefixRules(?int $ignoreId = null): array
+    {
+        return [
+            'string',
+            'min:1',
+            'max:4',
+            'regex:/^[A-Z]{1,4}$/',
+            Rule::unique('request_types', 'code_prefix')->ignore($ignoreId),
+            Rule::notIn(self::reservedPrefixes()),
+        ];
+    }
+
+    /**
      * Auto-generated two-letter ticket prefix, skipping student-kind
      * prefixes (N, O) and every prefix already in use.
      */
@@ -281,8 +315,7 @@ class RequestType extends Model
     {
         $used = [
             ...self::prefixes(),
-            StudentKind::NewStudent->ticketPrefix(),
-            StudentKind::CurrentStudent->ticketPrefix(),
+            ...self::reservedPrefixes(),
         ];
 
         $firstLetters = ['O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',

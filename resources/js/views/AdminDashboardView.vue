@@ -167,12 +167,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-100">
-        <AppNavbar title="لوحة الإدارة" :subtitle="navbarSubtitle" />
-
-        <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+    <AppNavbar title="لوحة الإدارة" :subtitle="navbarSubtitle">
+        <main class="mx-auto w-full max-w-7xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
             <section
-                class="rounded-3xl border p-6 shadow-sm"
+                class="rounded-3xl border p-4 shadow-sm sm:p-6"
                 :class="queueStore.isSystemOpen
                     ? (queueStore.isDayOpen ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50')
                     : 'border-red-200 bg-red-50'"
@@ -474,5 +472,5 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
-    </div>
+    </AppNavbar>
 </template>

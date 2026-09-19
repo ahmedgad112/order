@@ -296,7 +296,7 @@ class SpeechAnnouncementTest extends TestCase
         $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك الدفع', $text);
     }
 
-    public function test_step_announcement_speaks_flow_destination(): void
+    public function test_step_announcement_speaks_teller_counter(): void
     {
         $teller = User::factory()->teller('شباك 3')->create();
         $ticket = QueueTicket::factory()->serving($teller)->create([
@@ -307,11 +307,29 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket, 'paid');
 
-        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى سحب الملف', $text);
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك تَلَاتَة', $text);
     }
 
-    public function test_step_announcement_uses_custom_destination(): void
+    public function test_step_announcement_does_not_replace_counter_with_destination(): void
     {
+        StepAnnouncement::forStep('entered')->update(['destination' => 'دفع مصاريف اداريه']);
+        $teller = User::factory()->teller('شباك 1')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket, 'entered');
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك وَاحِد', $text);
+    }
+
+    public function test_step_announcement_speaks_destination_when_template_includes_it(): void
+    {
+        QueueSystemSetting::current()->update([
+            'call_template' => 'رَقَم {order}، بُرْجَاء التَّوَجُّه إِلَى {counter}، {destination}',
+        ]);
         StepAnnouncement::forStep('paid')->update(['destination' => 'شباك الدفع']);
         $teller = User::factory()->teller('شباك 3')->create();
         $ticket = QueueTicket::factory()->serving($teller)->create([
@@ -322,7 +340,7 @@ class SpeechAnnouncementTest extends TestCase
 
         $text = app(SpeechService::class)->ticketAnnouncementText($ticket, 'paid');
 
-        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك الدفع', $text);
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك تَلَاتَة، شِبَاك الدفع', $text);
     }
 
     public function test_ticket_announcement_uses_custom_call_template(): void

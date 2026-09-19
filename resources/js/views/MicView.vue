@@ -397,15 +397,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex min-h-screen flex-col bg-slate-100">
-        <AppNavbar title="الميكروفون" subtitle="تحدث من هاتفك ليصدر صوتك على شاشة العرض" />
-
-        <main class="flex flex-1 items-center justify-center p-6">
-            <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <div class="mx-auto mb-2 grid w-full grid-cols-3 gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-sm font-bold">
+    <AppNavbar title="الميكروفون" subtitle="تحدث من هاتفك ليصدر صوتك على شاشة العرض">
+        <main class="flex flex-1 items-center justify-center p-4 sm:p-6">
+            <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm sm:p-8">
+                <div class="mx-auto mb-2 grid w-full grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1 text-[11px] font-bold leading-tight sm:rounded-full sm:text-sm">
                     <button
                         type="button"
-                        class="rounded-full px-2 py-2 transition-colors"
+                        class="min-w-0 rounded-2xl px-1 py-2 transition-colors sm:rounded-full sm:px-2"
                         :class="mode === 'record' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                         @click="switchMode('record')"
                     >
@@ -413,7 +411,7 @@ onUnmounted(() => {
                     </button>
                     <button
                         type="button"
-                        class="rounded-full px-2 py-2 transition-colors"
+                        class="min-w-0 rounded-2xl px-1 py-2 transition-colors sm:rounded-full sm:px-2"
                         :class="mode === 'live' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                         @click="switchMode('live')"
                     >
@@ -421,7 +419,7 @@ onUnmounted(() => {
                     </button>
                     <button
                         type="button"
-                        class="rounded-full px-2 py-2 transition-colors"
+                        class="min-w-0 rounded-2xl px-1 py-2 transition-colors sm:rounded-full sm:px-2"
                         :class="mode === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
                         @click="switchMode('text')"
                     >
@@ -697,5 +695,5 @@ onUnmounted(() => {
                 </div>
             </div>
         </main>
-    </div>
+    </AppNavbar>
 </template>

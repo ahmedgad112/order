@@ -163,18 +163,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <AppNavbar title="نظام إدارة الأدوار" subtitle="إصدار تذكرة جديدة" max-width="5xl">
-            <div class="flex items-center gap-3 rounded-2xl bg-blue-600 px-4 py-2 text-white shadow-lg sm:px-5 sm:py-3">
-                <Ticket class="h-5 w-5 sm:h-6 sm:w-6" />
+    <AppNavbar
+        title="نظام إدارة الأدوار"
+        subtitle="إصدار تذكرة جديدة"
+        page-class="bg-gradient-to-br from-blue-50 via-white to-indigo-50"
+    >
+        <template #actions>
+            <div class="flex items-center gap-2 rounded-2xl bg-blue-600 px-3 py-1.5 text-white shadow-lg sm:gap-3 sm:px-5 sm:py-3">
+                <Ticket class="h-4 w-4 sm:h-6 sm:w-6" />
                 <div class="text-left">
                     <p class="text-[10px] opacity-80 sm:text-xs">في الانتظار</p>
-                    <p class="text-xl font-bold leading-none sm:text-2xl">{{ queueStore.stats.waiting }}</p>
+                    <p class="text-lg font-bold leading-none sm:text-2xl">{{ queueStore.stats.waiting }}</p>
                 </div>
             </div>
-        </AppNavbar>
+        </template>
 
-        <main class="mx-auto max-w-3xl px-6 py-10">
+        <main class="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
             <RouterLink
                 to="/"
                 class="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-blue-700"
@@ -409,5 +413,5 @@ onUnmounted(() => {
             :ticket="issuedTicket"
             @close="closeModal"
         />
-    </div>
+    </AppNavbar>
 </template>

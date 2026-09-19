@@ -29,7 +29,7 @@ class AdminRequestTypeController extends Controller
         RequestType::query()->create([
             'slug' => RequestType::makeSlug($data['label']),
             'label' => $data['label'],
-            'code_prefix' => RequestType::nextAvailablePrefix(),
+            'code_prefix' => $data['code_prefix'] ?? RequestType::nextAvailablePrefix(),
             'college_mode' => $data['college_mode'],
             'college_label' => $data['college_label'] ?? null,
             'counter_name' => $data['counter_name'] ?? null,
@@ -63,6 +63,7 @@ class AdminRequestTypeController extends Controller
 
         $requestType->update([
             'label' => $data['label'] ?? $requestType->label,
+            'code_prefix' => $data['code_prefix'] ?? $requestType->code_prefix,
             'college_mode' => $data['college_mode'] ?? $requestType->college_mode,
             'college_label' => $data['college_label'] ?? $requestType->college_label,
             'counter_name' => array_key_exists('counter_name', $data)

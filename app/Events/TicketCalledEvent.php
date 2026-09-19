@@ -6,6 +6,7 @@ use App\Enums\ProcessStep;
 use App\Http\Resources\PublicTicketResource;
 use App\Models\QueueTicket;
 use App\Models\StepAnnouncement;
+use App\Services\SpeechService;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -45,6 +46,7 @@ class TicketCalledEvent implements ShouldBroadcastNow
             'ticket' => (new PublicTicketResource($this->ticket))->resolve(),
             'step' => $this->step?->value,
             'muted' => $this->step !== null && ! StepAnnouncement::isEnabledFor($this->step),
+            'counter' => SpeechService::formatCounterName($this->ticket->resolvedCounterName()),
         ];
     }
 }

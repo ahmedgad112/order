@@ -360,6 +360,87 @@ class QueueFlowTest extends TestCase
             ]);
     }
 
+    public function test_teller_ticket_list_filters_by_request_type(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'تذكرة ترشيح',
+            'request_type' => 'nomination_card',
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'تذكرة تحويل',
+            'request_type' => 'transfer',
+        ]);
+        QueueTicket::factory()->currentStudent()->waiting()->create([
+            'ticket_number' => 3,
+            'full_name' => 'طالب حالي',
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?request_type=nomination_card')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'تذكرة ترشيح')
+            ->assertJsonPath('tickets.0.request_type', 'nomination_card');
+    }
+
+    public function test_returns_422_when_teller_request_type_filter_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?request_type=unknown_type')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'request_type' => 'نوع الطلب غير صحيح.',
+            ]);
+    }
+
+    public function test_teller_ticket_list_search_uses_selected_field(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'أحمد علي',
+            'national_id' => '29501011234567',
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'سارة محمد',
+            'national_id' => '29501017654321',
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?search='.urlencode('أحمد').'&search_by=full_name')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'أحمد علي');
+
+        $this->getJson('/api/teller/tickets?search='.urlencode('أحمد').'&search_by=national_id')
+            ->assertOk()
+            ->assertJsonCount(0, 'tickets');
+    }
+
+    public function test_returns_422_when_teller_search_field_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?search=أحمد&search_by=password')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'search_by' => 'حقل البحث غير صحيح.',
+            ]);
+    }
+
     public function test_admin_ticket_list_filters_by_search_term(): void
     {
         QueueSystemSetting::current();
@@ -379,6 +460,115 @@ class QueueFlowTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'tickets')
             ->assertJsonPath('tickets.0.full_name', 'أحمد علي');
+    }
+
+    public function test_admin_ticket_list_search_uses_selected_field(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'أحمد علي',
+            'national_id' => '29501011234567',
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'سارة محمد',
+            'national_id' => '29501017654321',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?search='.urlencode('أحمد').'&search_by=full_name')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'أحمد علي');
+
+        $this->getJson('/api/admin/tickets?search='.urlencode('أحمد').'&search_by=national_id')
+            ->assertOk()
+            ->assertJsonCount(0, 'tickets');
+
+        $this->getJson('/api/admin/tickets?search=29501011234567&search_by=national_id')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'أحمد علي');
+    }
+
+    public function test_returns_422_when_admin_search_field_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?search=أحمد&search_by=password')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'search_by' => 'حقل البحث غير صحيح.',
+            ]);
+    }
+
+    public function test_admin_ticket_list_filters_by_request_type(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'تذكرة ترشيح',
+            'request_type' => 'nomination_card',
+        ]);
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'تذكرة تحويل',
+            'request_type' => 'transfer',
+        ]);
+        QueueTicket::factory()->currentStudent()->waiting()->create([
+            'ticket_number' => 3,
+            'full_name' => 'طالب حالي',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?request_type=nomination_card')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'تذكرة ترشيح')
+            ->assertJsonPath('tickets.0.request_type', 'nomination_card');
+    }
+
+    public function test_admin_ticket_list_filters_current_student_lane(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'تذكرة ترشيح',
+            'request_type' => 'nomination_card',
+        ]);
+        QueueTicket::factory()->currentStudent()->waiting()->create([
+            'ticket_number' => 2,
+            'full_name' => 'طالب حالي',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?request_type=current_student')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'طالب حالي')
+            ->assertJsonPath('tickets.0.student_kind', StudentKind::CurrentStudent->value);
+    }
+
+    public function test_returns_422_when_admin_request_type_filter_is_invalid(): void
+    {
+        QueueSystemSetting::current();
+        $admin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/tickets?request_type=unknown_type')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'request_type' => 'نوع الطلب غير صحيح.',
+            ]);
     }
 
     public function test_admin_ticket_list_defaults_to_today_and_excludes_previous_days(): void

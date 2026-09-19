@@ -158,10 +158,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <AppNavbar title="بيانات التذكرة" :subtitle="navbarSubtitle" max-width="3xl" />
-
-        <main class="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+    <AppNavbar
+        title="بيانات التذكرة"
+        :subtitle="navbarSubtitle"
+        page-class="bg-gradient-to-br from-blue-50 via-white to-indigo-50"
+    >
+        <main class="mx-auto w-full max-w-3xl space-y-6 px-3 py-6 sm:px-6 sm:py-10">
             <div
                 v-if="queueStore.loading && !ticket"
                 class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-xl"
@@ -330,5 +332,5 @@ onUnmounted(() => {
                 </div>
             </div>
         </main>
-    </div>
+    </AppNavbar>
 </template>

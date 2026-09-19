@@ -39,11 +39,9 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-100">
-        <AppNavbar title="نظام إدارة الأدوار" subtitle="لوحة الموظفين والإدارة" max-width="7xl" />
-
-        <div class="flex items-center justify-center px-4 py-12">
-            <div class="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+    <AppNavbar title="نظام إدارة الأدوار" subtitle="لوحة الموظفين والإدارة">
+        <div class="flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
+            <div class="w-full max-w-md rounded-3xl bg-white p-5 shadow-xl sm:p-8">
             <div class="mb-8 text-center">
                 <img
                     :src="'/logo.webp'"
@@ -92,5 +90,5 @@ onMounted(() => {
             </form>
             </div>
         </div>
-    </div>
+    </AppNavbar>
 </template>

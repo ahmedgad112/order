@@ -204,16 +204,15 @@ class AdminUserController extends Controller
 
         if (! $request->user()->canManageUser($user)) {
             throw ValidationException::withMessages([
-                'user' => 'ليس لديك صلاحية لتعطيل هذا المستخدم.',
+                'user' => 'ليس لديك صلاحية لحذف هذا المستخدم.',
             ]);
         }
 
-        $user->update(['is_active' => false]);
         $user->tokens()->delete();
+        $user->delete();
 
         return response()->json([
-            'message' => 'تم تعطيل المستخدم بنجاح.',
-            'user' => new UserResource($user->fresh()),
+            'message' => 'تم حذف المستخدم بنجاح.',
         ]);
     }
 

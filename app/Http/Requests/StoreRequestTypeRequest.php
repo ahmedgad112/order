@@ -21,6 +21,7 @@ class StoreRequestTypeRequest extends FormRequest
     {
         return [
             'label' => ['required', 'string', 'min:2', 'max:255'],
+            'code_prefix' => ['nullable', ...RequestType::prefixRules()],
             'college_mode' => ['required', 'string', Rule::in(RequestType::COLLEGE_MODES)],
             'college_label' => ['nullable', 'string', 'max:255'],
             'counter_name' => ['nullable', 'string', 'max:100'],
@@ -42,6 +43,11 @@ class StoreRequestTypeRequest extends FormRequest
         return [
             'label.required' => 'اسم نوع الطلب مطلوب.',
             'label.min' => 'اسم نوع الطلب قصير جداً.',
+            'code_prefix.regex' => 'رمز نوع الطلب يجب أن يكون من 1 إلى 4 حروف إنجليزية.',
+            'code_prefix.min' => 'رمز نوع الطلب يجب أن يكون من 1 إلى 4 حروف إنجليزية.',
+            'code_prefix.max' => 'رمز نوع الطلب يجب أن يكون من 1 إلى 4 حروف إنجليزية.',
+            'code_prefix.unique' => 'رمز نوع الطلب مستخدم بالفعل.',
+            'code_prefix.not_in' => 'هذا الرمز محجوز لتذاكر الطلاب.',
             'college_mode.required' => 'يجب تحديد طريقة إدخال الكلية.',
             'college_mode.in' => 'طريقة إدخال الكلية غير صحيحة.',
             'completion_services.*.in' => 'إحدى خدمات الاستكمال غير صحيحة.',
@@ -50,10 +56,21 @@ class StoreRequestTypeRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $payload = [];
+
         if ($this->exists('label') && is_string($this->label)) {
-            $this->merge([
-                'label' => trim($this->label),
-            ]);
+            $payload['label'] = trim($this->label);
+        }
+
+        if ($this->exists('code_prefix')) {
+            $prefix = RequestType::normalizePrefix(
+                is_string($this->code_prefix) ? $this->code_prefix : null,
+            );
+            $payload['code_prefix'] = $prefix === '' ? null : $prefix;
+        }
+
+        if ($payload !== []) {
+            $this->merge($payload);
         }
     }
 }

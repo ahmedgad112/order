@@ -404,6 +404,12 @@ export const useQueueStore = defineStore('queue', () => {
     }
 
     async function deactivateUser(userId) {
+        const { data } = await axios.put(`/admin/users/${userId}`, { is_active: false });
+        await Promise.all([fetchUsers(), fetchAdminDashboard()]);
+        return data;
+    }
+
+    async function deleteUser(userId) {
         const { data } = await axios.delete(`/admin/users/${userId}`);
         await Promise.all([fetchUsers(), fetchAdminDashboard()]);
         return data;
@@ -1098,6 +1104,7 @@ export const useQueueStore = defineStore('queue', () => {
         bulkCreateUsers,
         updateUser,
         deactivateUser,
+        deleteUser,
         fetchRegistrations,
         deleteTicket,
         updateTicket,

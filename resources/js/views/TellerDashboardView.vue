@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
     BellRing,
+    ChevronDown,
     ClipboardList,
     Hash,
     Lock,
@@ -9,7 +10,6 @@ import {
     Plus,
     RefreshCw,
     RotateCcw,
-    Search,
     SkipForward,
     UserX,
 } from 'lucide-vue-next';
@@ -38,12 +38,34 @@ const callingId = ref(null);
 const skippingId = ref(null);
 const recallingId = ref(null);
 const search = ref('');
+const searchBy = ref('all');
 const stepFilter = ref('all');
+const typeFilter = ref('all');
 const loading = ref(false);
 const showIssueForm = ref(false);
 const issueRequiresName = ref(true);
 const issuedTicket = ref(null);
 const issuedTickets = ref([]);
+const servingNowCollapsedKey = 'teller.servingNowCollapsed';
+const servingNowCollapsed = ref(readServingNowCollapsed());
+
+function readServingNowCollapsed() {
+    try {
+        return localStorage.getItem(servingNowCollapsedKey) !== '0';
+    } catch {
+        return true;
+    }
+}
+
+function toggleServingNow() {
+    servingNowCollapsed.value = !servingNowCollapsed.value;
+
+    try {
+        localStorage.setItem(servingNowCollapsedKey, servingNowCollapsed.value ? '1' : '0');
+    } catch {
+        // Ignore storage errors from private browsing.
+    }
+}
 
 const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 
@@ -76,12 +98,65 @@ const stepOptions = [
     { value: 'absent', label: 'مش موجود' },
     { value: 'cancelled', label: 'ملغى' },
 ];
+const searchFieldOptions = [
+    { value: 'all', label: 'كل الحقول' },
+    { value: 'full_name', label: 'الاسم' },
+    { value: 'national_id', label: 'الرقم القومي' },
+    { value: 'order_number', label: 'رقم الطلب' },
+    { value: 'ticket_number', label: 'رقم التذكرة' },
+    { value: 'seat_number', label: 'رقم الجلوس' },
+    { value: 'department', label: 'القسم' },
+    { value: 'college', label: 'الكلية' },
+];
+const searchPlaceholders = {
+    all: 'بحث بالاسم، الرقم القومي، رقم الطلب، أو رقم التذكرة...',
+    full_name: 'بحث بالاسم...',
+    national_id: 'بحث بالرقم القومي...',
+    order_number: 'بحث برقم الطلب...',
+    ticket_number: 'بحث برقم التذكرة مثل OT1...',
+    seat_number: 'بحث برقم الجلوس...',
+    department: 'بحث بالقسم...',
+    college: 'بحث بالكلية...',
+};
+const searchPlaceholder = computed(() => searchPlaceholders[searchBy.value] ?? searchPlaceholders.all);
 
 const filteredCount = computed(() => queueStore.tellerTickets.length);
+const assignedLanes = computed(() => authStore.user?.queue_lanes ?? []);
+
+const typeOptions = computed(() => {
+    const assigned = assignedLanes.value
+        .map((lane) => ({
+            value: lane.value ?? lane,
+            label: lane.label ?? lane,
+        }))
+        .filter((lane) => lane.value);
+
+    const types = assigned.length
+        ? assigned
+        : [
+            ...(queueStore.system.request_types ?? []).map((type) => ({
+                value: type.value,
+                label: type.label,
+            })),
+            {
+                value: 'current_student',
+                label: (queueStore.system.student_kinds ?? [])
+                    .find((kind) => kind.value === 'current_student')?.label
+                    ?? 'طالب حالي (فرقة ثانية)',
+            },
+        ];
+
+    return [
+        { value: 'all', label: 'كل الأنواع' },
+        ...types,
+    ];
+});
 
 function listParams() {
     const params = {
         search: search.value.trim() || undefined,
+        search_by: search.value.trim() && searchBy.value !== 'all' ? searchBy.value : undefined,
+        request_type: typeFilter.value !== 'all' ? typeFilter.value : undefined,
     };
 
     if (processStepValues.includes(stepFilter.value)) {
@@ -111,8 +186,6 @@ const navbarSubtitle = computed(() => {
 
     return parts.join(' — ');
 });
-
-const assignedLanes = computed(() => authStore.user?.queue_lanes ?? []);
 
 async function loadTickets(silent = false) {
     if (!silent) {
@@ -377,11 +450,17 @@ let searchTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
-watch(stepFilter, () => loadTickets());
+watch([stepFilter, typeFilter], () => loadTickets());
 
 watch(search, () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => loadTickets(), 400);
+});
+
+watch(searchBy, () => {
+    if (search.value.trim()) {
+        loadTickets();
+    }
 });
 
 onMounted(() => {
@@ -413,10 +492,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-100">
-        <AppNavbar title="لوحة الموظف" :subtitle="navbarSubtitle" />
-
-        <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+    <AppNavbar title="لوحة الموظف" :subtitle="navbarSubtitle">
+        <main class="mx-auto w-full max-w-7xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
             <div
                 v-if="!queueStore.isSystemOpen"
                 class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"
@@ -515,32 +592,46 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <section class="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
-                <div class="mb-4 flex items-center justify-between gap-3">
+            <section class="rounded-3xl border border-blue-100 bg-white px-5 py-3 shadow-sm" :class="servingNowCollapsed ? '' : 'pb-5'">
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3"
+                    :aria-expanded="!servingNowCollapsed"
+                    aria-controls="serving-now-list"
+                    @click="toggleServingNow"
+                >
                     <h2 class="text-lg font-bold text-slate-800">قيد الخدمة الآن</h2>
-                    <span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-                        {{ servingNow.length }}
+                    <span class="flex items-center gap-2">
+                        <span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                            {{ servingNow.length }}
+                        </span>
+                        <ChevronDown
+                            class="h-5 w-5 text-slate-500 transition-transform"
+                            :class="{ 'rotate-180': !servingNowCollapsed }"
+                        />
                     </span>
-                </div>
+                </button>
 
-                <div v-if="!servingNow.length" class="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
-                    لا يوجد أحد قيد الخدمة حالياً
-                </div>
+                <div v-show="!servingNowCollapsed" id="serving-now-list" class="mt-4">
+                    <div v-if="!servingNow.length" class="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400">
+                        لا يوجد أحد قيد الخدمة حالياً
+                    </div>
 
-                <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <article
-                        v-for="ticket in servingNow"
-                        :key="ticket.id"
-                        class="rounded-2xl border border-blue-100 bg-blue-50 p-4"
-                    >
-                        <p class="text-xs font-semibold text-blue-600">تذكرة <span dir="ltr">{{ ticket.ticket_number }}</span></p>
-                        <p class="mt-1 text-xl font-black text-slate-900">{{ ticketPersonLabel(ticket) }}</p>
-                        <p class="mt-2 text-sm text-slate-600">{{ tellerLabel(ticket) }}</p>
-                        <div v-if="ticket.student_kind === 'current_student'" class="mt-3">
-                            <TicketDocumentLink :ticket="ticket" preview />
-                        </div>
-                        <TicketPrintButton class="mt-3" :ticket="ticket" />
-                    </article>
+                    <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <article
+                            v-for="ticket in servingNow"
+                            :key="ticket.id"
+                            class="rounded-2xl border border-blue-100 bg-blue-50 p-4"
+                        >
+                            <p class="text-xs font-semibold text-blue-600">تذكرة <span dir="ltr">{{ ticket.ticket_number }}</span></p>
+                            <p class="mt-1 text-xl font-black text-slate-900">{{ ticketPersonLabel(ticket) }}</p>
+                            <p class="mt-2 text-sm text-slate-600">{{ tellerLabel(ticket) }}</p>
+                            <div v-if="ticket.student_kind === 'current_student'" class="mt-3">
+                                <TicketDocumentLink :ticket="ticket" preview />
+                            </div>
+                            <TicketPrintButton class="mt-3" :ticket="ticket" />
+                        </article>
+                    </div>
                 </div>
             </section>
 
@@ -572,15 +663,46 @@ onUnmounted(() => {
                 <p v-if="actionMessage" class="mb-4 text-sm text-green-600">{{ actionMessage }}</p>
                 <p v-if="actionError" class="mb-4 text-sm text-red-600">{{ actionError }}</p>
 
-                <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div class="relative flex-1">
-                        <Search class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                        <input
-                            v-model="search"
-                            type="text"
-                            class="w-full rounded-xl border border-slate-200 py-2.5 pr-10 pl-4 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                            placeholder="بحث بالاسم، الرقم القومي، رقم الطلب، أو رقم التذكرة..."
-                        />
+                <div class="mb-5 flex flex-col gap-3">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div class="flex min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100">
+                            <label class="shrink-0">
+                                <span class="sr-only">البحث بـ</span>
+                                <select
+                                    v-model="searchBy"
+                                    class="h-full w-28 border-0 bg-slate-50 px-2 py-2.5 text-sm font-semibold text-slate-700 outline-none sm:w-36"
+                                >
+                                    <option
+                                        v-for="opt in searchFieldOptions"
+                                        :key="opt.value"
+                                        :value="opt.value"
+                                    >
+                                        {{ opt.label }}
+                                    </option>
+                                </select>
+                            </label>
+                            <input
+                                v-model="search"
+                                type="text"
+                                class="min-w-0 flex-1 border-0 border-s border-slate-200 px-3 py-2.5 outline-none"
+                                :placeholder="searchPlaceholder"
+                            />
+                        </div>
+                        <label class="block shrink-0 sm:w-56">
+                            <span class="sr-only">نوع الطلب</span>
+                            <select
+                                v-model="typeFilter"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            >
+                                <option
+                                    v-for="opt in typeOptions"
+                                    :key="opt.value"
+                                    :value="opt.value"
+                                >
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                        </label>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button
@@ -611,7 +733,7 @@ onUnmounted(() => {
                     <article
                         v-for="ticket in queueStore.tellerTickets"
                         :key="ticket.id"
-                        class="rounded-2xl border border-slate-100 bg-slate-50/60 p-4"
+                        class="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/60 p-4"
                         :class="{
                             'border-green-200 bg-green-50/40': ticket.file_delivered,
                             'border-blue-200 bg-blue-50/40': ticket.has_entered && !ticket.file_delivered,
@@ -619,9 +741,9 @@ onUnmounted(() => {
                         }"
                     >
                         <div class="mb-3 flex items-start justify-between gap-3">
-                            <div>
+                            <div class="min-w-0">
                                 <p class="text-2xl font-black text-indigo-600" dir="ltr">{{ ticket.ticket_number }}</p>
-                                <p class="mt-1 font-semibold text-slate-800">{{ ticketPersonLabel(ticket) }}</p>
+                                <p class="mt-1 break-words font-semibold text-slate-800">{{ ticketPersonLabel(ticket) }}</p>
                             </div>
                             <span
                                 class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold"
@@ -843,5 +965,5 @@ onUnmounted(() => {
             heading="تم إصدار الدور"
             @close="closeIssuedModal"
         />
-    </div>
+    </AppNavbar>
 </template>

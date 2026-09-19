@@ -151,6 +151,7 @@ class AdminUserManagementTest extends TestCase
     public function test_employee_cannot_access_user_management(): void
     {
         $employee = User::factory()->teller()->create();
+        $otherEmployee = User::factory()->teller()->create();
         Sanctum::actingAs($employee);
 
         $this->getJson('/api/admin/users')->assertForbidden();
@@ -161,5 +162,44 @@ class AdminUserManagementTest extends TestCase
             'role' => UserRole::Teller->value,
             'counter_name' => 'شباك 2',
         ])->assertForbidden();
+        $this->deleteJson('/api/admin/users/'.$otherEmployee->id)->assertForbidden();
+    }
+
+    public function test_manager_can_delete_an_employee(): void
+    {
+        $manager = User::factory()->manager()->create();
+        $employee = User::factory()->teller()->create();
+        Sanctum::actingAs($manager);
+
+        $this->deleteJson('/api/admin/users/'.$employee->id)
+            ->assertOk()
+            ->assertJsonPath('message', 'تم حذف المستخدم بنجاح.');
+
+        $this->assertModelMissing($employee);
+    }
+
+    public function test_manager_cannot_delete_a_super_admin(): void
+    {
+        $manager = User::factory()->manager()->create();
+        $superAdmin = User::factory()->superAdmin()->create();
+        Sanctum::actingAs($manager);
+
+        $this->deleteJson('/api/admin/users/'.$superAdmin->id)
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.user.0', 'ليس لديك صلاحية لحذف هذا المستخدم.');
+
+        $this->assertModelExists($superAdmin);
+    }
+
+    public function test_user_cannot_delete_their_own_account(): void
+    {
+        $manager = User::factory()->manager()->create();
+        Sanctum::actingAs($manager);
+
+        $this->deleteJson('/api/admin/users/'.$manager->id)
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.user.0', 'لا يمكنك حذف حسابك الخاص.');
+
+        $this->assertModelExists($manager);
     }
 }
