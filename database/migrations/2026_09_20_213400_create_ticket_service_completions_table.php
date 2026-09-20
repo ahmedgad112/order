@@ -16,7 +16,7 @@ return new class extends Migration
             $table->timestamp('completed_at');
             $table->timestamps();
 
-            $table->unique(['queue_ticket_id', 'process_service_id']);
+            $table->unique(['queue_ticket_id', 'process_service_id'], 'tsc_ticket_service_unique');
         });
     }
 

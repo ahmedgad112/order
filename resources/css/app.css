@@ -41,7 +41,7 @@ body {
 @media print {
     @page {
         size: portrait;
-        margin: 5mm;
+        margin: 3mm;
     }
 
     html,
@@ -59,8 +59,8 @@ body {
 
     .ticket-print-root {
         display: block !important;
-        width: 72mm;
-        max-width: 72mm;
+        width: 58mm;
+        max-width: 58mm;
         margin: 0 auto;
         background: #fff;
         text-align: center;
@@ -83,7 +83,7 @@ body {
         align-items: center;
         justify-content: flex-start;
         width: 100%;
-        padding: 4mm 0;
+        padding: 2mm 0;
         background: #fff !important;
         box-shadow: none !important;
         text-align: center;
@@ -109,22 +109,16 @@ body {
     }
 
     .ticket-print-root .ticket-welcome {
-        margin: 0 0 10px;
-        font-size: 13px;
+        margin: 0 0 6px;
+        font-size: 11px;
         font-weight: 800;
-        line-height: 1.45;
+        line-height: 1.35;
     }
 
     .ticket-print-root .ticket-number {
-        margin: 10px 0 6px;
-        font-size: 56px;
+        margin: 6px 0 4px;
+        font-size: 36px;
         font-weight: 900;
         line-height: 1;
-    }
-
-    .ticket-print-root img {
-        width: 48mm;
-        height: 48mm;
-        margin: 8px auto 6px;
     }
 }

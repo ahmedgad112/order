@@ -326,26 +326,28 @@ class TellerQueueControlsTest extends TestCase
         );
     }
 
-    public function test_marking_a_checkpoint_recalls_the_ticket_to_the_counter(): void
+    public function test_marking_a_checkpoint_does_not_announce_audio(): void
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()->create();
         $ticket = QueueTicket::factory()->serving($teller)->create(['ticket_number' => 1]);
         $originalCalledAt = $ticket->called_at;
         Queue::fake();
-        Event::fake([TicketCalledEvent::class]);
+        Event::fake([TicketCalledEvent::class, TicketUpdatedEvent::class]);
         Sanctum::actingAs($teller);
 
         $this->travel(5)->seconds();
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")->assertOk();
 
-        Event::assertDispatched(TicketCalledEvent::class);
-        Queue::assertPushed(
-            GenerateTicketAudioJob::class,
-            fn (GenerateTicketAudioJob $job): bool => $job->ticketId === $ticket->id,
+        Event::assertNotDispatched(TicketCalledEvent::class);
+        Queue::assertNotPushed(GenerateTicketAudioJob::class);
+        Event::assertDispatched(
+            TicketUpdatedEvent::class,
+            fn (TicketUpdatedEvent $event): bool => $event->ticketId === $ticket->id,
         );
-        $this->assertTrue($ticket->fresh()->called_at->gt($originalCalledAt));
+        $this->assertTrue($ticket->fresh()->called_at->eq($originalCalledAt));
+        $this->assertNotNull($ticket->fresh()->paid_at);
     }
 
     public function test_returns_422_when_recalling_a_waiting_ticket(): void

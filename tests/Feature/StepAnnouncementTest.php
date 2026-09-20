@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Events\TicketCalledEvent;
+use App\Events\TicketUpdatedEvent;
 use App\Jobs\GenerateTicketAudioJob;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
@@ -77,39 +78,37 @@ class StepAnnouncementTest extends TestCase
             ->assertJsonValidationErrors(['steps.0.step']);
     }
 
-    public function test_marking_step_dispatches_audio_job_with_step(): void
+    public function test_marking_step_does_not_dispatch_audio_job(): void
     {
         Queue::fake();
+        Event::fake([TicketCalledEvent::class, TicketUpdatedEvent::class]);
         QueueSystemSetting::current();
         Sanctum::actingAs($teller = User::factory()->teller()->create());
         $ticket = QueueTicket::factory()->serving($teller)->create();
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")->assertOk();
 
-        Queue::assertPushed(
-            GenerateTicketAudioJob::class,
-            fn (GenerateTicketAudioJob $job): bool => $job->step === 'paid',
+        Queue::assertNotPushed(GenerateTicketAudioJob::class);
+        Event::assertNotDispatched(TicketCalledEvent::class);
+        Event::assertDispatched(
+            TicketUpdatedEvent::class,
+            fn (TicketUpdatedEvent $event): bool => $event->ticketId === $ticket->id,
         );
     }
 
-    public function test_marking_step_broadcasts_teller_counter_name(): void
+    public function test_marking_step_broadcasts_ticket_updated_without_call_audio(): void
     {
-        Event::fake([TicketCalledEvent::class]);
+        Event::fake([TicketCalledEvent::class, TicketUpdatedEvent::class]);
         QueueSystemSetting::current();
         Sanctum::actingAs($teller = User::factory()->teller('شباك 1')->create());
         $ticket = QueueTicket::factory()->serving($teller)->create();
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")->assertOk();
 
+        Event::assertNotDispatched(TicketCalledEvent::class);
         Event::assertDispatched(
-            TicketCalledEvent::class,
-            function (TicketCalledEvent $event) use ($ticket): bool {
-                $payload = $event->broadcastWith();
-
-                return $event->ticket->id === $ticket->id
-                    && $payload['step'] === 'paid'
-                    && $payload['counter'] === 'شباك 1';
-            },
+            TicketUpdatedEvent::class,
+            fn (TicketUpdatedEvent $event): bool => $event->ticketId === $ticket->id,
         );
     }
 

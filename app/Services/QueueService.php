@@ -298,7 +298,10 @@ class QueueService
 
         $ticket->update($this->servingAssignment($ticket, $teller));
 
-        return $ticket->fresh(['teller', 'serviceCompletions.service']);
+        $ticket = $ticket->fresh(['teller', 'serviceCompletions.service']);
+        $this->broadcastProcessStepUpdated($ticket);
+
+        return $ticket;
     }
 
     public function cancelTicket(QueueTicket $ticket, User $teller): QueueTicket
@@ -508,7 +511,7 @@ class QueueService
             'entered_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::Entered);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -534,7 +537,7 @@ class QueueService
             'paid_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::Paid);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -561,7 +564,7 @@ class QueueService
             'file_withdrawn_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::FileWithdrawn);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -593,7 +596,7 @@ class QueueService
             'documents_reviewed_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::DocumentsReviewed);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -620,7 +623,7 @@ class QueueService
             'medical_checked_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::MedicalChecked);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -647,7 +650,7 @@ class QueueService
             'face_printed_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::FacePrinted);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -675,7 +678,7 @@ class QueueService
             'file_delivered_at' => now(),
         ]);
 
-        $this->announceTicketCall($ticket, ProcessStep::FileDelivered);
+        $this->broadcastProcessStepUpdated($ticket);
 
         return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
@@ -959,7 +962,8 @@ class QueueService
         return [
             'status' => TicketStatus::Serving,
             'user_id' => $ticket->user_id ?? $teller->id,
-            'called_at' => now(),
+            // Keep the original call time so process-step marks do not re-trigger display audio.
+            'called_at' => $ticket->called_at ?? now(),
         ];
     }
 
@@ -968,6 +972,11 @@ class QueueService
         $ticket->load('teller');
         $this->broadcastSafely(new TicketCalledEvent($ticket, $step));
         GenerateTicketAudioJob::dispatch($ticket->id, $step?->value);
+    }
+
+    private function broadcastProcessStepUpdated(QueueTicket $ticket): void
+    {
+        $this->broadcastSafely(new TicketUpdatedEvent($ticket->id, $ticket->ticketCode()));
     }
 
     private function broadcastSafely(object $event): void
