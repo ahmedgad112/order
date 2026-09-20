@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProcessStep;
 use App\Enums\UserRole;
+use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -30,6 +32,7 @@ class UserFactory extends Factory
             'role' => UserRole::Teller,
             'counter_name' => 'شباك '.fake()->numberBetween(1, 9),
             'queue_lanes' => RequestType::laneValues(),
+            'process_steps' => ProcessService::assignableValues() ?: ProcessStep::assignableValues(),
             'is_active' => true,
         ];
     }
@@ -52,6 +55,7 @@ class UserFactory extends Factory
             'role' => UserRole::SuperAdmin,
             'counter_name' => null,
             'queue_lanes' => null,
+            'process_steps' => null,
         ]);
     }
 
@@ -61,6 +65,7 @@ class UserFactory extends Factory
             'role' => UserRole::Manager,
             'counter_name' => null,
             'queue_lanes' => null,
+            'process_steps' => null,
         ]);
     }
 
@@ -70,6 +75,7 @@ class UserFactory extends Factory
             'role' => UserRole::Teller,
             'counter_name' => $counterName ?? 'شباك 1',
             'queue_lanes' => RequestType::laneValues(),
+            'process_steps' => ProcessService::assignableValues() ?: ProcessStep::assignableValues(),
         ]);
     }
 
@@ -80,6 +86,16 @@ class UserFactory extends Factory
     {
         return $this->state(fn () => [
             'queue_lanes' => array_values($lanes),
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $steps
+     */
+    public function forProcessSteps(array $steps): static
+    {
+        return $this->state(fn () => [
+            'process_steps' => array_values($steps),
         ]);
     }
 

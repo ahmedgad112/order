@@ -9,6 +9,7 @@ import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 import TicketProcessActions from '../components/TicketProcessActions.vue';
 import TicketDeleteButton from '../components/TicketDeleteButton.vue';
+import TicketRestoreCancelledButton from '../components/TicketRestoreCancelledButton.vue';
 import TicketEditForm from '../components/TicketEditForm.vue';
 import TicketDocumentLink from '../components/TicketDocumentLink.vue';
 
@@ -76,6 +77,7 @@ const typeOptions = computed(() => {
 const processBusyId = ref(null);
 const busyStep = ref(null);
 const deletingId = ref(null);
+const restoringId = ref(null);
 const editingId = ref(null);
 const feedback = ref('');
 const actionError = ref('');
@@ -211,6 +213,23 @@ async function handleDelete(ticket) {
             ?? 'تعذر حذف الطلب.';
     } finally {
         deletingId.value = null;
+    }
+}
+
+async function handleRestoreCancelled(ticket) {
+    restoringId.value = ticket.id;
+    feedback.value = '';
+    actionError.value = '';
+    try {
+        const result = await queueStore.restoreCancelledTicket(ticket.id);
+        feedback.value = result.message;
+        await loadTickets();
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket?.[0]
+            ?? 'تعذر إرجاع الطلب الملغى.';
+    } finally {
+        restoringId.value = null;
     }
 }
 
@@ -574,6 +593,11 @@ onUnmounted(() => {
                                 :ticket="ticket"
                                 :busy="editingId === ticket.id"
                                 @save="handleEdit"
+                            />
+                            <TicketRestoreCancelledButton
+                                :ticket="ticket"
+                                :busy="restoringId === ticket.id"
+                                @restore="handleRestoreCancelled"
                             />
                             <TicketDeleteButton
                                 :ticket="ticket"

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, useSlots, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import {
     ClipboardList,
+    KeyRound,
     LayoutDashboard,
     LogOut,
     Menu,
@@ -111,6 +112,15 @@ const navItems = computed(() => {
 
             if (authStore.canManageUsers) {
                 items.push({ to: '/admin/users', label: 'المستخدمون', icon: Users, match: 'admin-users' });
+            }
+
+            if (authStore.isSuperAdmin) {
+                items.push({
+                    to: '/admin/permissions',
+                    label: 'الصلاحيات',
+                    icon: KeyRound,
+                    match: 'admin-permissions',
+                });
             }
 
             items.push(

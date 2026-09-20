@@ -2,10 +2,12 @@
 
 namespace Tests;
 
+use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 
@@ -17,6 +19,11 @@ abstract class TestCase extends BaseTestCase
 
         Cache::flush();
         RequestType::flushCatalog();
+        ProcessService::flushCatalog();
+
+        if (Schema::hasTable('process_services') && ProcessService::query()->doesntExist()) {
+            ProcessService::seedDefaults();
+        }
     }
 
     /**

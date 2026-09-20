@@ -281,10 +281,25 @@ class SpeechAnnouncementTest extends TestCase
         $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك تَلَاتَة', $text);
     }
 
-    public function test_ticket_announcement_prefers_request_type_counter_over_teller_counter(): void
+    public function test_ticket_announcement_prefers_teller_counter_over_request_type_counter(): void
     {
         RequestType::findBySlug('nomination_card')->update(['counter_name' => 'الدفع']);
         $teller = User::factory()->teller('شباك 3')->create();
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 4,
+            'full_name' => null,
+            'request_type' => 'nomination_card',
+        ]);
+
+        $text = app(SpeechService::class)->ticketAnnouncementText($ticket);
+
+        $this->assertSame('رَقَم أَو تِي أَرْبَعَة، بُرْجَاء التَّوَجُّه إِلَى شِبَاك تَلَاتَة', $text);
+    }
+
+    public function test_ticket_announcement_falls_back_to_request_type_counter_when_teller_has_none(): void
+    {
+        RequestType::findBySlug('nomination_card')->update(['counter_name' => 'الدفع']);
+        $teller = User::factory()->manager()->create(['counter_name' => null]);
         $ticket = QueueTicket::factory()->serving($teller)->create([
             'ticket_number' => 4,
             'full_name' => null,

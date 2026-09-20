@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\ProcessStep;
 use App\Enums\UserRole;
+use App\Models\ProcessService;
 use App\Models\RequestType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,6 +30,8 @@ class StoreUserRequest extends FormRequest
             'counter_name' => ['nullable', 'string', 'max:100', 'required_if:role,teller'],
             'queue_lanes' => ['sometimes', 'array'],
             'queue_lanes.*' => ['required', 'string', 'distinct', Rule::in(RequestType::laneValues())],
+            'process_steps' => ['sometimes', 'array'],
+            'process_steps.*' => ['required', 'string', 'distinct', Rule::in(ProcessService::assignableValues() ?: ProcessStep::assignableValues())],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -49,6 +53,9 @@ class StoreUserRequest extends FormRequest
             'queue_lanes.array' => 'أنواع الطلب المخصصة غير صحيحة.',
             'queue_lanes.*.distinct' => 'لا يمكن تكرار نوع الطلب.',
             'queue_lanes.*.in' => 'نوع الطلب غير صحيح.',
+            'process_steps.array' => 'العمليات المخصصة غير صحيحة.',
+            'process_steps.*.distinct' => 'لا يمكن تكرار العملية.',
+            'process_steps.*.in' => 'العملية غير صحيحة.',
         ];
     }
 }

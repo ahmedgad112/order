@@ -23,7 +23,7 @@ class PublicTicketResource extends JsonResource
             'request_type_label' => $this->requestTypeLabel(),
             'college_label' => $this->collegeLabel(),
             'status' => $this->status->value,
-            'counter_name' => $this->requestTypeCounter()
+            'counter_name' => $this->resolvedCounterName()
                 ?? $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'called_at' => $this->called_at?->toIso8601String(),

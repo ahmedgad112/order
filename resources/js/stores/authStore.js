@@ -19,6 +19,22 @@ export const useAuthStore = defineStore('auth', () => {
     const canEditTickets = computed(() => user.value?.permissions?.edit_tickets === true);
     const canDeleteTickets = computed(() => user.value?.permissions?.delete_tickets === true);
     const homeRoute = computed(() => (isAdmin.value ? 'admin' : 'teller'));
+    const allowedProcessSteps = computed(() => {
+        if (!isTeller.value) {
+            return null;
+        }
+
+        const steps = user.value?.process_steps;
+
+        if (!Array.isArray(steps)) {
+            return null;
+        }
+
+        return steps
+            .filter((step) => typeof step === 'string' || step?.enabled !== false)
+            .map((step) => step.value ?? step)
+            .filter((step) => typeof step === 'string');
+    });
 
     async function bootstrap() {
         if (!token.value) {
@@ -88,6 +104,17 @@ export const useAuthStore = defineStore('auth', () => {
         return data.message;
     }
 
+    async function refreshUser() {
+        if (!token.value) {
+            return null;
+        }
+
+        const { data } = await axios.get('/me');
+        user.value = data.user;
+
+        return data.user;
+    }
+
     return {
         user,
         token,
@@ -104,10 +131,12 @@ export const useAuthStore = defineStore('auth', () => {
         canEditTickets,
         canDeleteTickets,
         homeRoute,
+        allowedProcessSteps,
         bootstrap,
         login,
         logout,
         updateProfile,
         changePassword,
+        refreshUser,
     };
 });

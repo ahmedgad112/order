@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\AdminAnnouncementPresetController;
 use App\Http\Controllers\Api\AdminCollegeController;
 use App\Http\Controllers\Api\AdminFacultyController;
+use App\Http\Controllers\Api\AdminProcessServiceController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AdminRequestTypeController;
+use App\Http\Controllers\Api\AdminRolePermissionController;
 use App\Http\Controllers\Api\AdminStepAnnouncementController;
 use App\Http\Controllers\Api\AdminSystemController;
 use App\Http\Controllers\Api\AdminTicketController;
@@ -60,7 +62,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-medical-checked', [TellerQueueController::class, 'markMedicalChecked']);
         Route::post('/tickets/{ticket}/mark-face-printed', [TellerQueueController::class, 'markFacePrinted']);
         Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);
+        Route::post('/tickets/{ticket}/services/{serviceSlug}/complete', [TellerQueueController::class, 'markService']);
     });
+
+    Route::put('/admin/tickets/{ticket}', [AdminTicketController::class, 'update'])
+        ->middleware('permission:edit_tickets');
+    Route::delete('/admin/tickets/{ticket}', [AdminTicketController::class, 'destroy'])
+        ->middleware('permission:delete_tickets');
+    Route::post('/admin/tickets/{ticket}/restore', [AdminTicketController::class, 'restore'])
+        ->middleware('role:super_admin');
 
     Route::prefix('admin')->middleware('role:manager,super_admin')->group(function (): void {
         Route::get('/dashboard', [AdminReportController::class, 'dashboard']);
@@ -69,14 +79,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/reports/teller-performance', [AdminReportController::class, 'tellerPerformance']);
         Route::get('/tellers', [AdminReportController::class, 'tellers']);
         Route::get('/tickets', [AdminTicketController::class, 'index']);
-        Route::put('/tickets/{ticket}', [AdminTicketController::class, 'update']);
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
         Route::put('/queue-lanes/{lane}/tellers', [AdminSystemController::class, 'updateLaneTellers']);
-        Route::get('/users', [AdminUserController::class, 'index']);
-        Route::post('/users', [AdminUserController::class, 'store']);
-        Route::post('/users/bulk', [AdminUserController::class, 'bulkStore']);
-        Route::put('/users/{user}', [AdminUserController::class, 'update']);
-        Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
         Route::post('/announce', [SpeechController::class, 'announce']);
         Route::apiResource('/announcement-presets', AdminAnnouncementPresetController::class)
             ->only(['index', 'store', 'update', 'destroy']);
@@ -86,7 +90,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->middleware('throttle:60,1');
     });
 
-    Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
+    Route::prefix('admin')->middleware(['role:manager,super_admin', 'permission:manage_users'])->group(function (): void {
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::post('/users', [AdminUserController::class, 'store']);
+        Route::post('/users/bulk', [AdminUserController::class, 'bulkStore']);
+        Route::put('/users/{user}', [AdminUserController::class, 'update']);
+        Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
+    });
+
+    Route::prefix('admin')->middleware('permission:control_system')->group(function (): void {
         Route::post('/system/close', [AdminSystemController::class, 'close']);
         Route::post('/system/open', [AdminSystemController::class, 'open']);
         Route::post('/system/end-day', [AdminSystemController::class, 'endDay']);
@@ -98,6 +110,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put('/step-announcements', [AdminStepAnnouncementController::class, 'update']);
         Route::apiResource('/request-types', AdminRequestTypeController::class)
             ->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('/process-services', AdminProcessServiceController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
         Route::get('/faculties', [AdminFacultyController::class, 'index']);
         Route::post('/faculties', [AdminFacultyController::class, 'store']);
         Route::put('/faculties/{faculty}', [AdminFacultyController::class, 'update']);
@@ -106,6 +120,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/colleges', [AdminCollegeController::class, 'store']);
         Route::put('/colleges/{college}', [AdminCollegeController::class, 'update']);
         Route::delete('/colleges/{college}', [AdminCollegeController::class, 'destroy']);
-        Route::delete('/tickets/{ticket}', [AdminTicketController::class, 'destroy']);
+    });
+
+    Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
+        Route::get('/role-permissions', [AdminRolePermissionController::class, 'index']);
+        Route::put('/role-permissions', [AdminRolePermissionController::class, 'update']);
     });
 });

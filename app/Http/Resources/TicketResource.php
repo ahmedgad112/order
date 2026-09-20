@@ -39,7 +39,7 @@ class TicketResource extends JsonResource
                 : null,
             'status' => $this->status->value,
             'user_id' => $this->user_id,
-            'counter_name' => $this->requestTypeCounter()
+            'counter_name' => $this->resolvedCounterName()
                 ?? $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'called_at' => $this->called_at?->toIso8601String(),
@@ -58,6 +58,8 @@ class TicketResource extends JsonResource
             'has_medical_checked' => $this->medical_checked_at !== null,
             'has_face_printed' => $this->face_printed_at !== null,
             'file_delivered' => $this->file_delivered_at !== null,
+            'completed_service_slugs' => $this->completedServiceSlugs(),
+            'process_pipeline' => $this->processPipelinePayload(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

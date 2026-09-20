@@ -50,6 +50,40 @@ enum ProcessStep: string
     /**
      * @return list<string>
      */
+    public static function assignableValues(): array
+    {
+        return [...self::values(), 'completed'];
+    }
+
+    /**
+     * @param  list<string>|null  $selectedValues
+     * @return list<array{value: string, label: string, enabled: bool}>
+     */
+    public static function assignablePayload(?array $selectedValues = null): array
+    {
+        $selected = $selectedValues ?? self::assignableValues();
+
+        $items = array_map(
+            fn (self $step): array => [
+                'value' => $step->value,
+                'label' => $step->label(),
+                'enabled' => in_array($step->value, $selected, true),
+            ],
+            self::cases(),
+        );
+
+        $items[] = [
+            'value' => 'completed',
+            'label' => 'اكتمال',
+            'enabled' => in_array('completed', $selected, true),
+        ];
+
+        return $items;
+    }
+
+    /**
+     * @return list<string>
+     */
     public static function admissionCompletionValues(): array
     {
         return array_map(

@@ -8,6 +8,7 @@ use App\Http\Requests\BulkStoreUsersRequest;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -36,6 +37,7 @@ class AdminUserController extends Controller
         return response()->json([
             'users' => UserResource::collection($query->get()),
             'queue_lanes' => RequestType::lanePayload(),
+            'process_steps' => ProcessService::assignablePayload(),
         ]);
     }
 
@@ -58,6 +60,9 @@ class AdminUserController extends Controller
             'counter_name' => $role === UserRole::Teller ? ($data['counter_name'] ?? null) : null,
             'queue_lanes' => $role === UserRole::Teller
                 ? array_values(array_unique($data['queue_lanes'] ?? RequestType::laneValues()))
+                : null,
+            'process_steps' => $role === UserRole::Teller
+                ? array_values(array_unique($data['process_steps'] ?? ProcessService::assignableValues()))
                 : null,
             'is_active' => $data['is_active'] ?? true,
         ]);
@@ -85,9 +90,10 @@ class AdminUserController extends Controller
             : 'شباك';
         $count = (int) $data['count'];
         $queueLanes = array_values(array_unique($data['queue_lanes'] ?? RequestType::laneValues()));
+        $processSteps = array_values(array_unique($data['process_steps'] ?? ProcessService::assignableValues()));
         $hashedPassword = Hash::make(self::BULK_DEFAULT_PASSWORD);
 
-        $users = DB::transaction(function () use ($count, $baseName, $counterBase, $queueLanes, $hashedPassword) {
+        $users = DB::transaction(function () use ($count, $baseName, $counterBase, $queueLanes, $processSteps, $hashedPassword) {
             $created = [];
             $nextIndex = $this->nextBulkTellerIndex();
 
@@ -107,6 +113,7 @@ class AdminUserController extends Controller
                     'role' => UserRole::Teller,
                     'counter_name' => $counterBase.' '.$nextIndex,
                     'queue_lanes' => $queueLanes,
+                    'process_steps' => $processSteps,
                     'is_active' => true,
                 ]);
 
@@ -180,10 +187,19 @@ class AdminUserController extends Controller
         if ($nextRole !== UserRole::Teller) {
             $data['counter_name'] = null;
             $data['queue_lanes'] = null;
-        } elseif (array_key_exists('queue_lanes', $data)) {
-            $data['queue_lanes'] = array_values(array_unique($data['queue_lanes']));
+            $data['process_steps'] = null;
         } else {
-            unset($data['queue_lanes']);
+            if (array_key_exists('queue_lanes', $data)) {
+                $data['queue_lanes'] = array_values(array_unique($data['queue_lanes']));
+            } else {
+                unset($data['queue_lanes']);
+            }
+
+            if (array_key_exists('process_steps', $data)) {
+                $data['process_steps'] = array_values(array_unique($data['process_steps']));
+            } else {
+                unset($data['process_steps']);
+            }
         }
 
         $user->update($data);

@@ -11,6 +11,18 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    placeholder: {
+        type: String,
+        default: 'اختر أنواع الطلب',
+    },
+    emptyText: {
+        type: String,
+        default: 'لا توجد أنواع طلب متاحة',
+    },
+    summarySuffix: {
+        type: String,
+        default: 'أنواع',
+    },
     disabled: {
         type: Boolean,
         default: false,
@@ -30,14 +42,14 @@ const summary = computed(() => {
         .map((option) => option.label);
 
     if (!labels.length) {
-        return 'اختر أنواع الطلب';
+        return props.placeholder;
     }
 
     if (labels.length <= 2) {
         return labels.join('، ');
     }
 
-    return `${labels.length} أنواع محددة`;
+    return `${labels.length} ${props.summarySuffix}`;
 });
 
 function isSelected(value) {
@@ -108,7 +120,7 @@ onUnmounted(() => {
                 <Check v-if="isSelected(option.value)" class="h-4 w-4 text-indigo-600" />
             </button>
             <p v-if="!options.length" class="px-3 py-2.5 text-sm text-slate-400">
-                لا توجد أنواع طلب متاحة
+                {{ emptyText }}
             </p>
         </div>
     </div>

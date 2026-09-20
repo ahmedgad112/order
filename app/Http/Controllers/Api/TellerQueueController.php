@@ -7,6 +7,7 @@ use App\Http\Requests\IssueTicketRequest;
 use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\ScannedTicketResource;
 use App\Http\Resources\TicketResource;
+use App\Models\ProcessService;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
 use App\Services\QueueService;
@@ -159,6 +160,20 @@ class TellerQueueController extends Controller
 
         return response()->json([
             'message' => 'تم تسليم الملف.',
+            'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function markService(Request $request, QueueTicket $ticket, string $serviceSlug): JsonResponse
+    {
+        $processService = ProcessService::findBySlug($serviceSlug);
+
+        abort_if($processService === null, 404);
+
+        $ticket = $this->queueService->markProcessService($ticket, $processService, $request->user());
+
+        return response()->json([
+            'message' => 'تم تسجيل الخدمة.',
             'ticket' => new TicketResource($ticket),
         ]);
     }

@@ -6,6 +6,7 @@ import {
     FileText,
     FolderCheck,
     FolderDown,
+    Layers,
     ScanFace,
     Stethoscope,
     UserCheck,
@@ -17,15 +18,13 @@ const props = defineProps({
     busyStep: { type: String, default: null },
     systemOpen: { type: Boolean, default: true },
     compact: { type: Boolean, default: false },
+    allowedSteps: { type: Array, default: null },
 });
 
 const emit = defineEmits(['mark']);
 
-const isCurrentStudent = computed(() => props.ticket.student_kind === 'current_student');
-
-const admissionSteps = [
-    {
-        key: 'entered',
+const stepMeta = {
+    entered: {
         label: 'طلب دخول',
         doneLabel: 'تم الدخول',
         icon: UserCheck,
@@ -33,129 +32,109 @@ const admissionSteps = [
         doneClass: 'text-blue-700',
         requiresSystem: true,
     },
-    {
-        key: 'paid',
+    paid: {
         label: 'دفع',
         doneLabel: 'تم الدفع',
         icon: Banknote,
         buttonClass: 'bg-cyan-600 hover:bg-cyan-700 text-white',
         doneClass: 'text-cyan-700',
     },
-    {
-        key: 'file_withdrawn',
+    file_withdrawn: {
         label: 'سحب ملف',
         doneLabel: 'تم السحب',
         icon: FolderDown,
         buttonClass: 'bg-orange-600 hover:bg-orange-700 text-white',
         doneClass: 'text-orange-700',
     },
-    {
-        key: 'medical_checked',
-        label: 'كشف طبي',
-        doneLabel: 'تم الكشف',
-        icon: Stethoscope,
-        buttonClass: 'bg-teal-600 hover:bg-teal-700 text-white',
-        doneClass: 'text-teal-700',
-    },
-    {
-        key: 'face_printed',
-        label: 'بصمة وجه',
-        doneLabel: 'تم البصمة',
-        icon: ScanFace,
-        buttonClass: 'bg-violet-600 hover:bg-violet-700 text-white',
-        doneClass: 'text-violet-700',
-    },
-    {
-        key: 'file_delivered',
-        label: 'تسليم ملف',
-        doneLabel: 'تم التسليم',
-        icon: FolderCheck,
-        buttonClass: 'bg-green-600 hover:bg-green-700 text-white',
-        doneClass: 'text-green-700',
-    },
-    {
-        key: 'completed',
-        label: 'اكتمال',
-        doneLabel: 'مكتمل',
-        icon: CheckCircle2,
-        buttonClass: 'bg-emerald-700 hover:bg-emerald-800 text-white',
-        doneClass: 'text-emerald-700',
-    },
-];
-
-const currentStudentSteps = [
-    {
-        key: 'entered',
-        label: 'دخول',
-        doneLabel: 'تم الدخول',
-        icon: UserCheck,
-        buttonClass: 'bg-blue-600 hover:bg-blue-700 text-white',
-        doneClass: 'text-blue-700',
-        requiresSystem: true,
-    },
-    {
-        key: 'documents_reviewed',
+    documents_reviewed: {
         label: 'مراجعة ورق',
         doneLabel: 'تمت المراجعة',
         icon: FileText,
         buttonClass: 'bg-indigo-600 hover:bg-indigo-700 text-white',
         doneClass: 'text-indigo-700',
     },
-    {
-        key: 'file_delivered',
-        label: 'تسليم',
+    medical_checked: {
+        label: 'كشف طبي',
+        doneLabel: 'تم الكشف',
+        icon: Stethoscope,
+        buttonClass: 'bg-teal-600 hover:bg-teal-700 text-white',
+        doneClass: 'text-teal-700',
+    },
+    face_printed: {
+        label: 'بصمة وجه',
+        doneLabel: 'تم البصمة',
+        icon: ScanFace,
+        buttonClass: 'bg-violet-600 hover:bg-violet-700 text-white',
+        doneClass: 'text-violet-700',
+    },
+    file_delivered: {
+        label: 'تسليم ملف',
         doneLabel: 'تم التسليم',
         icon: FolderCheck,
         buttonClass: 'bg-green-600 hover:bg-green-700 text-white',
         doneClass: 'text-green-700',
     },
-    {
-        key: 'completed',
+    completed: {
         label: 'اكتمال',
         doneLabel: 'مكتمل',
         icon: CheckCircle2,
         buttonClass: 'bg-emerald-700 hover:bg-emerald-800 text-white',
         doneClass: 'text-emerald-700',
     },
-];
-
-const steps = computed(() => (
-    isCurrentStudent.value ? currentStudentSteps : admissionSteps
-));
+};
 
 const isClosed = computed(() => ['cancelled', 'absent'].includes(props.ticket.status));
 const isBusyTicket = computed(() => props.busyId === props.ticket.id);
 
-function isDone(step) {
-    const ticket = props.ticket;
+const steps = computed(() => {
+    const pipeline = Array.isArray(props.ticket.process_pipeline)
+        ? props.ticket.process_pipeline
+        : null;
 
-    if (step.key === 'entered') {
-        return Boolean(ticket.has_entered);
-    }
-    if (step.key === 'paid') {
-        return Boolean(ticket.has_paid);
-    }
-    if (step.key === 'file_withdrawn') {
-        return Boolean(ticket.has_file_withdrawn);
-    }
-    if (step.key === 'documents_reviewed') {
-        return Boolean(ticket.has_documents_reviewed);
-    }
-    if (step.key === 'medical_checked') {
-        return Boolean(ticket.has_medical_checked);
-    }
-    if (step.key === 'face_printed') {
-        return Boolean(ticket.has_face_printed);
-    }
-    if (step.key === 'file_delivered') {
-        return Boolean(ticket.file_delivered);
+    if (!pipeline) {
+        return [];
     }
 
-    return ticket.status === 'completed';
-}
+    return pipeline
+        .filter((item) => {
+            if (!Array.isArray(props.allowedSteps)) {
+                return true;
+            }
 
-function canMark(step) {
+            return props.allowedSteps.includes(item.key)
+                || (item.system_key && props.allowedSteps.includes(item.system_key));
+        })
+        .map((item) => {
+            const metaKey = item.system_key ?? item.key;
+            const meta = stepMeta[metaKey] ?? {
+                label: item.label,
+                doneLabel: `تم — ${item.label}`,
+                icon: Layers,
+                buttonClass: 'bg-slate-700 hover:bg-slate-800 text-white',
+                doneClass: 'text-slate-700',
+            };
+
+            return {
+                key: item.key,
+                systemKey: item.system_key,
+                isCustom: item.is_custom,
+                label: item.label || meta.label,
+                doneLabel: meta.doneLabel,
+                icon: meta.icon,
+                buttonClass: meta.buttonClass,
+                doneClass: meta.doneClass,
+                requiresSystem: Boolean(meta.requiresSystem),
+                done: Boolean(item.done),
+            };
+        });
+});
+
+function canMark(step, index) {
     if (isClosed.value || props.ticket.status === 'completed') {
+        return false;
+    }
+
+    if (step.done) {
         return false;
     }
 
@@ -163,35 +142,11 @@ function canMark(step) {
         return false;
     }
 
-    if (step.key === 'entered') {
-        return ['waiting', 'serving'].includes(props.ticket.status) && !props.ticket.has_entered;
-    }
-    if (step.key === 'paid') {
-        return Boolean(props.ticket.has_entered) && !props.ticket.has_paid;
-    }
-    if (step.key === 'file_withdrawn') {
-        return Boolean(props.ticket.has_entered) && Boolean(props.ticket.has_paid) && !props.ticket.has_file_withdrawn;
-    }
-    if (step.key === 'documents_reviewed') {
-        return Boolean(props.ticket.has_entered) && !props.ticket.has_documents_reviewed;
-    }
-    if (step.key === 'medical_checked') {
-        return Boolean(props.ticket.has_entered)
-            && Boolean(props.ticket.has_file_withdrawn)
-            && !props.ticket.has_medical_checked;
-    }
-    if (step.key === 'face_printed') {
-        return Boolean(props.ticket.has_medical_checked) && !props.ticket.has_face_printed;
-    }
-    if (step.key === 'file_delivered') {
-        const previousDone = isCurrentStudent.value
-            ? Boolean(props.ticket.has_documents_reviewed)
-            : Boolean(props.ticket.has_face_printed);
-
-        return previousDone && !props.ticket.file_delivered;
+    if (index > 0 && !steps.value[index - 1]?.done) {
+        return false;
     }
 
-    return Boolean(props.ticket.file_delivered);
+    return true;
 }
 
 function isBusy(step) {
@@ -204,9 +159,9 @@ function isBusy(step) {
         class="flex flex-wrap"
         :class="compact ? 'gap-1.5' : 'gap-2'"
     >
-        <template v-for="step in steps" :key="step.key">
+        <template v-for="(step, index) in steps" :key="step.key">
             <button
-                v-if="canMark(step)"
+                v-if="canMark(step, index)"
                 type="button"
                 class="inline-flex items-center justify-center font-bold disabled:opacity-60"
                 :class="[
@@ -222,7 +177,7 @@ function isBusy(step) {
                 {{ isBusy(step) ? 'جاري...' : step.label }}
             </button>
             <span
-                v-else-if="isDone(step)"
+                v-else-if="step.done"
                 class="inline-flex items-center font-semibold"
                 :class="[
                     step.doneClass,

@@ -59,17 +59,50 @@ class TellerQueueControlsTest extends TestCase
             ->assertUnauthorized();
     }
 
-    public function test_returns_422_when_calling_a_ticket_that_is_not_waiting(): void
+    public function test_returns_422_when_calling_a_completed_ticket(): void
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()->create();
-        $ticket = QueueTicket::factory()->serving($teller)->create(['ticket_number' => 1]);
+        $ticket = QueueTicket::factory()->create([
+            'ticket_number' => 1,
+            'status' => TicketStatus::Completed,
+            'user_id' => $teller->id,
+            'called_at' => now(),
+            'completed_at' => now(),
+        ]);
         Sanctum::actingAs($teller);
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/call")
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'يمكن نداء التذاكر في الانتظار فقط.');
+            ->assertJsonPath('errors.ticket.0', 'يمكن نداء التذاكر في الانتظار أو قيد الخدمة فقط.');
+    }
+
+    public function test_teller_can_call_a_ticket_already_serving_for_another_teller(): void
+    {
+        QueueSystemSetting::current();
+        $original = User::factory()->teller('شباك 1')->create();
+        $claimer = User::factory()->teller('شباك 2')->create();
+        $ticket = QueueTicket::factory()->serving($original)->create(['ticket_number' => 7]);
+        Event::fake([TicketCalledEvent::class]);
+        Sanctum::actingAs($claimer);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/call")
+            ->assertOk()
+            ->assertJsonPath('ticket.status', TicketStatus::Serving->value)
+            ->assertJsonPath('ticket.teller_name', $claimer->name)
+            ->assertJsonPath('ticket.counter_name', 'شباك 2');
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticket->id,
+            'status' => TicketStatus::Serving->value,
+            'user_id' => $claimer->id,
+        ]);
+        Event::assertDispatched(
+            TicketCalledEvent::class,
+            fn (TicketCalledEvent $event): bool => $event->ticket->id === $ticket->id
+                && $event->ticket->user_id === $claimer->id,
+        );
     }
 
     public function test_returns_422_when_teller_calls_a_ticket_outside_assigned_lanes(): void

@@ -24,6 +24,7 @@ const emptyBulkForm = () => ({
     count: 5,
     counter_base: 'شباك',
     queue_lanes: [],
+    process_steps: [],
 });
 
 const bulkForm = ref(emptyBulkForm());
@@ -35,6 +36,7 @@ const emptyForm = () => ({
     role: 'teller',
     counter_name: '',
     queue_lanes: [],
+    process_steps: [],
     is_active: true,
 });
 
@@ -75,9 +77,16 @@ const canManageUser = (user) => {
 const isEditing = computed(() => Boolean(editingUser.value));
 const formTitle = computed(() => (isEditing.value ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'));
 const availableQueueLanes = computed(() => queueStore.queueLanes ?? []);
+const availableProcessSteps = computed(() => queueStore.processSteps ?? []);
 
 function laneValues(user) {
     return (user?.queue_lanes ?? []).map((lane) => lane.value ?? lane);
+}
+
+function processStepValues(user) {
+    return (user?.process_steps ?? [])
+        .filter((step) => step.enabled !== false)
+        .map((step) => step.value ?? step);
 }
 
 function openCreate() {
@@ -85,6 +94,7 @@ function openCreate() {
     form.value = {
         ...emptyForm(),
         queue_lanes: availableQueueLanes.value.map((lane) => lane.value),
+        process_steps: availableProcessSteps.value.map((step) => step.value),
     };
     formError.value = '';
     showForm.value = true;
@@ -99,6 +109,7 @@ function openEdit(user) {
         role: user.role,
         counter_name: user.counter_name ?? '',
         queue_lanes: laneValues(user),
+        process_steps: processStepValues(user),
         is_active: user.is_active,
     };
     formError.value = '';
@@ -122,6 +133,7 @@ async function submitForm() {
         role: form.value.role,
         counter_name: form.value.role === 'teller' ? form.value.counter_name.trim() : null,
         queue_lanes: form.value.role === 'teller' ? form.value.queue_lanes : [],
+        process_steps: form.value.role === 'teller' ? form.value.process_steps : [],
         is_active: form.value.is_active,
     };
 
@@ -166,10 +178,31 @@ async function saveUserLanes(user, lanes) {
     }
 }
 
+async function saveUserProcessSteps(user, steps) {
+    if (!canManageUser(user) || user.role !== 'teller') {
+        return;
+    }
+
+    savingLaneUserId.value = user.id;
+    formError.value = '';
+
+    try {
+        await queueStore.updateUser(user.id, { process_steps: steps });
+    } catch (err) {
+        const errors = err.response?.data?.errors;
+        formError.value = errors
+            ? Object.values(errors).flat()[0]
+            : err.response?.data?.message ?? 'تعذر تحديث العمليات.';
+    } finally {
+        savingLaneUserId.value = null;
+    }
+}
+
 function openBulkCreate() {
     bulkForm.value = {
         ...emptyBulkForm(),
         queue_lanes: availableQueueLanes.value.map((lane) => lane.value),
+        process_steps: availableProcessSteps.value.map((step) => step.value),
     };
     bulkError.value = '';
     showBulkForm.value = true;
@@ -192,6 +225,7 @@ async function submitBulkForm() {
             count: Number(bulkForm.value.count),
             counter_base: bulkForm.value.counter_base.trim(),
             queue_lanes: bulkForm.value.queue_lanes,
+            process_steps: bulkForm.value.process_steps,
         });
         bulkFeedback.value = result.message ?? 'تم إنشاء المستخدمين بنجاح.';
         closeBulkForm();
@@ -317,6 +351,20 @@ async function handleDelete(user) {
                             />
                         </dd>
                     </div>
+                    <div v-if="user.role === 'teller'" class="space-y-2">
+                        <dt class="text-slate-500">العمليات</dt>
+                        <dd>
+                            <QueueLaneSelect
+                                :model-value="processStepValues(user)"
+                                :options="availableProcessSteps"
+                                placeholder="اختر العمليات"
+                                empty-text="لا توجد عمليات متاحة"
+                                summary-suffix="عمليات"
+                                :disabled="!canManageUser(user) || savingLaneUserId === user.id"
+                                @update:model-value="saveUserProcessSteps(user, $event)"
+                            />
+                        </dd>
+                    </div>
                 </dl>
                 <div class="flex flex-wrap gap-2 border-t border-slate-200/80 pt-3">
                     <button
@@ -426,6 +474,18 @@ async function handleDelete(user) {
                         <p class="text-xs text-slate-500">يمكن اختيار أكثر من نوع من القائمة.</p>
                     </div>
 
+                    <div v-if="form.role === 'teller'" class="space-y-2">
+                        <label class="block text-sm font-semibold text-slate-700">العمليات المخصصة</label>
+                        <QueueLaneSelect
+                            v-model="form.process_steps"
+                            :options="availableProcessSteps"
+                            placeholder="اختر العمليات"
+                            empty-text="لا توجد عمليات متاحة"
+                            summary-suffix="عمليات"
+                        />
+                        <p class="text-xs text-slate-500">الموظف يشوف أزرار العمليات المختارة فقط.</p>
+                    </div>
+
                     <label class="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
                         <input v-model="form.is_active" type="checkbox" class="h-4 w-4 rounded" />
                         <span class="text-sm font-semibold text-slate-700">الحساب نشط</span>
@@ -506,6 +566,18 @@ async function handleDelete(user) {
                     <div class="space-y-2">
                         <label class="block text-sm font-semibold text-slate-700">أنواع الطلب المخصصة</label>
                         <QueueLaneSelect v-model="bulkForm.queue_lanes" :options="availableQueueLanes" />
+                        <p class="text-xs text-slate-500">تنطبق على جميع الموظفين المنشأين.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-slate-700">العمليات المخصصة</label>
+                        <QueueLaneSelect
+                            v-model="bulkForm.process_steps"
+                            :options="availableProcessSteps"
+                            placeholder="اختر العمليات"
+                            empty-text="لا توجد عمليات متاحة"
+                            summary-suffix="عمليات"
+                        />
                         <p class="text-xs text-slate-500">تنطبق على جميع الموظفين المنشأين.</p>
                     </div>
 

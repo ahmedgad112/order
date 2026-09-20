@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\UserRole;
+use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -26,6 +27,12 @@ class UserResource extends JsonResource
             'queue_lanes' => $this->isTeller()
                 ? RequestType::lanePayload($this->queueLaneValues())
                 : [],
+            'process_steps' => $this->isTeller()
+                ? array_values(array_filter(
+                    ProcessService::assignablePayload($this->processStepValues()),
+                    fn (array $item): bool => $item['enabled'] === true,
+                ))
+                : [],
             'is_active' => $this->is_active,
             'assignable_roles' => array_map(
                 fn (UserRole $role): array => [
@@ -35,10 +42,10 @@ class UserResource extends JsonResource
                 $this->role->assignableRoles(),
             ),
             'permissions' => [
-                'manage_users' => $this->role->canManageUsers(),
-                'control_system' => $this->role->canControlSystem(),
-                'edit_tickets' => $this->role->canEditTickets(),
-                'delete_tickets' => $this->role->canDeleteTickets(),
+                'manage_users' => $this->canManageUsers(),
+                'control_system' => $this->canControlSystem(),
+                'edit_tickets' => $this->canEditTickets(),
+                'delete_tickets' => $this->canDeleteTickets(),
             ],
         ];
     }

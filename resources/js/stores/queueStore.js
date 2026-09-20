@@ -32,6 +32,8 @@ export const useQueueStore = defineStore('queue', () => {
     const tellerPerformance = ref([]);
     const tellers = ref([]);
     const queueLanes = ref([]);
+    const processSteps = ref([]);
+    const processServices = ref([]);
     const users = ref([]);
     const registrations = ref([]);
     const registrationDate = ref('');
@@ -301,18 +303,7 @@ export const useQueueStore = defineStore('queue', () => {
     }
 
     async function markProcessStep(ticketId, step) {
-        const paths = {
-            entered: `/teller/tickets/${ticketId}/mark-entered`,
-            paid: `/teller/tickets/${ticketId}/mark-paid`,
-            file_withdrawn: `/teller/tickets/${ticketId}/mark-file-withdrawn`,
-            documents_reviewed: `/teller/tickets/${ticketId}/mark-documents-reviewed`,
-            medical_checked: `/teller/tickets/${ticketId}/mark-medical-checked`,
-            face_printed: `/teller/tickets/${ticketId}/mark-face-printed`,
-            file_delivered: `/teller/tickets/${ticketId}/mark-file-delivered`,
-            completed: `/teller/tickets/${ticketId}/complete`,
-        };
-
-        const { data } = await axios.post(paths[step]);
+        const { data } = await axios.post(`/teller/tickets/${ticketId}/services/${step}/complete`);
         upsertTellerTicket(data.ticket);
         if (step === 'completed' && currentTicket.value?.id === ticketId) {
             currentTicket.value = null;
@@ -376,11 +367,45 @@ export const useQueueStore = defineStore('queue', () => {
         return data.tellers;
     }
 
+    async function fetchProcessServices() {
+        const { data } = await axios.get('/admin/process-services');
+        processServices.value = data.process_services ?? [];
+        processSteps.value = (data.process_services ?? [])
+            .filter((service) => service.is_enabled)
+            .map((service) => ({
+                value: service.slug,
+                label: service.label,
+                enabled: true,
+            }));
+        return data.process_services;
+    }
+
+    async function createProcessService(payload) {
+        const { data } = await axios.post('/admin/process-services', payload);
+        processServices.value = data.process_services ?? processServices.value;
+        return data;
+    }
+
+    async function updateProcessService(id, payload) {
+        const { data } = await axios.put(`/admin/process-services/${id}`, payload);
+        processServices.value = data.process_services ?? processServices.value;
+        return data;
+    }
+
+    async function deleteProcessService(id) {
+        const { data } = await axios.delete(`/admin/process-services/${id}`);
+        processServices.value = data.process_services ?? processServices.value;
+        return data;
+    }
+
     async function fetchUsers() {
         const { data } = await axios.get('/admin/users');
         users.value = data.users;
         if (data.queue_lanes?.length) {
             queueLanes.value = data.queue_lanes;
+        }
+        if (data.process_steps?.length) {
+            processSteps.value = data.process_steps;
         }
         return data.users;
     }
@@ -438,6 +463,14 @@ export const useQueueStore = defineStore('queue', () => {
     async function deleteTicket(ticketId) {
         const { data } = await axios.delete(`/admin/tickets/${ticketId}`);
         removeTicketFromLists(ticketId);
+        return data;
+    }
+
+    async function restoreCancelledTicket(ticketId) {
+        const { data } = await axios.post(`/admin/tickets/${ticketId}/restore`);
+        if (data.ticket) {
+            replaceTicketInLists(data.ticket);
+        }
         return data;
     }
 
@@ -1056,6 +1089,8 @@ export const useQueueStore = defineStore('queue', () => {
         tellerPerformance,
         tellers,
         queueLanes,
+        processSteps,
+        processServices,
         users,
         registrations,
         registrationDate,
@@ -1100,6 +1135,10 @@ export const useQueueStore = defineStore('queue', () => {
         fetchTellerPerformance,
         fetchTellers,
         fetchUsers,
+        fetchProcessServices,
+        createProcessService,
+        updateProcessService,
+        deleteProcessService,
         createUser,
         bulkCreateUsers,
         updateUser,
@@ -1107,6 +1146,7 @@ export const useQueueStore = defineStore('queue', () => {
         deleteUser,
         fetchRegistrations,
         deleteTicket,
+        restoreCancelledTicket,
         updateTicket,
         markTicketEntered,
         fetchSystemStatus,

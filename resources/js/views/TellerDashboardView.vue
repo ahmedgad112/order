@@ -304,6 +304,18 @@ async function handleRecall(ticket) {
     }
 }
 
+function canCall(ticket) {
+    if (!queueStore.isSystemOpen) {
+        return false;
+    }
+
+    if (ticket.status === 'waiting') {
+        return true;
+    }
+
+    return ticket.status === 'serving' && ticket.user_id !== authStore.user?.id;
+}
+
 function canRecall(ticket) {
     return ticket.status === 'serving' && ticket.user_id === authStore.user?.id;
 }
@@ -787,7 +799,11 @@ onUnmounted(() => {
                             </div>
                         </dl>
                         <div class="mt-4 space-y-2 border-t border-slate-200/80 pt-3">
-                            <div v-if="ticket.status === 'waiting'" class="grid grid-cols-2 gap-2">
+                            <div
+                                v-if="canCall(ticket)"
+                                class="grid gap-2"
+                                :class="ticket.status === 'waiting' ? 'grid-cols-2' : 'grid-cols-1'"
+                            >
                                 <button
                                     class="flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                                     :disabled="callingId === ticket.id || !queueStore.isSystemOpen"
@@ -797,6 +813,7 @@ onUnmounted(() => {
                                     {{ callingId === ticket.id ? 'جاري...' : 'نداء' }}
                                 </button>
                                 <button
+                                    v-if="ticket.status === 'waiting'"
                                     class="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
                                     :disabled="skippingId === ticket.id"
                                     @click="handleSkipTicket(ticket)"
@@ -820,6 +837,7 @@ onUnmounted(() => {
                                 :busy-id="processBusyId"
                                 :busy-step="busyStep"
                                 :system-open="queueStore.isSystemOpen"
+                                :allowed-steps="authStore.allowedProcessSteps"
                                 compact
                                 @mark="handleProcessMark(ticket, $event)"
                             />

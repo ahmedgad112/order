@@ -157,7 +157,7 @@ function resetTemplate() {
 
             <h3 class="mb-2 text-sm font-bold text-slate-700">نداء خطوات المعاملة</h3>
             <p class="mb-3 text-xs text-slate-500">
-                النداء يقول اسم شباك الموظف أو نوع الطلب دائماً. الوجهة هنا اختيارية وتُنطق فقط إذا أضفت
+                النداء يقول رقم الدور واسم شباك الموظف اللي الطالب رايح عليه. الوجهة هنا اختيارية وتُنطق فقط إذا أضفت
                 <code class="rounded bg-slate-200 px-1 font-mono" dir="ltr">{destination}</code>
                 إلى نص النداء.
             </p>

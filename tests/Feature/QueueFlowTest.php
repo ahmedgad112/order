@@ -6,6 +6,7 @@ use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Events\TicketDeletedEvent;
+use App\Events\TicketRestoredEvent;
 use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
@@ -678,12 +679,12 @@ class QueueFlowTest extends TestCase
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-medical-checked")
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'سجّل سحب الملف أولاً قبل الكشف الطبي.');
+            ->assertJsonPath('errors.ticket.0', 'أكمل خدمة «سحب ملف» أولاً.');
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-file-withdrawn")
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'سجّل الدفع أولاً قبل سحب الملف.');
+            ->assertJsonPath('errors.ticket.0', 'أكمل خدمة «دفع» أولاً.');
 
         $this->postJson("/api/teller/tickets/{$ticket->id}/mark-face-printed")
             ->assertUnprocessable()
@@ -1044,6 +1045,72 @@ class QueueFlowTest extends TestCase
             TicketDeletedEvent::class,
             fn (TicketDeletedEvent $event): bool => $event->ticketId === $ticket->id && $event->ticketNumber === 'OT7',
         );
+    }
+
+    #[DataProvider('nonSuperAdminRoles')]
+    public function test_returns_403_when_non_super_admin_restores_a_cancelled_ticket(UserRole $role): void
+    {
+        QueueSystemSetting::current();
+        $user = match ($role) {
+            UserRole::Teller => User::factory()->teller()->create(),
+            UserRole::Manager => User::factory()->manager()->create(),
+            UserRole::SuperAdmin => User::factory()->superAdmin()->create(),
+        };
+        $ticket = QueueTicket::factory()->cancelled()->create(['ticket_number' => 1]);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/admin/tickets/'.$ticket->id.'/restore')
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticket->id,
+            'status' => TicketStatus::Cancelled->value,
+        ]);
+    }
+
+    public function test_super_admin_can_restore_a_cancelled_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $superAdmin = User::factory()->superAdmin()->create();
+        $teller = User::factory()->teller('شباك 1')->create();
+        $ticket = QueueTicket::factory()->cancelled($teller)->create([
+            'ticket_number' => 9,
+            'full_name' => 'طلب ملغى',
+        ]);
+        Event::fake([TicketRestoredEvent::class]);
+        Sanctum::actingAs($superAdmin);
+
+        $this->postJson('/api/admin/tickets/'.$ticket->id.'/restore')
+            ->assertOk()
+            ->assertJsonPath('message', 'تم إرجاع الطلب الملغى لقائمة الانتظار.')
+            ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticket->id,
+            'status' => TicketStatus::Waiting->value,
+            'user_id' => null,
+            'called_at' => null,
+            'completed_at' => null,
+        ]);
+
+        Event::assertDispatched(TicketRestoredEvent::class);
+    }
+
+    public function test_super_admin_cannot_restore_a_non_cancelled_ticket(): void
+    {
+        QueueSystemSetting::current();
+        $superAdmin = User::factory()->superAdmin()->create();
+        $ticket = QueueTicket::factory()->waiting()->create(['ticket_number' => 3]);
+        Sanctum::actingAs($superAdmin);
+
+        $this->postJson('/api/admin/tickets/'.$ticket->id.'/restore')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ticket']);
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $ticket->id,
+            'status' => TicketStatus::Waiting->value,
+        ]);
     }
 
     public function test_returns_401_when_guest_updates_a_ticket(): void

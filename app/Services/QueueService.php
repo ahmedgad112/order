@@ -13,8 +13,10 @@ use App\Events\TicketRestoredEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Http\Resources\PublicTicketResource;
 use App\Jobs\GenerateTicketAudioJob;
+use App\Models\ProcessService;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
+use App\Models\TicketServiceCompletion;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -155,9 +157,15 @@ class QueueService
         return DB::transaction(function () use ($ticket, $teller): QueueTicket {
             $locked = QueueTicket::query()->lockForUpdate()->find($ticket->id);
 
-            if ($locked?->status !== TicketStatus::Waiting) {
+            if (! $locked instanceof QueueTicket) {
                 throw ValidationException::withMessages([
-                    'ticket' => 'يمكن نداء التذاكر في الانتظار فقط.',
+                    'ticket' => 'التذكرة غير موجودة.',
+                ]);
+            }
+
+            if (! in_array($locked->status, [TicketStatus::Waiting, TicketStatus::Serving], true)) {
+                throw ValidationException::withMessages([
+                    'ticket' => 'يمكن نداء التذاكر في الانتظار أو قيد الخدمة فقط.',
                 ]);
             }
 
@@ -173,7 +181,7 @@ class QueueService
             $this->broadcastSafely(new TicketCalledEvent($locked));
             GenerateTicketAudioJob::dispatch($locked->id)->afterCommit();
 
-            return $locked->fresh(['teller']);
+            return $locked->fresh(['teller', 'serviceCompletions.service']);
         });
     }
 
@@ -214,9 +222,14 @@ class QueueService
     public function completeTicket(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, 'completed');
+        $this->assertSystemServiceEnabled('completed');
         $this->assertTicketIsProcessable($ticket);
 
-        if ($ticket->file_delivered_at === null) {
+        $completedService = ProcessService::findBySystemKey('completed');
+        if ($completedService) {
+            $this->assertPipelinePredecessorDone($ticket, $completedService);
+        } elseif ($ticket->file_delivered_at === null) {
             throw ValidationException::withMessages([
                 'ticket' => 'سجّل تسليم الملف أولاً قبل الإكمال.',
             ]);
@@ -237,7 +250,55 @@ class QueueService
 
         $this->broadcastSafely(new TicketCompletedEvent($ticket));
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
+    }
+
+    public function markProcessService(QueueTicket $ticket, ProcessService $service, User $teller): QueueTicket
+    {
+        if ($service->is_system && filled($service->system_key)) {
+            return match ($service->system_key) {
+                ProcessStep::Entered->value => $this->markEntered($ticket, $teller),
+                ProcessStep::Paid->value => $this->markPaid($ticket, $teller),
+                ProcessStep::FileWithdrawn->value => $this->markFileWithdrawn($ticket, $teller),
+                ProcessStep::DocumentsReviewed->value => $this->markDocumentsReviewed($ticket, $teller),
+                ProcessStep::MedicalChecked->value => $this->markMedicalChecked($ticket, $teller),
+                ProcessStep::FacePrinted->value => $this->markFacePrinted($ticket, $teller),
+                ProcessStep::FileDelivered->value => $this->markFileDelivered($ticket, $teller),
+                'completed' => $this->completeTicket($ticket, $teller),
+                default => throw ValidationException::withMessages([
+                    'ticket' => 'هذه الخدمة غير مدعومة.',
+                ]),
+            };
+        }
+
+        $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, $service->slug);
+        $this->assertTicketIsProcessable($ticket);
+
+        if (! $service->is_enabled || ! $service->appliesTo($ticket->studentKindValue())) {
+            throw ValidationException::withMessages([
+                'ticket' => 'هذه الخدمة غير متاحة لهذه التذكرة.',
+            ]);
+        }
+
+        $this->assertPipelinePredecessorDone($ticket, $service);
+
+        if ($ticket->isServiceDone($service)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'تم تسجيل هذه الخدمة مسبقاً.',
+            ]);
+        }
+
+        TicketServiceCompletion::query()->create([
+            'queue_ticket_id' => $ticket->id,
+            'process_service_id' => $service->id,
+            'completed_by' => $teller->id,
+            'completed_at' => now(),
+        ]);
+
+        $ticket->update($this->servingAssignment($ticket, $teller));
+
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function cancelTicket(QueueTicket $ticket, User $teller): QueueTicket
@@ -366,6 +427,24 @@ class QueueService
             ]);
         }
 
+        return $this->returnTicketToWaiting($ticket);
+    }
+
+    public function restoreCancelledTicket(QueueTicket $ticket, User $admin): QueueTicket
+    {
+        abort_unless($admin->isSuperAdmin(), 403, 'ليس لديك صلاحية للوصول.');
+
+        if ($ticket->status !== TicketStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'ticket' => 'يمكن إرجاع التذاكر الملغاة فقط.',
+            ]);
+        }
+
+        return $this->returnTicketToWaiting($ticket);
+    }
+
+    private function returnTicketToWaiting(QueueTicket $ticket): QueueTicket
+    {
         $ticket->update([
             'status' => TicketStatus::Waiting,
             'deferred_to_id' => null,
@@ -394,7 +473,7 @@ class QueueService
         return QueueTicket::query()
             ->today()
             ->absent()
-            ->with('teller')
+            ->with(['teller', 'serviceCompletions.service'])
             ->orderByDesc('completed_at')
             ->get();
     }
@@ -403,7 +482,14 @@ class QueueService
     {
         $this->systemService->assertSystemOpen();
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::Entered->value);
+        $this->assertSystemServiceEnabled(ProcessStep::Entered->value);
         $this->assertTicketIsProcessable($ticket);
+
+        $service = ProcessService::findBySystemKey(ProcessStep::Entered->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        }
 
         if ($ticket->entered_at) {
             throw ValidationException::withMessages([
@@ -424,16 +510,24 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::Entered);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function markPaid(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::Paid->value);
+        $this->assertSystemServiceEnabled(ProcessStep::Paid->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->paid_at, 'تم تسجيل الدفع لهذه التذكرة مسبقاً.');
-        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الدفع.');
+
+        $service = ProcessService::findBySystemKey(ProcessStep::Paid->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        } else {
+            $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الدفع.');
+        }
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -442,17 +536,25 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::Paid);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function markFileWithdrawn(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::FileWithdrawn->value);
+        $this->assertSystemServiceEnabled(ProcessStep::FileWithdrawn->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->file_withdrawn_at, 'تم تسجيل سحب الملف لهذه التذكرة مسبقاً.');
-        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل سحب الملف.');
-        $this->assertPreviousCheckpoint($ticket->paid_at, 'سجّل الدفع أولاً قبل سحب الملف.');
+
+        $service = ProcessService::findBySystemKey(ProcessStep::FileWithdrawn->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        } else {
+            $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل سحب الملف.');
+            $this->assertPreviousCheckpoint($ticket->paid_at, 'سجّل الدفع أولاً قبل سحب الملف.');
+        }
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -461,12 +563,14 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::FileWithdrawn);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function markDocumentsReviewed(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::DocumentsReviewed->value);
+        $this->assertSystemServiceEnabled(ProcessStep::DocumentsReviewed->value);
         $this->assertTicketIsProcessable($ticket);
 
         if (! $ticket->isCurrentStudent()) {
@@ -476,7 +580,13 @@ class QueueService
         }
 
         $this->assertCheckpointNotAlreadySet($ticket->documents_reviewed_at, 'تم تسجيل مراجعة الورق لهذه التذكرة مسبقاً.');
-        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل مراجعة الورق.');
+
+        $service = ProcessService::findBySystemKey(ProcessStep::DocumentsReviewed->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        } else {
+            $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل مراجعة الورق.');
+        }
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -485,17 +595,25 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::DocumentsReviewed);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function markMedicalChecked(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::MedicalChecked->value);
+        $this->assertSystemServiceEnabled(ProcessStep::MedicalChecked->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->medical_checked_at, 'تم تسجيل الكشف الطبي لهذه التذكرة مسبقاً.');
-        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
-        $this->assertPreviousCheckpoint($ticket->file_withdrawn_at, 'سجّل سحب الملف أولاً قبل الكشف الطبي.');
+
+        $service = ProcessService::findBySystemKey(ProcessStep::MedicalChecked->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        } else {
+            $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
+            $this->assertPreviousCheckpoint($ticket->file_withdrawn_at, 'سجّل سحب الملف أولاً قبل الكشف الطبي.');
+        }
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -504,17 +622,25 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::MedicalChecked);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function markFacePrinted(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::FacePrinted->value);
+        $this->assertSystemServiceEnabled(ProcessStep::FacePrinted->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->face_printed_at, 'تم تسجيل بصمة الوجه لهذه التذكرة مسبقاً.');
-        $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل بصمة الوجه.');
-        $this->assertPreviousCheckpoint($ticket->medical_checked_at, 'سجّل الكشف الطبي أولاً قبل بصمة الوجه.');
+
+        $service = ProcessService::findBySystemKey(ProcessStep::FacePrinted->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        } else {
+            $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل بصمة الوجه.');
+            $this->assertPreviousCheckpoint($ticket->medical_checked_at, 'سجّل الكشف الطبي أولاً قبل بصمة الوجه.');
+        }
 
         $ticket->update([
             ...$this->servingAssignment($ticket, $teller),
@@ -523,16 +649,21 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::FacePrinted);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     public function markFileDelivered(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertActiveStaff($teller);
+        $this->assertCanPerformProcessStep($teller, ProcessStep::FileDelivered->value);
+        $this->assertSystemServiceEnabled(ProcessStep::FileDelivered->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->file_delivered_at, 'تم تسليم الملف لهذه التذكرة مسبقاً.');
 
-        if ($ticket->isCurrentStudent()) {
+        $service = ProcessService::findBySystemKey(ProcessStep::FileDelivered->value);
+        if ($service) {
+            $this->assertPipelinePredecessorDone($ticket, $service);
+        } elseif ($ticket->isCurrentStudent()) {
             $this->assertPreviousCheckpoint($ticket->documents_reviewed_at, 'سجّل مراجعة الورق أولاً قبل تسليم الملف.');
         } else {
             $this->assertPreviousCheckpoint($ticket->entered_at, 'سجّل طلب الدخول أولاً قبل تسليم الملف.');
@@ -546,7 +677,7 @@ class QueueService
 
         $this->announceTicketCall($ticket, ProcessStep::FileDelivered);
 
-        return $ticket->fresh(['teller']);
+        return $ticket->fresh(['teller', 'serviceCompletions.service']);
     }
 
     /**
@@ -562,7 +693,7 @@ class QueueService
     {
         $query = QueueTicket::query()
             ->today()
-            ->with('teller')
+            ->with(['teller', 'serviceCompletions.service'])
             ->inQueueOrder();
 
         $this->constrainToAssignedLanes($query, $teller);
@@ -586,7 +717,7 @@ class QueueService
         $serving = QueueTicket::query()
             ->today()
             ->serving()
-            ->with('teller')
+            ->with(['teller', 'serviceCompletions.service'])
             ->orderBy('called_at');
         $this->constrainToAssignedLanes($serving, $teller);
         $serving = $serving->get();
@@ -594,7 +725,7 @@ class QueueService
         $absent = QueueTicket::query()
             ->today()
             ->absent()
-            ->with('teller')
+            ->with(['teller', 'serviceCompletions.service'])
             ->latest('updated_at');
         $this->constrainToAssignedLanes($absent, $teller);
 
@@ -617,7 +748,7 @@ class QueueService
             ->when($nationalId, fn ($query) => $query->where('national_id', $nationalId))
             ->when($orderNumber, fn ($query) => $query->where('order_number', $orderNumber))
             ->when($seatNumber, fn ($query) => $query->where('seat_number', $seatNumber))
-            ->with('teller')
+            ->with(['teller', 'serviceCompletions.service'])
             ->latest()
             ->first();
 
@@ -676,7 +807,7 @@ class QueueService
             $serving = QueueTicket::query()
                 ->today()
                 ->serving()
-                ->with('teller')
+                ->with(['teller', 'serviceCompletions.service'])
                 ->orderBy('called_at')
                 ->get();
 
@@ -721,6 +852,47 @@ class QueueService
         if ($lane === null || ! $teller->servesQueueLane($lane)) {
             throw ValidationException::withMessages([
                 'ticket' => 'هذه التذكرة غير مخصصة لنوع الطلب الخاص بك.',
+            ]);
+        }
+    }
+
+    private function assertCanPerformProcessStep(User $teller, string $step): void
+    {
+        if (! $teller->constrainsProcessSteps()) {
+            return;
+        }
+
+        if (! $teller->canPerformProcessStep($step)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'ليس لديك صلاحية لتنفيذ هذه العملية.',
+            ]);
+        }
+    }
+
+    private function assertSystemServiceEnabled(string $systemKey): void
+    {
+        if (! ProcessService::isSystemStepEnabled($systemKey)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'هذه الخدمة موقوفة حالياً.',
+            ]);
+        }
+    }
+
+    private function assertPipelinePredecessorDone(QueueTicket $ticket, ProcessService $current): void
+    {
+        $pipeline = ProcessService::enabledForStudentKind($ticket->studentKindValue())->values();
+        $index = $pipeline->search(fn (ProcessService $service): bool => $service->id === $current->id);
+
+        if ($index === false || $index === 0) {
+            return;
+        }
+
+        /** @var ProcessService $previous */
+        $previous = $pipeline[$index - 1];
+
+        if (! $ticket->isServiceDone($previous)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'أكمل خدمة «'.$previous->label.'» أولاً.',
             ]);
         }
     }

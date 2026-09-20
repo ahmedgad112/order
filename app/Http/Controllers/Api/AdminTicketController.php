@@ -115,10 +115,22 @@ class AdminTicketController extends Controller
 
     public function destroy(Request $request, QueueTicket $ticket): JsonResponse
     {
+        abort_unless($request->user()?->canDeleteTickets() === true, 403, 'ليس لديك صلاحية للوصول.');
+
         $this->queueService->deleteTicket($ticket, $request->user());
 
         return response()->json([
             'message' => 'تم حذف الطلب بنجاح.',
+        ]);
+    }
+
+    public function restore(Request $request, QueueTicket $ticket): JsonResponse
+    {
+        $ticket = $this->queueService->restoreCancelledTicket($ticket, $request->user());
+
+        return response()->json([
+            'message' => 'تم إرجاع الطلب الملغى لقائمة الانتظار.',
+            'ticket' => new AdminTicketResource($ticket),
         ]);
     }
 }

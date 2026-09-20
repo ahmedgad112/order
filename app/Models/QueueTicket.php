@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -103,6 +104,73 @@ class QueueTicket extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function serviceCompletions(): HasMany
+    {
+        return $this->hasMany(TicketServiceCompletion::class);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function completedServiceSlugs(): array
+    {
+        $completions = $this->relationLoaded('serviceCompletions')
+            ? $this->serviceCompletions
+            : $this->serviceCompletions()->with('service:id,slug')->get();
+
+        return $completions
+            ->map(fn (TicketServiceCompletion $completion): ?string => $completion->service?->slug)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public function isServiceDone(ProcessService $service): bool
+    {
+        if ($service->system_key === 'completed') {
+            return $this->status === TicketStatus::Completed;
+        }
+
+        if ($service->system_key !== null) {
+            return match ($service->system_key) {
+                ProcessStep::Entered->value => $this->entered_at !== null,
+                ProcessStep::Paid->value => $this->paid_at !== null,
+                ProcessStep::FileWithdrawn->value => $this->file_withdrawn_at !== null,
+                ProcessStep::DocumentsReviewed->value => $this->documents_reviewed_at !== null,
+                ProcessStep::MedicalChecked->value => $this->medical_checked_at !== null,
+                ProcessStep::FacePrinted->value => $this->face_printed_at !== null,
+                ProcessStep::FileDelivered->value => $this->file_delivered_at !== null,
+                default => false,
+            };
+        }
+
+        return in_array($service->slug, $this->completedServiceSlugs(), true);
+    }
+
+    /**
+     * @return list<array{key: string, label: string, system_key: string|null, is_custom: bool, done: bool}>
+     */
+    public function processPipelinePayload(): array
+    {
+        $completedSlugs = $this->completedServiceSlugs();
+
+        return ProcessService::enabledForStudentKind($this->studentKindValue())
+            ->map(function (ProcessService $service) use ($completedSlugs): array {
+                $done = $service->system_key !== null
+                    ? $this->isServiceDone($service)
+                    : in_array($service->slug, $completedSlugs, true);
+
+                return [
+                    'key' => $service->slug,
+                    'label' => $service->label,
+                    'system_key' => $service->system_key,
+                    'is_custom' => $service->isCustom(),
+                    'done' => $done,
+                ];
+            })
+            ->all();
+    }
+
     public function requestTypeCounter(): ?string
     {
         $counter = RequestType::findBySlug($this->request_type)?->counter_name;
@@ -112,7 +180,13 @@ class QueueTicket extends Model
 
     public function resolvedCounterName(): ?string
     {
-        return $this->requestTypeCounter() ?? $this->teller?->counter_name;
+        $tellerCounter = trim((string) ($this->teller?->counter_name ?? ''));
+
+        if ($tellerCounter !== '') {
+            return $tellerCounter;
+        }
+
+        return $this->requestTypeCounter();
     }
 
     public function isCurrentStudent(): bool

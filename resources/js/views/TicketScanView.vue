@@ -289,6 +289,7 @@ onUnmounted(() => {
                             :busy-id="ticket.id"
                             :busy-step="busyStep"
                             :system-open="queueStore.isSystemOpen"
+                            :allowed-steps="authStore.allowedProcessSteps"
                             @mark="handleProcessMark"
                         />
                     </div>

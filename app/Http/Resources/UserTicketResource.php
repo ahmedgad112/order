@@ -30,7 +30,7 @@ class UserTicketResource extends JsonResource
             'masked_name' => NameMasker::mask($this->full_name),
             'status' => $this->status->value,
             'status_label' => $this->statusLabel(),
-            'counter_name' => $this->requestTypeCounter()
+            'counter_name' => $this->resolvedCounterName()
                 ?? $this->whenLoaded('teller', fn () => $this->teller?->counter_name),
             'teller_name' => $this->whenLoaded('teller', fn () => $this->teller?->name),
             'people_ahead' => $this->peopleAhead,

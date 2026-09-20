@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\Permission;
+use App\Enums\ProcessStep;
 use App\Enums\UserRole;
+use App\Services\RolePermissionResolver;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -12,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'counter_name', 'queue_lanes', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'role', 'counter_name', 'queue_lanes', 'process_steps', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -26,6 +29,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
             'queue_lanes' => 'array',
+            'process_steps' => 'array',
             'is_active' => 'boolean',
         ];
     }
@@ -57,22 +61,27 @@ class User extends Authenticatable
 
     public function canManageUsers(): bool
     {
-        return $this->role->canManageUsers();
+        return $this->allows(Permission::ManageUsers);
     }
 
     public function canControlSystem(): bool
     {
-        return $this->role->canControlSystem();
+        return $this->allows(Permission::ControlSystem);
     }
 
     public function canEditTickets(): bool
     {
-        return $this->role->canEditTickets();
+        return $this->allows(Permission::EditTickets);
     }
 
     public function canDeleteTickets(): bool
     {
-        return $this->role->canDeleteTickets();
+        return $this->allows(Permission::DeleteTickets);
+    }
+
+    public function allows(Permission $permission): bool
+    {
+        return app(RolePermissionResolver::class)->allows($this->role, $permission);
     }
 
     public function canAssignRole(UserRole $role): bool
@@ -109,6 +118,40 @@ class User extends Authenticatable
     }
 
     public function constrainsTicketsToAssignedLanes(): bool
+    {
+        return $this->isTeller();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function processStepValues(): array
+    {
+        $assignable = ProcessService::assignableValues();
+
+        if ($assignable === []) {
+            $assignable = ProcessStep::assignableValues();
+        }
+
+        if (! $this->isTeller()) {
+            return $assignable;
+        }
+
+        $stored = $this->process_steps;
+
+        if (! is_array($stored)) {
+            return $assignable;
+        }
+
+        return array_values(array_intersect($stored, $assignable));
+    }
+
+    public function canPerformProcessStep(string $step): bool
+    {
+        return in_array($step, $this->processStepValues(), true);
+    }
+
+    public function constrainsProcessSteps(): bool
     {
         return $this->isTeller();
     }

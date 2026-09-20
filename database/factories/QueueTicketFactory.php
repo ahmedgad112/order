@@ -186,6 +186,23 @@ class QueueTicketFactory extends Factory
         ]);
     }
 
+    public function cancelled(?User $teller = null): static
+    {
+        return $this->state(fn () => [
+            'status' => TicketStatus::Cancelled,
+            'user_id' => $teller?->id,
+            'called_at' => now()->subMinutes(2),
+            'entered_at' => now()->subMinutes(2),
+            'paid_at' => null,
+            'file_withdrawn_at' => null,
+            'documents_reviewed_at' => null,
+            'medical_checked_at' => null,
+            'face_printed_at' => null,
+            'completed_at' => now(),
+            'file_delivered_at' => null,
+        ]);
+    }
+
     public function documentsReviewed(?User $teller = null): static
     {
         return $this->state(fn () => [
