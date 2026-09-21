@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { CheckCircle2, Clock, Lock, Megaphone, Mic, Ticket, Users, Volume2, VolumeX } from 'lucide-vue-next';
+import { CheckCircle2, Clock, ListX, Lock, Megaphone, Mic, Ticket, Users, Volume2, VolumeX } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 
@@ -45,15 +45,24 @@ let clockTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
-const audioQueue = [];
-let audioPlaying = false;
+const audioQueue = ref([]);
+const priorityQueue = ref([]);
+const audioPlaying = ref(false);
+let currentAudio = null;
+let currentItem = null;
+let audioEpoch = 0;
+
+const pendingSoundCount = computed(() => (
+    audioQueue.value.length + priorityQueue.value.length + (audioPlaying.value ? 1 : 0)
+));
 
 function enqueueAudio(url, kind = 'tts') {
     if (!url) {
         return;
     }
 
-    audioQueue.push({ url, kind });
+    const lane = kind === 'announcement' || kind === 'mic' ? priorityQueue : audioQueue;
+    lane.value.push({ url, kind });
 
     if (kind === 'mic') {
         micPending += 1;
@@ -63,32 +72,75 @@ function enqueueAudio(url, kind = 'tts') {
     playNextAudio();
 }
 
-function playNextAudio() {
-    if (audioPlaying || audioQueue.length === 0) {
+function releaseItem(item) {
+    if (item.kind !== 'mic') {
         return;
     }
 
-    const item = audioQueue.shift();
-    audioPlaying = true;
+    micPending = Math.max(0, micPending - 1);
+
+    if (micPending === 0) {
+        liveMic.value = false;
+    }
+}
+
+function playNextAudio() {
+    if (audioPlaying.value) {
+        return;
+    }
+
+    const lane = priorityQueue.value.length > 0 ? priorityQueue : audioQueue;
+
+    if (lane.value.length === 0) {
+        return;
+    }
+
+    const item = lane.value.shift();
+    audioPlaying.value = true;
+    currentItem = item;
 
     const audio = new Audio(item.url);
-    const done = () => {
-        audioPlaying = false;
+    currentAudio = audio;
 
-        if (item.kind === 'mic') {
-            micPending -= 1;
-            if (micPending <= 0) {
-                micPending = 0;
-                liveMic.value = false;
-            }
+    let finished = false;
+    const done = () => {
+        if (finished) {
+            return;
         }
 
+        finished = true;
+        audioPlaying.value = false;
+        currentAudio = null;
+        currentItem = null;
+        releaseItem(item);
         playNextAudio();
     };
 
     audio.onended = done;
     audio.onerror = done;
     audio.play().catch(done);
+}
+
+function clearAudioQueue() {
+    audioEpoch += 1;
+    audioQueue.value.forEach(releaseItem);
+    audioQueue.value = [];
+    priorityQueue.value.forEach(releaseItem);
+    priorityQueue.value = [];
+
+    if (currentAudio) {
+        currentAudio.onended = null;
+        currentAudio.onerror = null;
+        currentAudio.pause();
+        currentAudio = null;
+    }
+
+    if (currentItem) {
+        releaseItem(currentItem);
+        currentItem = null;
+    }
+
+    audioPlaying.value = false;
 }
 
 // ---- Live mic stream (MediaSource) ----
@@ -261,10 +313,12 @@ async function announceCall(ticket, step = null, muted = false, counter = null) 
     playChime();
 
     if (voiceEnabled.value) {
+        const epoch = audioEpoch;
+
         try {
             const audioUrl = await queueStore.requestTicketAudio(ticket.id, step);
 
-            if (audioUrl) {
+            if (audioUrl && epoch === audioEpoch) {
                 enqueueAudio(audioUrl);
             }
         } catch {
@@ -285,7 +339,7 @@ async function onTicketCalled(event) {
 }
 
 function onAnnouncement(event) {
-    enqueueAudio(event.audio_url);
+    enqueueAudio(event.audio_url, 'announcement');
 
     if (event.text) {
         footerAnnouncement.value = event.text;
@@ -464,6 +518,7 @@ onUnmounted(() => {
     }
     clearTimeout(announcementTimer);
     clearTimeout(micIdleTimer);
+    clearAudioQueue();
     resetMicStream();
     unsubscribeEcho?.();
     stopAutoRefresh?.();
@@ -501,6 +556,23 @@ onUnmounted(() => {
                     <Volume2 v-if="voiceEnabled" class="h-4 w-4" />
                     <VolumeX v-else class="h-4 w-4" />
                     نداء صوتي
+                </button>
+                <button
+                    type="button"
+                    class="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-bold"
+                    :class="pendingSoundCount > 0
+                        ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                        : 'border-slate-200 bg-white text-slate-400'"
+                    @click="clearAudioQueue"
+                >
+                    <ListX class="h-4 w-4" />
+                    مسح الأصوات
+                    <span
+                        v-if="pendingSoundCount > 0"
+                        class="rounded-full bg-red-600 px-2 py-0.5 text-xs font-black text-white"
+                    >
+                        {{ pendingSoundCount }}
+                    </span>
                 </button>
                 <div
                     v-if="liveMic"
