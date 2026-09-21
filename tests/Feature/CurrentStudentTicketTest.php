@@ -45,6 +45,7 @@ class CurrentStudentTicketTest extends TestCase
             'full_name' => 'سارة أحمد علي',
             'order_number' => '987654321',
             'request_type' => 'current_student',
+            'college' => Faculty::IndustryEnergy,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1')
@@ -59,7 +60,7 @@ class CurrentStudentTicketTest extends TestCase
         $this->assertSame('987654321', $ticket->order_number);
         $this->assertNull($ticket->request_type);
         $this->assertNull($ticket->national_id);
-        $this->assertNull($ticket->college);
+        $this->assertSame(Faculty::IndustryEnergy, $ticket->college);
         $this->assertNull($ticket->document_path);
     }
 
@@ -79,6 +80,7 @@ class CurrentStudentTicketTest extends TestCase
             'full_name' => 'سارة أحمد علي',
             'order_number' => '123456788',
             'request_type' => 'current_student',
+            'college' => Faculty::IndustryEnergy,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1');
@@ -95,6 +97,7 @@ class CurrentStudentTicketTest extends TestCase
             'full_name' => 'منى سعيد',
             'order_number' => '123456786',
             'request_type' => 'current_student',
+            'college' => Faculty::HealthSciences,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O2');
@@ -365,7 +368,7 @@ class CurrentStudentTicketTest extends TestCase
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-file-delivered')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'سجّل مراجعة الورق أولاً قبل تسليم الملف.');
+            ->assertJsonPath('errors.ticket.0', 'أكمل خدمة «مراجعة ورق» أولاً.');
 
         $this->assertNull($ticket->fresh()->file_delivered_at);
     }
@@ -382,7 +385,7 @@ class CurrentStudentTicketTest extends TestCase
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-documents-reviewed')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'سجّل طلب الدخول أولاً قبل مراجعة الورق.');
+            ->assertJsonPath('errors.ticket.0', 'أكمل خدمة «طلب دخول» أولاً.');
 
         $this->assertNull($ticket->fresh()->documents_reviewed_at);
     }
@@ -393,6 +396,7 @@ class CurrentStudentTicketTest extends TestCase
         $teller = User::factory()->teller()->create();
         $ticket = QueueTicket::factory()->serving($teller)->create([
             'ticket_number' => 10,
+            'college' => Faculty::IndustryEnergy,
         ]);
         Sanctum::actingAs($teller);
 
@@ -411,10 +415,12 @@ class CurrentStudentTicketTest extends TestCase
         QueueTicket::factory()->currentStudent()->serving($teller)->create([
             'ticket_number' => 11,
             'full_name' => 'في انتظار مراجعة الورق',
+            'college' => Faculty::IndustryEnergy,
         ]);
         QueueTicket::factory()->fileWithdrawn($teller)->create([
             'ticket_number' => 12,
             'full_name' => 'في انتظار الكشف',
+            'college' => Faculty::IndustryEnergy,
         ]);
         Sanctum::actingAs($teller);
 

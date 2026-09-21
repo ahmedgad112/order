@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\UserRole;
+use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
@@ -32,6 +33,9 @@ class UserResource extends JsonResource
                     ProcessService::assignablePayload($this->processStepValues()),
                     fn (array $item): bool => $item['enabled'] === true,
                 ))
+                : [],
+            'assigned_faculties' => $this->isTeller()
+                ? Faculty::assignmentPayload($this->assignedFacultyValues())
                 : [],
             'is_active' => $this->is_active,
             'assignable_roles' => array_map(

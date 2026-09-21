@@ -6,6 +6,7 @@ use App\Enums\ProcessStep;
 use App\Enums\TicketStatus;
 use App\Enums\UserRole;
 use App\Models\College;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
@@ -37,7 +38,7 @@ class RequestTypeTicketTest extends TestCase
 
         $this->issueTicketAsStaff($this->issuePayload([
             'request_type' => 'transfer',
-            'college' => 'كلية الهندسة',
+            'college' => Faculty::IndustryEnergy,
             'order_number' => '987654321',
         ]))
             ->assertCreated();
@@ -47,7 +48,7 @@ class RequestTypeTicketTest extends TestCase
             'request_type' => 'transfer',
             'order_number' => '987654321',
             'national_id' => null,
-            'college' => null,
+            'college' => Faculty::IndustryEnergy,
         ]);
     }
 
@@ -62,7 +63,7 @@ class RequestTypeTicketTest extends TestCase
         $this->issueTicketAsStaff($this->issuePayload([
             'national_id' => '29501011234568',
             'request_type' => 'transfer',
-            'college' => 'كلية الهندسة',
+            'college' => Faculty::IndustryEnergy,
             'order_number' => '123456788',
         ]))
             ->assertCreated()
@@ -72,7 +73,7 @@ class RequestTypeTicketTest extends TestCase
             'national_id' => '29501011234569',
             'request_type' => 'document_completion',
             'completion_step' => ProcessStep::MedicalChecked->value,
-            'college' => 'كلية الهندسة',
+            'college' => Faculty::IndustryEnergy,
             'order_number' => '123456787',
         ]))
             ->assertCreated()
@@ -81,7 +82,7 @@ class RequestTypeTicketTest extends TestCase
         $this->issueTicketAsStaff($this->issuePayload([
             'national_id' => '29501011234570',
             'request_type' => 'direct_application',
-            'college' => 'كلية الهندسة',
+            'college' => Faculty::IndustryEnergy,
             'order_number' => '123456786',
         ]))
             ->assertCreated()
@@ -162,36 +163,36 @@ class RequestTypeTicketTest extends TestCase
         $this->assertDatabaseCount('queue_tickets', 0);
     }
 
-    public function test_staff_can_issue_ticket_without_college(): void
+    public function test_staff_must_choose_college_when_issuing_ticket(): void
     {
         QueueSystemSetting::current();
 
-        $this->issueTicketAsStaff($this->issuePayload())
-            ->assertCreated();
-
-        $this->assertDatabaseHas('queue_tickets', [
-            'full_name' => 'محمد أحمد علي',
-            'request_type' => 'nomination_card',
+        $this->issueTicketAsStaff($this->issuePayload([
             'college' => null,
-            'national_id' => null,
-        ]);
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.college.0', 'يجب اختيار الكلية.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
     }
 
     #[DataProvider('freeTextCollegeRequestTypes')]
-    public function test_staff_can_issue_ticket_without_college_for_all_request_types(string $requestType, string $orderNumber): void
+    public function test_staff_must_choose_faculty_for_all_request_types(string $requestType, string $orderNumber): void
     {
         QueueSystemSetting::current();
 
         $this->issueTicketAsStaff($this->issuePayload([
             'request_type' => $requestType,
             'order_number' => $orderNumber,
+            'college' => Faculty::HealthSciences,
         ]))
             ->assertCreated()
-            ->assertJsonPath('ticket.request_type', $requestType);
+            ->assertJsonPath('ticket.request_type', $requestType)
+            ->assertJsonPath('ticket.college', Faculty::HealthSciences);
 
         $this->assertDatabaseHas('queue_tickets', [
             'request_type' => $requestType,
-            'college' => null,
+            'college' => Faculty::HealthSciences,
         ]);
     }
 
@@ -517,7 +518,7 @@ class RequestTypeTicketTest extends TestCase
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-medical-checked')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'سجّل طلب الدخول أولاً قبل الكشف الطبي.');
+            ->assertJsonPath('errors.ticket.0', 'أكمل خدمة «سحب ملف» أولاً.');
 
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-entered')->assertOk();
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-paid')->assertOk();
@@ -547,7 +548,7 @@ class RequestTypeTicketTest extends TestCase
         $this->postJson('/api/teller/tickets/'.$ticket->id.'/mark-face-printed')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket'])
-            ->assertJsonPath('errors.ticket.0', 'سجّل طلب الدخول أولاً قبل بصمة الوجه.');
+            ->assertJsonPath('errors.ticket.0', 'أكمل خدمة «كشف طبي» أولاً.');
 
         $this->assertNull($ticket->fresh()->entered_at);
         $this->assertNull($ticket->fresh()->face_printed_at);
@@ -576,14 +577,14 @@ class RequestTypeTicketTest extends TestCase
         $this->issueTicketAsStaff($this->issuePayload([
             'request_type' => 'transfer',
             'completion_step' => ProcessStep::MedicalChecked->value,
-            'college' => 'كلية الهندسة',
+            'college' => Faculty::IndustryEnergy,
         ]))
             ->assertCreated();
 
         $this->assertDatabaseHas('queue_tickets', [
             'request_type' => 'transfer',
             'completion_step' => null,
-            'college' => null,
+            'college' => Faculty::IndustryEnergy,
             'national_id' => null,
         ]);
     }

@@ -8,6 +8,7 @@ use App\Http\Requests\BulkStoreUsersRequest;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
@@ -38,6 +39,7 @@ class AdminUserController extends Controller
             'users' => UserResource::collection($query->get()),
             'queue_lanes' => RequestType::lanePayload(),
             'process_steps' => ProcessService::assignablePayload(),
+            'faculties' => Faculty::assignmentPayload(),
         ]);
     }
 
@@ -63,6 +65,9 @@ class AdminUserController extends Controller
                 : null,
             'process_steps' => $role === UserRole::Teller
                 ? array_values(array_unique($data['process_steps'] ?? ProcessService::assignableValues()))
+                : null,
+            'assigned_faculties' => $role === UserRole::Teller
+                ? array_values(array_unique($data['assigned_faculties'] ?? Faculty::slugs()))
                 : null,
             'is_active' => $data['is_active'] ?? true,
         ]);
@@ -91,9 +96,10 @@ class AdminUserController extends Controller
         $count = (int) $data['count'];
         $queueLanes = array_values(array_unique($data['queue_lanes'] ?? RequestType::laneValues()));
         $processSteps = array_values(array_unique($data['process_steps'] ?? ProcessService::assignableValues()));
+        $assignedFaculties = array_values(array_unique($data['assigned_faculties'] ?? Faculty::slugs()));
         $hashedPassword = Hash::make(self::BULK_DEFAULT_PASSWORD);
 
-        $users = DB::transaction(function () use ($count, $baseName, $counterBase, $queueLanes, $processSteps, $hashedPassword) {
+        $users = DB::transaction(function () use ($count, $baseName, $counterBase, $queueLanes, $processSteps, $assignedFaculties, $hashedPassword) {
             $created = [];
             $nextIndex = $this->nextBulkTellerIndex();
 
@@ -114,6 +120,7 @@ class AdminUserController extends Controller
                     'counter_name' => $counterBase.' '.$nextIndex,
                     'queue_lanes' => $queueLanes,
                     'process_steps' => $processSteps,
+                    'assigned_faculties' => $assignedFaculties,
                     'is_active' => true,
                 ]);
 
@@ -188,6 +195,7 @@ class AdminUserController extends Controller
             $data['counter_name'] = null;
             $data['queue_lanes'] = null;
             $data['process_steps'] = null;
+            $data['assigned_faculties'] = null;
         } else {
             if (array_key_exists('queue_lanes', $data)) {
                 $data['queue_lanes'] = array_values(array_unique($data['queue_lanes']));
@@ -199,6 +207,12 @@ class AdminUserController extends Controller
                 $data['process_steps'] = array_values(array_unique($data['process_steps']));
             } else {
                 unset($data['process_steps']);
+            }
+
+            if (array_key_exists('assigned_faculties', $data)) {
+                $data['assigned_faculties'] = array_values(array_unique($data['assigned_faculties']));
+            } else {
+                unset($data['assigned_faculties']);
             }
         }
 

@@ -350,15 +350,9 @@ class QueueTicket extends Model
             return null;
         }
 
-        if ($this->isCurrentStudent()) {
-            return Faculty::labelFor($this->college) ?? $this->college;
-        }
-
-        if (RequestType::findBySlug($this->request_type)?->isCollegeSelectMode()) {
-            return College::labelFor($this->college) ?? $this->college;
-        }
-
-        return $this->college;
+        return Faculty::labelFor($this->college)
+            ?? College::labelFor($this->college)
+            ?? $this->college;
     }
 
     public function documentKindLabel(): ?string
@@ -580,6 +574,26 @@ class QueueTicket extends Model
     public function scopeForCurrentStudentProcess(Builder $query): Builder
     {
         return $query->where('student_kind', StudentKind::CurrentStudent);
+    }
+
+    /**
+     * Limit tickets to the assigned faculties. Tickets without a college stay visible for legacy rows.
+     *
+     * @param  list<string>  $faculties
+     */
+    public function scopeForAssignedFaculties(Builder $query, array $faculties): Builder
+    {
+        $faculties = array_values(array_intersect($faculties, Faculty::slugs()));
+
+        if ($faculties === []) {
+            return $query->whereNull('college');
+        }
+
+        return $query->where(function (Builder $facultyQuery) use ($faculties): void {
+            $facultyQuery
+                ->whereIn('college', $faculties)
+                ->orWhereNull('college');
+        });
     }
 
     public function scopeForTicketSeries(Builder $query, StudentKind $kind, ?string $requestType = null): Builder

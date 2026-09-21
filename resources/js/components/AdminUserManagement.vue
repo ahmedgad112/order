@@ -25,6 +25,7 @@ const emptyBulkForm = () => ({
     counter_base: 'شباك',
     queue_lanes: [],
     process_steps: [],
+    assigned_faculties: [],
 });
 
 const bulkForm = ref(emptyBulkForm());
@@ -37,6 +38,7 @@ const emptyForm = () => ({
     counter_name: '',
     queue_lanes: [],
     process_steps: [],
+    assigned_faculties: [],
     is_active: true,
 });
 
@@ -78,6 +80,7 @@ const isEditing = computed(() => Boolean(editingUser.value));
 const formTitle = computed(() => (isEditing.value ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'));
 const availableQueueLanes = computed(() => queueStore.queueLanes ?? []);
 const availableProcessSteps = computed(() => queueStore.processSteps ?? []);
+const availableFaculties = computed(() => queueStore.assignedFacultiesCatalog ?? []);
 
 function laneValues(user) {
     return (user?.queue_lanes ?? []).map((lane) => lane.value ?? lane);
@@ -89,12 +92,17 @@ function processStepValues(user) {
         .map((step) => step.value ?? step);
 }
 
+function facultyValues(user) {
+    return (user?.assigned_faculties ?? []).map((faculty) => faculty.value ?? faculty);
+}
+
 function openCreate() {
     editingUser.value = null;
     form.value = {
         ...emptyForm(),
         queue_lanes: availableQueueLanes.value.map((lane) => lane.value),
         process_steps: availableProcessSteps.value.map((step) => step.value),
+        assigned_faculties: availableFaculties.value.map((faculty) => faculty.value),
     };
     formError.value = '';
     showForm.value = true;
@@ -110,6 +118,7 @@ function openEdit(user) {
         counter_name: user.counter_name ?? '',
         queue_lanes: laneValues(user),
         process_steps: processStepValues(user),
+        assigned_faculties: facultyValues(user),
         is_active: user.is_active,
     };
     formError.value = '';
@@ -134,6 +143,7 @@ async function submitForm() {
         counter_name: form.value.role === 'teller' ? form.value.counter_name.trim() : null,
         queue_lanes: form.value.role === 'teller' ? form.value.queue_lanes : [],
         process_steps: form.value.role === 'teller' ? form.value.process_steps : [],
+        assigned_faculties: form.value.role === 'teller' ? form.value.assigned_faculties : [],
         is_active: form.value.is_active,
     };
 
@@ -198,11 +208,32 @@ async function saveUserProcessSteps(user, steps) {
     }
 }
 
+async function saveUserFaculties(user, faculties) {
+    if (!canManageUser(user) || user.role !== 'teller') {
+        return;
+    }
+
+    savingLaneUserId.value = user.id;
+    formError.value = '';
+
+    try {
+        await queueStore.updateUser(user.id, { assigned_faculties: faculties });
+    } catch (err) {
+        const errors = err.response?.data?.errors;
+        formError.value = errors
+            ? Object.values(errors).flat()[0]
+            : err.response?.data?.message ?? 'تعذر تحديث الكليات.';
+    } finally {
+        savingLaneUserId.value = null;
+    }
+}
+
 function openBulkCreate() {
     bulkForm.value = {
         ...emptyBulkForm(),
         queue_lanes: availableQueueLanes.value.map((lane) => lane.value),
         process_steps: availableProcessSteps.value.map((step) => step.value),
+        assigned_faculties: availableFaculties.value.map((faculty) => faculty.value),
     };
     bulkError.value = '';
     showBulkForm.value = true;
@@ -226,6 +257,7 @@ async function submitBulkForm() {
             counter_base: bulkForm.value.counter_base.trim(),
             queue_lanes: bulkForm.value.queue_lanes,
             process_steps: bulkForm.value.process_steps,
+            assigned_faculties: bulkForm.value.assigned_faculties,
         });
         bulkFeedback.value = result.message ?? 'تم إنشاء المستخدمين بنجاح.';
         closeBulkForm();
@@ -365,6 +397,20 @@ async function handleDelete(user) {
                             />
                         </dd>
                     </div>
+                    <div v-if="user.role === 'teller'" class="space-y-2">
+                        <dt class="text-slate-500">الكليات</dt>
+                        <dd>
+                            <QueueLaneSelect
+                                :model-value="facultyValues(user)"
+                                :options="availableFaculties"
+                                placeholder="اختر الكليات"
+                                empty-text="لا توجد كليات متاحة"
+                                summary-suffix="كليات"
+                                :disabled="!canManageUser(user) || savingLaneUserId === user.id"
+                                @update:model-value="saveUserFaculties(user, $event)"
+                            />
+                        </dd>
+                    </div>
                 </dl>
                 <div class="flex flex-wrap gap-2 border-t border-slate-200/80 pt-3">
                     <button
@@ -486,6 +532,18 @@ async function handleDelete(user) {
                         <p class="text-xs text-slate-500">الموظف يشوف أزرار العمليات المختارة فقط.</p>
                     </div>
 
+                    <div v-if="form.role === 'teller'" class="space-y-2">
+                        <label class="block text-sm font-semibold text-slate-700">الكليات المخصصة</label>
+                        <QueueLaneSelect
+                            v-model="form.assigned_faculties"
+                            :options="availableFaculties"
+                            placeholder="اختر الكليات"
+                            empty-text="لا توجد كليات متاحة"
+                            summary-suffix="كليات"
+                        />
+                        <p class="text-xs text-slate-500">الموظف يشوف طلبات الطالب الحالي للكليات المختارة فقط.</p>
+                    </div>
+
                     <label class="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
                         <input v-model="form.is_active" type="checkbox" class="h-4 w-4 rounded" />
                         <span class="text-sm font-semibold text-slate-700">الحساب نشط</span>
@@ -577,6 +635,18 @@ async function handleDelete(user) {
                             placeholder="اختر العمليات"
                             empty-text="لا توجد عمليات متاحة"
                             summary-suffix="عمليات"
+                        />
+                        <p class="text-xs text-slate-500">تنطبق على جميع الموظفين المنشأين.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-slate-700">الكليات المخصصة</label>
+                        <QueueLaneSelect
+                            v-model="bulkForm.assigned_faculties"
+                            :options="availableFaculties"
+                            placeholder="اختر الكليات"
+                            empty-text="لا توجد كليات متاحة"
+                            summary-suffix="كليات"
                         />
                         <p class="text-xs text-slate-500">تنطبق على جميع الموظفين المنشأين.</p>
                     </div>

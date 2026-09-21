@@ -77,6 +77,27 @@ class Faculty extends Model
     }
 
     /**
+     * @param  list<string>|null  $assignedValues
+     * @return list<array{value: string, label: string}>
+     */
+    public static function assignmentPayload(?array $assignedValues = null): array
+    {
+        return collect(static::payload(activeOnly: false))
+            ->when(
+                $assignedValues !== null,
+                fn ($items) => $items->filter(
+                    fn (array $item): bool => in_array($item['value'], $assignedValues, true),
+                ),
+            )
+            ->map(fn (array $item): array => [
+                'value' => $item['value'],
+                'label' => $item['label'],
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array{value: string, label: string, seat_number_min_digits: int, seat_number_max_digits: int, is_active: bool}
      */
     public function toPublicArray(): array

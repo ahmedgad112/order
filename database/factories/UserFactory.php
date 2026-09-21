@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\ProcessStep;
 use App\Enums\UserRole;
+use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
@@ -33,6 +34,7 @@ class UserFactory extends Factory
             'counter_name' => 'شباك '.fake()->numberBetween(1, 9),
             'queue_lanes' => RequestType::laneValues(),
             'process_steps' => ProcessService::assignableValues() ?: ProcessStep::assignableValues(),
+            'assigned_faculties' => Faculty::slugs(),
             'is_active' => true,
         ];
     }
@@ -56,6 +58,7 @@ class UserFactory extends Factory
             'counter_name' => null,
             'queue_lanes' => null,
             'process_steps' => null,
+            'assigned_faculties' => null,
         ]);
     }
 
@@ -66,6 +69,7 @@ class UserFactory extends Factory
             'counter_name' => null,
             'queue_lanes' => null,
             'process_steps' => null,
+            'assigned_faculties' => null,
         ]);
     }
 
@@ -76,6 +80,7 @@ class UserFactory extends Factory
             'counter_name' => $counterName ?? 'شباك 1',
             'queue_lanes' => RequestType::laneValues(),
             'process_steps' => ProcessService::assignableValues() ?: ProcessStep::assignableValues(),
+            'assigned_faculties' => Faculty::slugs(),
         ]);
     }
 
@@ -96,6 +101,16 @@ class UserFactory extends Factory
     {
         return $this->state(fn () => [
             'process_steps' => array_values($steps),
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $faculties
+     */
+    public function forFaculties(array $faculties): static
+    {
+        return $this->state(fn () => [
+            'assigned_faculties' => array_values($faculties),
         ]);
     }
 

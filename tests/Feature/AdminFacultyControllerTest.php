@@ -76,12 +76,14 @@ class AdminFacultyControllerTest extends TestCase
             'full_name' => 'سارة أحمد علي',
             'order_number' => '123456789',
             'request_type' => 'current_student',
+            'college' => 'commerce',
         ])->assertCreated();
 
         $this->assertDatabaseHas('queue_tickets', [
             'full_name' => 'سارة أحمد علي',
             'order_number' => '123456789',
             'student_kind' => StudentKind::CurrentStudent->value,
+            'college' => 'commerce',
         ]);
     }
 

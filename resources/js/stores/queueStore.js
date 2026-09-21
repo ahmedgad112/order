@@ -33,6 +33,7 @@ export const useQueueStore = defineStore('queue', () => {
     const tellers = ref([]);
     const queueLanes = ref([]);
     const processSteps = ref([]);
+    const assignedFacultiesCatalog = ref([]);
     const processServices = ref([]);
     const users = ref([]);
     const registrations = ref([]);
@@ -407,6 +408,9 @@ export const useQueueStore = defineStore('queue', () => {
         }
         if (data.process_steps?.length) {
             processSteps.value = data.process_steps;
+        }
+        if (data.faculties?.length) {
+            assignedFacultiesCatalog.value = data.faculties;
         }
         return data.users;
     }
@@ -1107,6 +1111,7 @@ export const useQueueStore = defineStore('queue', () => {
         tellers,
         queueLanes,
         processSteps,
+        assignedFacultiesCatalog,
         processServices,
         users,
         registrations,

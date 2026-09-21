@@ -15,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'counter_name', 'queue_lanes', 'process_steps', 'is_active'])]
+#[Fillable(['name', 'email', 'password', 'role', 'counter_name', 'queue_lanes', 'process_steps', 'assigned_faculties', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -30,6 +30,7 @@ class User extends Authenticatable
             'role' => UserRole::class,
             'queue_lanes' => 'array',
             'process_steps' => 'array',
+            'assigned_faculties' => 'array',
             'is_active' => 'boolean',
         ];
     }
@@ -152,6 +153,38 @@ class User extends Authenticatable
     }
 
     public function constrainsProcessSteps(): bool
+    {
+        return $this->isTeller();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function assignedFacultyValues(): array
+    {
+        if (! $this->isTeller()) {
+            return Faculty::slugs();
+        }
+
+        $stored = $this->assigned_faculties;
+
+        if (! is_array($stored)) {
+            return Faculty::slugs();
+        }
+
+        return array_values(array_intersect($stored, Faculty::slugs()));
+    }
+
+    public function servesFaculty(?string $facultySlug): bool
+    {
+        if (blank($facultySlug)) {
+            return false;
+        }
+
+        return in_array($facultySlug, $this->assignedFacultyValues(), true);
+    }
+
+    public function constrainsTicketsToAssignedFaculties(): bool
     {
         return $this->isTeller();
     }

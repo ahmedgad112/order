@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
@@ -38,7 +39,7 @@ class TellerIssueTicketTest extends TestCase
             'request_type' => 'nomination_card',
             'student_kind' => StudentKind::NewStudent->value,
             'national_id' => null,
-            'college' => null,
+            'college' => Faculty::IndustryEnergy,
             'status' => TicketStatus::Waiting->value,
         ]);
     }
@@ -50,12 +51,14 @@ class TellerIssueTicketTest extends TestCase
 
         $this->postJson('/api/teller/tickets', [
             'request_type' => 'nomination_card',
+            'college' => Faculty::IndustryEnergy,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1')
             ->assertJsonPath('ticket.full_name', null)
             ->assertJsonPath('ticket.order_number', null)
             ->assertJsonPath('ticket.request_type', 'nomination_card')
+            ->assertJsonPath('ticket.college', Faculty::IndustryEnergy)
             ->assertJsonPath('ticket.status', TicketStatus::Waiting->value);
 
         $this->assertDatabaseHas('queue_tickets', [
@@ -63,6 +66,7 @@ class TellerIssueTicketTest extends TestCase
             'order_number' => null,
             'request_type' => 'nomination_card',
             'student_kind' => StudentKind::NewStudent->value,
+            'college' => Faculty::IndustryEnergy,
             'status' => TicketStatus::Waiting->value,
         ]);
     }
@@ -87,12 +91,14 @@ class TellerIssueTicketTest extends TestCase
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'OT1');
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
         ])
             ->assertCreated()
@@ -109,6 +115,7 @@ class TellerIssueTicketTest extends TestCase
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
             'count' => 3,
         ])
@@ -148,10 +155,12 @@ class TellerIssueTicketTest extends TestCase
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
         ])->assertCreated();
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
             'count' => 2,
         ])
@@ -169,6 +178,7 @@ class TellerIssueTicketTest extends TestCase
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
             'count' => 51,
         ])
@@ -197,6 +207,7 @@ class TellerIssueTicketTest extends TestCase
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
             'count' => 0,
         ])
@@ -212,6 +223,7 @@ class TellerIssueTicketTest extends TestCase
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->postJson('/api/teller/tickets', [
+            'college' => Faculty::IndustryEnergy,
             'request_type' => 'nomination_card',
         ])->assertCreated();
 
@@ -231,18 +243,54 @@ class TellerIssueTicketTest extends TestCase
             'full_name' => 'سارة أحمد علي',
             'order_number' => '987654321',
             'request_type' => 'current_student',
+            'college' => Faculty::IndustryEnergy,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1')
             ->assertJsonPath('ticket.student_kind', StudentKind::CurrentStudent->value)
-            ->assertJsonPath('ticket.request_type', null);
+            ->assertJsonPath('ticket.request_type', null)
+            ->assertJsonPath('ticket.college', Faculty::IndustryEnergy);
 
         $this->assertDatabaseHas('queue_tickets', [
             'full_name' => 'سارة أحمد علي',
             'order_number' => '987654321',
             'student_kind' => StudentKind::CurrentStudent->value,
             'request_type' => null,
+            'college' => Faculty::IndustryEnergy,
         ]);
+    }
+
+    public function test_returns_422_when_ticket_is_missing_college(): void
+    {
+        QueueSystemSetting::current();
+
+        $this->issueTicketAsStaff([
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '987654321',
+            'request_type' => 'nomination_card',
+            'college' => null,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.college.0', 'يجب اختيار الكلية.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
+    }
+
+    public function test_teller_cannot_issue_ticket_for_unassigned_faculty(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->forFaculties([Faculty::IndustryEnergy])->create();
+
+        $this->issueTicketAsStaff([
+            'full_name' => 'سارة أحمد علي',
+            'order_number' => '987654321',
+            'request_type' => 'nomination_card',
+            'college' => Faculty::HealthSciences,
+        ], $teller)
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.college.0', 'الكلية غير متاحة لحسابك.');
+
+        $this->assertDatabaseCount('queue_tickets', 0);
     }
 
     public function test_returns_403_when_guest_issues_from_public_endpoint(): void
@@ -268,6 +316,7 @@ class TellerIssueTicketTest extends TestCase
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
             'request_type' => 'nomination_card',
+            'college' => Faculty::IndustryEnergy,
         ])->assertUnauthorized();
 
         $this->assertDatabaseCount('queue_tickets', 0);
@@ -281,6 +330,7 @@ class TellerIssueTicketTest extends TestCase
         $this->postJson('/api/teller/tickets', [])
             ->assertUnprocessable()
             ->assertJsonPath('errors.request_type.0', 'يجب اختيار نوع الطلب.')
+            ->assertJsonPath('errors.college.0', 'يجب اختيار الكلية.')
             ->assertJsonMissingPath('errors.full_name')
             ->assertJsonMissingPath('errors.order_number');
 

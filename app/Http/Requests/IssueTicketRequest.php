@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -25,6 +26,7 @@ class IssueTicketRequest extends FormRequest
             'full_name' => ['nullable', 'string', 'min:3', 'max:255'],
             'order_number' => ['nullable', 'digits:9'],
             'request_type' => ['required', 'string', Rule::in($this->allowedTypeValues())],
+            'college' => ['required', 'string', Rule::in($this->allowedFacultyValues())],
             'count' => ['nullable', 'integer', 'min:1', 'max:50'],
         ];
     }
@@ -39,6 +41,8 @@ class IssueTicketRequest extends FormRequest
             'order_number.digits' => 'يجب أن يتكون رقم الطلب من 9 أرقام بالضبط.',
             'request_type.required' => 'يجب اختيار نوع الطلب.',
             'request_type.in' => 'نوع الطلب غير متاح حالياً.',
+            'college.required' => 'يجب اختيار الكلية.',
+            'college.in' => 'الكلية غير متاحة لحسابك.',
             'count.integer' => 'عدد الأدوار يجب أن يكون رقماً.',
             'count.min' => 'يجب إصدار دور واحد على الأقل.',
             'count.max' => 'يمكن إصدار 50 دور كحد أقصى في المرة الواحدة.',
@@ -60,6 +64,14 @@ class IssueTicketRequest extends FormRequest
 
             $this->merge([
                 'order_number' => $trimmedOrderNumber === '' ? null : $trimmedOrderNumber,
+            ]);
+        }
+
+        if ($this->exists('college') && is_string($this->college)) {
+            $trimmedCollege = trim($this->college);
+
+            $this->merge([
+                'college' => $trimmedCollege === '' ? null : $trimmedCollege,
             ]);
         }
     }
@@ -116,5 +128,19 @@ class IssueTicketRequest extends FormRequest
         }
 
         return $lanes;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allowedFacultyValues(): array
+    {
+        $user = $this->user();
+
+        if ($user instanceof User && $user->constrainsTicketsToAssignedFaculties()) {
+            return $user->assignedFacultyValues();
+        }
+
+        return Faculty::slugs();
     }
 }

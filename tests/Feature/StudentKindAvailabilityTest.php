@@ -171,6 +171,7 @@ class StudentKindAvailabilityTest extends TestCase
             'full_name' => 'سارة أحمد علي',
             'order_number' => '987654321',
             'request_type' => 'current_student',
+            'college' => Faculty::IndustryEnergy,
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['request_type'])
@@ -223,6 +224,7 @@ class StudentKindAvailabilityTest extends TestCase
             'full_name' => 'سارة أحمد علي',
             'order_number' => '987654321',
             'request_type' => 'current_student',
+            'college' => Faculty::IndustryEnergy,
         ])
             ->assertCreated()
             ->assertJsonPath('ticket.ticket_number', 'O1');
@@ -230,6 +232,7 @@ class StudentKindAvailabilityTest extends TestCase
         $this->assertDatabaseHas('queue_tickets', [
             'full_name' => 'سارة أحمد علي',
             'student_kind' => StudentKind::CurrentStudent->value,
+            'college' => Faculty::IndustryEnergy,
         ]);
     }
 }

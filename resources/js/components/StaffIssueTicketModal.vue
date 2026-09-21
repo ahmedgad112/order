@@ -52,6 +52,25 @@ const availableTypes = computed(() => {
     return types.filter((type) => assigned.includes(type.value));
 });
 
+const availableFaculties = computed(() => {
+    const systemFaculties = (queueStore.system.faculties ?? []).map((faculty) => ({
+        value: faculty.value,
+        label: faculty.label,
+    }));
+
+    if (!authStore.isTeller) {
+        return systemFaculties;
+    }
+
+    const assigned = (authStore.user?.assigned_faculties ?? []).map((faculty) => faculty.value ?? faculty);
+
+    if (!assigned.length) {
+        return systemFaculties;
+    }
+
+    return systemFaculties.filter((faculty) => assigned.includes(faculty.value));
+});
+
 const canIssue = computed(() => queueStore.isAcceptingTickets && availableTypes.value.length > 0);
 
 watch(availableTypes, (types) => {
@@ -60,11 +79,21 @@ watch(availableTypes, (types) => {
     }
 });
 
+watch(availableFaculties, (faculties) => {
+    if (
+        form.value.college
+        && !faculties.some((faculty) => faculty.value === form.value.college)
+    ) {
+        form.value.college = '';
+    }
+});
+
 function emptyForm() {
     return {
         full_name: '',
         order_number: '',
         request_type: '',
+        college: '',
         count: '1',
     };
 }
@@ -86,6 +115,10 @@ function validateClient() {
 
     if (!form.value.request_type) {
         errors.request_type = 'يجب اختيار نوع الطلب.';
+    }
+
+    if (!form.value.college) {
+        errors.college = 'يجب اختيار الكلية.';
     }
 
     if (!props.requireName) {
@@ -114,6 +147,7 @@ async function submitForm() {
     try {
         const payload = {
             request_type: form.value.request_type,
+            college: form.value.college,
         };
 
         if (props.requireName) {
@@ -223,6 +257,26 @@ async function submitForm() {
                         </option>
                     </select>
                     <p v-if="fieldErrors.request_type" class="mt-1 text-sm text-red-600">{{ fieldErrors.request_type }}</p>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700">الكلية</label>
+                    <select
+                        v-model="form.college"
+                        required
+                        class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    >
+                        <option value="" disabled>اختر الكلية</option>
+                        <option
+                            v-for="faculty in availableFaculties"
+                            :key="faculty.value"
+                            :value="faculty.value"
+                        >
+                            {{ faculty.label }}
+                        </option>
+                    </select>
+                    <p v-if="!availableFaculties.length" class="mt-1 text-xs text-amber-700">لا توجد كلية متاحة لحسابك.</p>
+                    <p v-if="fieldErrors.college" class="mt-1 text-sm text-red-600">{{ fieldErrors.college }}</p>
                 </div>
 
                 <div v-if="!requireName">

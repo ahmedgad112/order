@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
@@ -37,6 +38,7 @@ abstract class TestCase extends BaseTestCase
             'full_name' => 'محمد أحمد علي',
             'order_number' => '123456789',
             'request_type' => 'nomination_card',
+            'college' => Faculty::IndustryEnergy,
         ], $payload));
     }
 }

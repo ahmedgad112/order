@@ -65,7 +65,21 @@ class QueueService
             ]);
         }
 
-        $tickets = DB::transaction(function () use ($data, $studentKind, $requestType, $count): Collection {
+        $college = $data['college'] ?? null;
+
+        if (blank($college)) {
+            throw ValidationException::withMessages([
+                'college' => 'يجب اختيار الكلية.',
+            ]);
+        }
+
+        if ($staff?->constrainsTicketsToAssignedFaculties() && ! $staff->servesFaculty($college)) {
+            throw ValidationException::withMessages([
+                'college' => 'الكلية غير متاحة لحسابك.',
+            ]);
+        }
+
+        $tickets = DB::transaction(function () use ($data, $studentKind, $requestType, $count, $college): Collection {
             $sessionStartedAt = QueueTicket::currentSessionStartedAt();
             $maxNumber = QueueTicket::query()
                 ->today()
@@ -83,6 +97,7 @@ class QueueService
                     'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : null,
                     'student_kind' => $studentKind,
                     'request_type' => $requestType,
+                    'college' => $college,
                     'order_number' => filled($data['order_number'] ?? null) ? $data['order_number'] : null,
                     'status' => TicketStatus::Waiting,
                 ]));
@@ -120,6 +135,7 @@ class QueueService
                 ->lockForUpdate();
 
             $this->constrainToAssignedLanes($query, $teller);
+            $this->constrainToAssignedFaculties($query, $teller);
 
             $nextTicket = $query->first();
 
@@ -127,8 +143,8 @@ class QueueService
                 $hasAnyWaiting = QueueTicket::query()->today()->waiting()->exists();
 
                 throw ValidationException::withMessages([
-                    'queue' => $hasAnyWaiting && $teller->constrainsTicketsToAssignedLanes()
-                        ? 'لا توجد تذاكر في الانتظار لنوع الطلب المخصص لك.'
+                    'queue' => $hasAnyWaiting && ($teller->constrainsTicketsToAssignedLanes() || $teller->constrainsTicketsToAssignedFaculties())
+                        ? 'لا توجد تذاكر في الانتظار لنوع الطلب أو الكلية المخصصة لك.'
                         : 'لا توجد تذاكر في الانتظار.',
                 ]);
             }
@@ -154,6 +170,7 @@ class QueueService
         $this->systemService->assertSystemOpen();
         $this->assertActiveStaff($teller);
         $this->assertTicketMatchesTellerLanes($ticket, $teller);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
 
         return DB::transaction(function () use ($ticket, $teller): QueueTicket {
             $locked = QueueTicket::query()->lockForUpdate()->find($ticket->id);
@@ -190,6 +207,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertTicketMatchesTellerLanes($ticket, $teller);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
 
         $waitingIds = QueueTicket::query()
             ->today()
@@ -224,6 +242,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, 'completed');
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled('completed');
         $this->assertTicketIsProcessable($ticket);
 
@@ -274,6 +293,7 @@ class QueueService
 
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, $service->slug);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertTicketIsProcessable($ticket);
 
         if (! $service->is_enabled || ! $service->appliesTo($ticket->studentKindValue())) {
@@ -516,6 +536,7 @@ class QueueService
         $this->systemService->assertSystemOpen();
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::Entered->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::Entered->value);
         $this->assertTicketIsProcessable($ticket);
 
@@ -550,6 +571,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::Paid->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::Paid->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
@@ -576,6 +598,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::FileWithdrawn->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::FileWithdrawn->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
@@ -603,6 +626,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::DocumentsReviewed->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::DocumentsReviewed->value);
         $this->assertTicketIsProcessable($ticket);
 
@@ -635,6 +659,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::MedicalChecked->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::MedicalChecked->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
@@ -662,6 +687,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::FacePrinted->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::FacePrinted->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertAdmissionProcess($ticket);
@@ -689,6 +715,7 @@ class QueueService
     {
         $this->assertActiveStaff($teller);
         $this->assertCanPerformProcessStep($teller, ProcessStep::FileDelivered->value);
+        $this->assertTicketMatchesTellerFaculties($ticket, $teller);
         $this->assertSystemServiceEnabled(ProcessStep::FileDelivered->value);
         $this->assertTicketIsProcessable($ticket);
         $this->assertCheckpointNotAlreadySet($ticket->file_delivered_at, 'تم تسليم الملف لهذه التذكرة مسبقاً.');
@@ -730,6 +757,7 @@ class QueueService
             ->inQueueOrder();
 
         $this->constrainToAssignedLanes($query, $teller);
+        $this->constrainToAssignedFaculties($query, $teller);
 
         if ($status && $status !== 'all') {
             $query->where('status', $status);
@@ -753,6 +781,7 @@ class QueueService
             ->with(['teller', 'serviceCompletions.service'])
             ->orderBy('called_at');
         $this->constrainToAssignedLanes($serving, $teller);
+        $this->constrainToAssignedFaculties($serving, $teller);
         $serving = $serving->get();
 
         $absent = QueueTicket::query()
@@ -761,6 +790,7 @@ class QueueService
             ->with(['teller', 'serviceCompletions.service'])
             ->latest('updated_at');
         $this->constrainToAssignedLanes($absent, $teller);
+        $this->constrainToAssignedFaculties($absent, $teller);
 
         return [
             'tickets' => $query->get(),
@@ -874,6 +904,15 @@ class QueueService
         $query->forQueueLanes($user->queueLaneValues());
     }
 
+    private function constrainToAssignedFaculties(mixed $query, User $user): void
+    {
+        if (! $user->constrainsTicketsToAssignedFaculties()) {
+            return;
+        }
+
+        $query->forAssignedFaculties($user->assignedFacultyValues());
+    }
+
     private function assertTicketMatchesTellerLanes(QueueTicket $ticket, User $teller): void
     {
         if (! $teller->constrainsTicketsToAssignedLanes()) {
@@ -885,6 +924,23 @@ class QueueService
         if ($lane === null || ! $teller->servesQueueLane($lane)) {
             throw ValidationException::withMessages([
                 'ticket' => 'هذه التذكرة غير مخصصة لنوع الطلب الخاص بك.',
+            ]);
+        }
+    }
+
+    private function assertTicketMatchesTellerFaculties(QueueTicket $ticket, User $teller): void
+    {
+        if (! $teller->constrainsTicketsToAssignedFaculties()) {
+            return;
+        }
+
+        if (blank($ticket->college)) {
+            return;
+        }
+
+        if (! $teller->servesFaculty($ticket->college)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'هذه التذكرة غير مخصصة للكلية الخاصة بك.',
             ]);
         }
     }
