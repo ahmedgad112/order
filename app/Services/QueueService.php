@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ProcessStep;
 use App\Enums\TicketStatus;
+use App\Events\CallsRestartedEvent;
 use App\Events\TicketAbsentEvent;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketCompletedEvent;
@@ -431,6 +432,35 @@ class QueueService
         }
 
         return $this->returnTicketToWaiting($ticket);
+    }
+
+    public function restartCalling(User $actor): int
+    {
+        $this->assertActiveStaff($actor);
+
+        $restored = DB::transaction(function (): int {
+            $tickets = QueueTicket::query()
+                ->today()
+                ->serving()
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($tickets as $ticket) {
+                $ticket->update([
+                    'status' => TicketStatus::Waiting,
+                    'user_id' => null,
+                    'called_at' => null,
+                    'deferred_to_id' => null,
+                    'completed_at' => null,
+                ]);
+            }
+
+            return $tickets->count();
+        });
+
+        $this->broadcastSafely(new CallsRestartedEvent((string) $actor->name, $restored));
+
+        return $restored;
     }
 
     public function restoreCancelledTicket(QueueTicket $ticket, User $admin): QueueTicket

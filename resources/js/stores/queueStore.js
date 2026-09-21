@@ -90,7 +90,7 @@ export const useQueueStore = defineStore('queue', () => {
         QueueDayReset: new Set(),
         AnnouncementMade: new Set(),
         MicAudioChunk: new Set(),
-        DisplayAudioCleared: new Set(),
+        CallsRestarted: new Set(),
     };
 
     const hasWaiting = computed(() => stats.value.waiting > 0);
@@ -661,8 +661,8 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
-    async function clearDisplayAudio() {
-        const { data } = await axios.post('/teller/clear-display-audio');
+    async function restartCalling() {
+        const { data } = await axios.post('/teller/restart-calling');
         return data;
     }
 
@@ -872,6 +872,13 @@ export const useQueueStore = defineStore('queue', () => {
         scheduleDataRefresh();
     }
 
+    function handleCallsRestarted() {
+        serving.value = [];
+        stats.value.serving = 0;
+        currentTicket.value = null;
+        scheduleDataRefresh();
+    }
+
     function runExtras(eventName, payload) {
         extraHandlers[eventName].forEach((handler) => {
             try {
@@ -945,8 +952,9 @@ export const useQueueStore = defineStore('queue', () => {
                 .listen('.MicAudioChunk', (event) => {
                     runExtras('MicAudioChunk', event);
                 })
-                .listen('.DisplayAudioCleared', (event) => {
-                    runExtras('DisplayAudioCleared', event);
+                .listen('.CallsRestarted', (event) => {
+                    handleCallsRestarted(event);
+                    runExtras('CallsRestarted', event);
                 });
 
             echoBound = true;
@@ -972,7 +980,7 @@ export const useQueueStore = defineStore('queue', () => {
 
     /**
      * Subscribe to the shared queue channel. Returns an unsubscribe function.
-     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'TicketUpdated'|'QueueSystemUpdated'|'QueueDayReset'|'AnnouncementMade'|'MicAudioChunk'|'DisplayAudioCleared', Function>>} handlers
+     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'TicketUpdated'|'QueueSystemUpdated'|'QueueDayReset'|'AnnouncementMade'|'MicAudioChunk'|'CallsRestarted', Function>>} handlers
      */
     function subscribeEcho(handlers = {}) {
         Object.entries(handlers).forEach(([eventName, handler]) => {
@@ -1186,7 +1194,7 @@ export const useQueueStore = defineStore('queue', () => {
         handleTicketDeleted,
         handleTicketUpdated,
         requestTicketAudio,
-        clearDisplayAudio,
+        restartCalling,
         sendAnnouncement,
         sendMicChunk,
         subscribeEcho,

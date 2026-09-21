@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TicketStatus;
-use App\Events\DisplayAudioClearedEvent;
+use App\Events\CallsRestartedEvent;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Jobs\GenerateTicketAudioJob;
@@ -363,26 +363,50 @@ class TellerQueueControlsTest extends TestCase
             ->assertJsonValidationErrors(['ticket']);
     }
 
-    public function test_teller_can_clear_display_audio(): void
+    public function test_teller_can_restart_calling(): void
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()->create();
-        Event::fake([DisplayAudioClearedEvent::class]);
+        $serving = QueueTicket::factory()->serving($teller)->create(['ticket_number' => 1]);
+        $waiting = QueueTicket::factory()->waiting()->create(['ticket_number' => 2]);
+        $completed = QueueTicket::factory()->create([
+            'ticket_number' => 3,
+            'status' => TicketStatus::Completed,
+            'user_id' => $teller->id,
+            'called_at' => now(),
+            'completed_at' => now(),
+        ]);
+        Event::fake([CallsRestartedEvent::class]);
         Sanctum::actingAs($teller);
 
-        $this->postJson('/api/teller/clear-display-audio')
+        $this->postJson('/api/teller/restart-calling')
             ->assertOk()
-            ->assertJsonPath('message', 'تم إلغاء النداءات المسجلة على شاشة العرض.');
+            ->assertJsonPath('restored_count', 1);
+
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $serving->id,
+            'status' => TicketStatus::Waiting->value,
+            'user_id' => null,
+            'called_at' => null,
+        ]);
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $waiting->id,
+            'status' => TicketStatus::Waiting->value,
+        ]);
+        $this->assertDatabaseHas('queue_tickets', [
+            'id' => $completed->id,
+            'status' => TicketStatus::Completed->value,
+        ]);
 
         Event::assertDispatched(
-            DisplayAudioClearedEvent::class,
-            fn (DisplayAudioClearedEvent $event): bool => $event->clearedBy === $teller->name,
+            CallsRestartedEvent::class,
+            fn (CallsRestartedEvent $event): bool => $event->restoredCount === 1,
         );
     }
 
-    public function test_returns_401_when_guest_clears_display_audio(): void
+    public function test_returns_401_when_guest_restarts_calling(): void
     {
-        $this->postJson('/api/teller/clear-display-audio')
+        $this->postJson('/api/teller/restart-calling')
             ->assertUnauthorized();
     }
 }

@@ -339,6 +339,11 @@ async function onTicketCalled(event) {
     await announceCall(ticket, event.step ?? null, Boolean(event.muted), event.counter ?? null);
 }
 
+function onCallsRestarted() {
+    clearAudioQueue();
+    queueStore.fetchPublicStatus();
+}
+
 function onAnnouncement(event) {
     clearAudioQueue();
     enqueueAudio(event.audio_url, 'announcement');
@@ -514,7 +519,7 @@ onMounted(async () => {
         TicketCalled: onTicketCalled,
         AnnouncementMade: consumeAnnouncement,
         MicAudioChunk: onMicChunk,
-        DisplayAudioCleared: () => clearAudioQueue(),
+        CallsRestarted: onCallsRestarted,
     });
 
     stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 4000);

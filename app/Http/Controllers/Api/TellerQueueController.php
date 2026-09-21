@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\DisplayAudioClearedEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\IssueTicketRequest;
 use App\Http\Resources\PublicTicketResource;
@@ -15,7 +14,6 @@ use App\Services\QueueService;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -216,16 +214,15 @@ class TellerQueueController extends Controller
         ]);
     }
 
-    public function clearDisplayAudio(Request $request): JsonResponse
+    public function restartCalling(Request $request): JsonResponse
     {
-        try {
-            event(new DisplayAudioClearedEvent((string) $request->user()->name));
-        } catch (\Throwable $exception) {
-            Log::warning('Display audio clear broadcast failed: '.$exception->getMessage());
-        }
+        $restored = $this->queueService->restartCalling($request->user());
 
         return response()->json([
-            'message' => 'تم إلغاء النداءات المسجلة على شاشة العرض.',
+            'message' => $restored > 0
+                ? 'تم إلغاء النداءات وإرجاع '.$restored.' تذكرة لقائمة الانتظار.'
+                : 'تم إلغاء النداءات — لا توجد تذاكر قيد الخدمة.',
+            'restored_count' => $restored,
         ]);
     }
 

@@ -47,7 +47,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/tickets/{ticket}/document', [TellerQueueController::class, 'showDocument']);
         Route::get('/current-ticket', [TellerQueueController::class, 'currentTicket']);
         Route::post('/call-next', [TellerQueueController::class, 'callNext']);
-        Route::post('/clear-display-audio', [TellerQueueController::class, 'clearDisplayAudio']);
+        Route::post('/restart-calling', [TellerQueueController::class, 'restartCalling']);
         Route::post('/tickets/{ticket}/call', [TellerQueueController::class, 'callTicket']);
         Route::post('/tickets/{ticket}/skip', [TellerQueueController::class, 'skipTicket']);
         Route::post('/tickets/{ticket}/complete', [TellerQueueController::class, 'completeTicket']);

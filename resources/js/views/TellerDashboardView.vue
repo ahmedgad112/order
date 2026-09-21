@@ -36,7 +36,7 @@ const absentId = ref(null);
 const deletingId = ref(null);
 const editingId = ref(null);
 const callingId = ref(null);
-const clearingAudio = ref(false);
+const restartingCalls = ref(false);
 const skippingId = ref(null);
 const recallingId = ref(null);
 const search = ref('');
@@ -261,21 +261,21 @@ async function handleCallNext() {
     }
 }
 
-async function handleClearDisplayAudio() {
-    if (!confirm('إلغاء كل النداءات الصوتية المسجلة على شاشة العرض؟')) {
+async function handleRestartCalls() {
+    if (!confirm('إلغاء كل النداءات وإرجاع كل التذاكر قيد الخدمة لقائمة الانتظار؟')) {
         return;
     }
 
-    clearingAudio.value = true;
+    restartingCalls.value = true;
     actionError.value = '';
     try {
-        const result = await queueStore.clearDisplayAudio();
+        const result = await queueStore.restartCalling();
         actionMessage.value = result.message ?? 'تم إلغاء النداءات المسجلة.';
     } catch (err) {
         actionError.value = err.response?.data?.message
             ?? 'تعذر إلغاء النداءات المسجلة.';
     } finally {
-        clearingAudio.value = false;
+        restartingCalls.value = false;
     }
 }
 
@@ -693,11 +693,11 @@ onUnmounted(() => {
                     <button
                         type="button"
                         class="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                        :disabled="clearingAudio"
-                        @click="handleClearDisplayAudio"
+                        :disabled="restartingCalls"
+                        @click="handleRestartCalls"
                     >
                         <VolumeX class="h-5 w-5" />
-                        {{ clearingAudio ? 'جاري الإلغاء...' : 'إلغاء النداءات المسجلة' }}
+                        {{ restartingCalls ? 'جاري الإلغاء...' : 'إلغاء النداءات المسجلة' }}
                     </button>
                 </div>
 
