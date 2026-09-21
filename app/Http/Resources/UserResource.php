@@ -2,11 +2,11 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\UserRole;
 use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
 use App\Models\User;
+use App\Services\RolePermissionResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,12 +18,15 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $role = $this->roleDefinition();
+
         return [
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
-            'role' => $this->role->value,
-            'role_label' => $this->role->label(),
+            'role' => $role->slug,
+            'role_label' => $role->name,
+            'serves_queue' => $role->serves_queue,
             'counter_name' => $this->counter_name,
             'queue_lanes' => $this->isTeller()
                 ? RequestType::lanePayload($this->queueLaneValues())
@@ -39,18 +42,14 @@ class UserResource extends JsonResource
                 : [],
             'is_active' => $this->is_active,
             'assignable_roles' => array_map(
-                fn (UserRole $role): array => [
-                    'value' => $role->value,
-                    'label' => $role->label(),
+                fn ($assignable): array => [
+                    'value' => $assignable->slug,
+                    'label' => $assignable->name,
+                    'serves_queue' => $assignable->serves_queue,
                 ],
-                $this->role->assignableRoles(),
+                $role->assignableRoles(),
             ),
-            'permissions' => [
-                'manage_users' => $this->canManageUsers(),
-                'control_system' => $this->canControlSystem(),
-                'edit_tickets' => $this->canEditTickets(),
-                'delete_tickets' => $this->canDeleteTickets(),
-            ],
+            'permissions' => app(RolePermissionResolver::class)->permissionMapFor($role),
         ];
     }
 }

@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\College;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
+use App\Models\Role;
 use App\Models\RolePermission;
 use App\Models\User;
 use App\Services\RolePermissionResolver;
@@ -18,29 +19,36 @@ class RolePermissionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_defaults_match_user_role_enum_behavior(): void
+    public function test_defaults_match_system_role_behavior(): void
     {
         $resolver = app(RolePermissionResolver::class);
 
-        $this->assertTrue($resolver->allows(UserRole::SuperAdmin, Permission::ControlSystem));
-        $this->assertTrue($resolver->allows(UserRole::SuperAdmin, Permission::DeleteTickets));
-        $this->assertFalse($resolver->allows(UserRole::Manager, Permission::ControlSystem));
-        $this->assertTrue($resolver->allows(UserRole::Manager, Permission::ManageUsers));
-        $this->assertTrue($resolver->allows(UserRole::Manager, Permission::EditTickets));
-        $this->assertFalse($resolver->allows(UserRole::Manager, Permission::DeleteTickets));
-        $this->assertFalse($resolver->allows(UserRole::Teller, Permission::ManageUsers));
-        $this->assertFalse($resolver->allows(UserRole::Teller, Permission::ControlSystem));
-        $this->assertFalse($resolver->allows(UserRole::Teller, Permission::EditTickets));
-        $this->assertFalse($resolver->allows(UserRole::Teller, Permission::DeleteTickets));
+        $this->assertTrue($resolver->allows(Role::SLUG_SUPER_ADMIN, Permission::ControlSystem));
+        $this->assertTrue($resolver->allows(Role::SLUG_SUPER_ADMIN, Permission::DeleteTickets));
+        $this->assertTrue($resolver->allows(Role::SLUG_SUPER_ADMIN, Permission::ManageRoles));
+        $this->assertTrue($resolver->allows(Role::SLUG_SUPER_ADMIN, Permission::RestoreTickets));
+        $this->assertFalse($resolver->allows(Role::SLUG_MANAGER, Permission::ControlSystem));
+        $this->assertTrue($resolver->allows(Role::SLUG_MANAGER, Permission::ManageUsers));
+        $this->assertTrue($resolver->allows(Role::SLUG_MANAGER, Permission::AccessAdminPanel));
+        $this->assertTrue($resolver->allows(Role::SLUG_MANAGER, Permission::EditTickets));
+        $this->assertFalse($resolver->allows(Role::SLUG_MANAGER, Permission::DeleteTickets));
+        $this->assertFalse($resolver->allows(Role::SLUG_MANAGER, Permission::ManageRoles));
+        $this->assertFalse($resolver->allows(Role::SLUG_TELLER, Permission::ManageUsers));
+        $this->assertFalse($resolver->allows(Role::SLUG_TELLER, Permission::ControlSystem));
+        $this->assertTrue($resolver->allows(Role::SLUG_TELLER, Permission::AccessTellerPanel));
+        $this->assertFalse($resolver->allows(Role::SLUG_TELLER, Permission::EditTickets));
+        $this->assertFalse($resolver->allows(Role::SLUG_TELLER, Permission::DeleteTickets));
     }
 
     public function test_super_admin_always_allowed_even_when_database_row_is_off(): void
     {
-        RolePermission::query()->create([
-            'role' => UserRole::SuperAdmin->value,
-            'permission' => Permission::ControlSystem->value,
-            'allowed' => false,
-        ]);
+        RolePermission::query()->updateOrCreate(
+            [
+                'role' => UserRole::SuperAdmin->value,
+                'permission' => Permission::ControlSystem->value,
+            ],
+            ['allowed' => false],
+        );
 
         app(RolePermissionResolver::class)->forget();
 
@@ -128,7 +136,7 @@ class RolePermissionTest extends TestCase
         ])->assertOk();
 
         $this->assertFalse(
-            app(RolePermissionResolver::class)->allows(UserRole::Teller, Permission::ControlSystem)
+            app(RolePermissionResolver::class)->allows(UserRole::Teller->value, Permission::ControlSystem)
         );
 
         $teller = User::factory()->teller()->create();
@@ -239,6 +247,7 @@ class RolePermissionTest extends TestCase
         $this->getJson('/api/me')
             ->assertOk()
             ->assertJsonPath('user.permissions.delete_tickets', true)
-            ->assertJsonPath('user.permissions.control_system', false);
+            ->assertJsonPath('user.permissions.control_system', false)
+            ->assertJsonPath('user.permissions.access_admin_panel', true);
     }
 }

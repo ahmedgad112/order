@@ -9,8 +9,8 @@ const authStore = useAuthStore();
 const queueStore = useQueueStore();
 
 const navbarSubtitle = computed(() => (
-    authStore.isSuperAdmin
-        ? 'إنشاء وتعديل حسابات السوبر أدمن والمديرين والموظفين'
+    authStore.canManageRoles || authStore.isSuperAdmin
+        ? 'إنشاء وتعديل حسابات بأي دور وصلاحيات'
         : 'إنشاء وتعديل حسابات الموظفين'
 ));
 

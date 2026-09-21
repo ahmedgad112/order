@@ -7,6 +7,9 @@ use App\Http\Requests\UpdateRolePermissionsRequest;
 use App\Services\RolePermissionResolver;
 use Illuminate\Http\JsonResponse;
 
+/**
+ * @deprecated Prefer AdminRoleController; kept for backward-compatible method names.
+ */
 class AdminRolePermissionController extends Controller
 {
     public function __construct(private RolePermissionResolver $resolver) {}

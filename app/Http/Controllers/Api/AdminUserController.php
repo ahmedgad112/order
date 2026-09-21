@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BulkStoreUsersRequest;
 use App\Http\Requests\StoreUserRequest;
@@ -11,6 +10,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,8 +31,12 @@ class AdminUserController extends Controller
 
         $query = User::query()->orderBy('name');
 
-        if ($actor->isManager()) {
-            $query->where('role', UserRole::Teller);
+        if (! $actor->isSuperAdmin()) {
+            $manageableSlugs = collect($actor->roleDefinition()->assignableRoles())
+                ->pluck('slug')
+                ->all();
+
+            $query->whereIn('role', $manageableSlugs !== [] ? $manageableSlugs : ['__none__']);
         }
 
         return response()->json([
@@ -46,7 +50,7 @@ class AdminUserController extends Controller
     public function store(StoreUserRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $role = UserRole::from($data['role']);
+        $role = Role::findBySlugOrFail($data['role']);
 
         if (! $request->user()->canAssignRole($role)) {
             throw ValidationException::withMessages([
@@ -58,15 +62,15 @@ class AdminUserController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'role' => $role,
-            'counter_name' => $role === UserRole::Teller ? ($data['counter_name'] ?? null) : null,
-            'queue_lanes' => $role === UserRole::Teller
+            'role' => $role->slug,
+            'counter_name' => $role->serves_queue ? ($data['counter_name'] ?? null) : null,
+            'queue_lanes' => $role->serves_queue
                 ? array_values(array_unique($data['queue_lanes'] ?? RequestType::laneValues()))
                 : null,
-            'process_steps' => $role === UserRole::Teller
+            'process_steps' => $role->serves_queue
                 ? array_values(array_unique($data['process_steps'] ?? ProcessService::assignableValues()))
                 : null,
-            'assigned_faculties' => $role === UserRole::Teller
+            'assigned_faculties' => $role->serves_queue
                 ? array_values(array_unique($data['assigned_faculties'] ?? Faculty::slugs()))
                 : null,
             'is_active' => $data['is_active'] ?? true,
@@ -80,7 +84,9 @@ class AdminUserController extends Controller
 
     public function bulkStore(BulkStoreUsersRequest $request): JsonResponse
     {
-        if (! $request->user()->canAssignRole(UserRole::Teller)) {
+        $tellerRole = Role::findBySlugOrFail(Role::SLUG_TELLER);
+
+        if (! $request->user()->canAssignRole($tellerRole)) {
             throw ValidationException::withMessages([
                 'role' => 'ليس لديك صلاحية لإنشاء هذا الدور.',
             ]);
@@ -116,7 +122,7 @@ class AdminUserController extends Controller
                     'name' => $baseName.' '.$nextIndex,
                     'email' => $email,
                     'password' => $hashedPassword,
-                    'role' => UserRole::Teller,
+                    'role' => Role::SLUG_TELLER,
                     'counter_name' => $counterBase.' '.$nextIndex,
                     'queue_lanes' => $queueLanes,
                     'process_steps' => $processSteps,
@@ -156,7 +162,7 @@ class AdminUserController extends Controller
                 ]);
             }
 
-            if (isset($data['role']) && $data['role'] !== $admin->role->value) {
+            if (isset($data['role']) && $data['role'] !== $admin->role) {
                 throw ValidationException::withMessages([
                     'role' => 'لا يمكنك تغيير دورك الخاص.',
                 ]);
@@ -164,7 +170,7 @@ class AdminUserController extends Controller
         }
 
         if (isset($data['role'])) {
-            $newRole = UserRole::from($data['role']);
+            $newRole = Role::findBySlugOrFail($data['role']);
 
             if ($user->id !== $admin->id && ! $admin->canAssignRole($newRole)) {
                 throw ValidationException::withMessages([
@@ -172,7 +178,7 @@ class AdminUserController extends Controller
                 ]);
             }
 
-            if ($newRole === UserRole::Teller && empty($data['counter_name']) && empty($user->counter_name)) {
+            if ($newRole->serves_queue && empty($data['counter_name']) && empty($user->counter_name)) {
                 throw ValidationException::withMessages([
                     'counter_name' => 'اسم الشباك مطلوب للموظفين.',
                 ]);
@@ -185,13 +191,15 @@ class AdminUserController extends Controller
             unset($data['password']);
         }
 
-        $nextRole = isset($data['role']) ? UserRole::from($data['role']) : $user->role;
+        $nextRole = isset($data['role'])
+            ? Role::findBySlugOrFail($data['role'])
+            : $user->roleDefinition();
 
         if (isset($data['role'])) {
-            $data['role'] = $nextRole;
+            $data['role'] = $nextRole->slug;
         }
 
-        if ($nextRole !== UserRole::Teller) {
+        if (! $nextRole->serves_queue) {
             $data['counter_name'] = null;
             $data['queue_lanes'] = null;
             $data['process_steps'] = null;

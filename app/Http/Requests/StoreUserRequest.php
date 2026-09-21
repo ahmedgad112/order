@@ -3,10 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Enums\ProcessStep;
-use App\Enums\UserRole;
 use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
+use App\Models\Role;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -23,12 +23,15 @@ class StoreUserRequest extends FormRequest
      */
     public function rules(): array
     {
+        $role = Role::findBySlug((string) $this->input('role'));
+        $requiresCounter = $role?->serves_queue === true;
+
         return [
             'name' => ['required', 'string', 'min:3', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', Password::min(8)],
-            'role' => ['required', Rule::enum(UserRole::class)],
-            'counter_name' => ['nullable', 'string', 'max:100', 'required_if:role,teller'],
+            'role' => ['required', 'string', Rule::exists('roles', 'slug')],
+            'counter_name' => [$requiresCounter ? 'required' : 'nullable', 'string', 'max:100'],
             'queue_lanes' => ['sometimes', 'array'],
             'queue_lanes.*' => ['required', 'string', 'distinct', Rule::in(RequestType::laneValues())],
             'process_steps' => ['sometimes', 'array'],
@@ -52,7 +55,8 @@ class StoreUserRequest extends FormRequest
             'email.unique' => 'البريد الإلكتروني مستخدم بالفعل.',
             'password.required' => 'كلمة المرور مطلوبة.',
             'role.required' => 'الدور مطلوب.',
-            'counter_name.required_if' => 'اسم الشباك مطلوب للموظفين.',
+            'role.exists' => 'الدور المحدد غير موجود.',
+            'counter_name.required' => 'اسم الشباك مطلوب للموظفين.',
             'queue_lanes.array' => 'أنواع الطلب المخصصة غير صحيحة.',
             'queue_lanes.*.distinct' => 'لا يمكن تكرار نوع الطلب.',
             'queue_lanes.*.in' => 'نوع الطلب غير صحيح.',

@@ -29,7 +29,7 @@ function requestRestore() {
 
 <template>
     <button
-        v-if="authStore.isSuperAdmin && ticket.status === 'cancelled'"
+        v-if="authStore.canRestoreTickets && ticket.status === 'cancelled'"
         type="button"
         class="flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
         :disabled="busy"

@@ -5,7 +5,6 @@ namespace Database\Factories;
 use App\Enums\DocumentKind;
 use App\Enums\StudentKind;
 use App\Enums\TicketStatus;
-use App\Models\College;
 use App\Models\Faculty;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -31,7 +30,7 @@ class QueueTicketFactory extends Factory
             'national_id' => fake()->numerify('##############'),
             'request_type' => 'nomination_card',
             'completion_step' => null,
-            'college' => fake()->randomElement(College::activeSlugs()) ?: College::InformationTechnology,
+            'college' => fake()->randomElement(Faculty::activeSlugs()) ?: Faculty::IndustryEnergy,
             'department' => null,
             'order_number' => fake()->unique()->numerify('#########'),
             'seat_number' => null,

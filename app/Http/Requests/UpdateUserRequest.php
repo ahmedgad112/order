@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\ProcessStep;
-use App\Enums\UserRole;
 use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
@@ -29,7 +28,7 @@ class UpdateUserRequest extends FormRequest
             'name' => ['sometimes', 'string', 'min:3', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
             'password' => ['nullable', 'string', Password::min(8)],
-            'role' => ['sometimes', Rule::enum(UserRole::class)],
+            'role' => ['sometimes', 'string', Rule::exists('roles', 'slug')],
             'counter_name' => ['nullable', 'string', 'max:100'],
             'queue_lanes' => ['sometimes', 'array'],
             'queue_lanes.*' => ['required', 'string', 'distinct', Rule::in(RequestType::laneValues())],
@@ -50,6 +49,7 @@ class UpdateUserRequest extends FormRequest
             'name.min' => 'يجب أن يتكون الاسم من 3 أحرف على الأقل.',
             'email.email' => 'يرجى إدخال بريد إلكتروني صالح.',
             'email.unique' => 'البريد الإلكتروني مستخدم بالفعل.',
+            'role.exists' => 'الدور المحدد غير موجود.',
             'queue_lanes.array' => 'أنواع الطلب المخصصة غير صحيحة.',
             'queue_lanes.*.distinct' => 'لا يمكن تكرار نوع الطلب.',
             'queue_lanes.*.in' => 'نوع الطلب غير صحيح.',

@@ -49,9 +49,9 @@ onMounted(() => {
                     width="160"
                     height="96"
                     decoding="async"
-                    class="mx-auto mb-4 h-24 w-auto object-contain"
+                    class="mx-auto mb-4 h-16 w-auto object-contain sm:h-24"
                 />
-                <h1 class="text-2xl font-bold text-slate-900">تسجيل الدخول</h1>
+                <h1 class="text-xl font-bold text-slate-900 sm:text-2xl">تسجيل الدخول</h1>
                 <p class="text-sm text-slate-500">لوحة الموظفين والإدارة</p>
                 <p
                     v-if="staffScanRedirect"

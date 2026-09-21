@@ -176,14 +176,14 @@ watch(searchType, () => {
         subtitle="اعرف مكانك في الطابور"
         page-class="bg-gradient-to-br from-indigo-50 via-white to-purple-50"
     >
-        <main class="mx-auto w-full max-w-3xl space-y-6 px-3 py-6 sm:px-6 sm:py-10">
-            <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
-                <h2 class="mb-6 text-center text-2xl font-bold text-slate-800">ابحث عن تذكرتك</h2>
+        <main class="mx-auto w-full max-w-3xl space-y-5 px-3 py-5 sm:space-y-6 sm:px-6 sm:py-10">
+            <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-xl sm:p-8">
+                <h2 class="mb-5 text-center text-xl font-bold text-slate-800 sm:mb-6 sm:text-2xl">ابحث عن تذكرتك</h2>
 
-                <div class="mb-6 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
+                <div class="mb-5 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 sm:mb-6">
                     <button
                         type="button"
-                        class="rounded-xl py-2.5 text-xs font-semibold transition sm:text-sm"
+                        class="rounded-xl px-1 py-2.5 text-[11px] font-semibold leading-tight transition sm:px-2 sm:text-sm"
                         :class="searchType === 'national_id' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'"
                         @click="searchType = 'national_id'"
                     >
@@ -191,7 +191,7 @@ watch(searchType, () => {
                     </button>
                     <button
                         type="button"
-                        class="rounded-xl py-2.5 text-xs font-semibold transition sm:text-sm"
+                        class="rounded-xl px-1 py-2.5 text-[11px] font-semibold leading-tight transition sm:px-2 sm:text-sm"
                         :class="searchType === 'order_number' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'"
                         @click="searchType = 'order_number'"
                     >
@@ -199,7 +199,7 @@ watch(searchType, () => {
                     </button>
                     <button
                         type="button"
-                        class="rounded-xl py-2.5 text-xs font-semibold transition sm:text-sm"
+                        class="rounded-xl px-1 py-2.5 text-[11px] font-semibold leading-tight transition sm:px-2 sm:text-sm"
                         :class="searchType === 'seat_number' ? 'bg-white text-indigo-700 shadow' : 'text-slate-500'"
                         @click="searchType = 'seat_number'"
                     >
@@ -220,7 +220,7 @@ watch(searchType, () => {
                             maxlength="14"
                             pattern="[0-9]*"
                             autocomplete="off"
-                            class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            class="w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 sm:px-5 sm:py-4 sm:text-lg"
                             placeholder="14 رقم"
                             @input="onNationalIdInput"
                         />
@@ -238,7 +238,7 @@ watch(searchType, () => {
                             maxlength="9"
                             pattern="[0-9]*"
                             autocomplete="off"
-                            class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            class="w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 sm:px-5 sm:py-4 sm:text-lg"
                             placeholder="9 أرقام"
                             @input="onOrderNumberInput"
                         />
@@ -256,7 +256,7 @@ watch(searchType, () => {
                             maxlength="9"
                             pattern="[0-9]*"
                             autocomplete="off"
-                            class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            class="w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base tracking-widest outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 sm:px-5 sm:py-4 sm:text-lg"
                             placeholder="7 إلى 9 أرقام"
                             @input="onSeatNumberInput"
                         />
@@ -269,7 +269,7 @@ watch(searchType, () => {
                     <button
                         type="submit"
                         :disabled="queueStore.loading"
-                        class="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-6 py-4 text-lg font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+                        class="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-5 py-3.5 text-base font-bold text-white hover:bg-indigo-700 disabled:opacity-60 sm:px-6 sm:py-4 sm:text-lg"
                     >
                         <Search class="h-5 w-5" />
                         {{ queueStore.loading ? 'جاري البحث...' : 'عرض حالة التذكرة' }}
@@ -282,7 +282,7 @@ watch(searchType, () => {
                 class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl"
             >
                 <div
-                    class="px-8 py-6 text-center text-white"
+                    class="px-5 py-5 text-center text-white sm:px-8 sm:py-6"
                     :class="{
                         'bg-amber-500': statusConfig.color === 'amber',
                         'bg-blue-600': statusConfig.color === 'blue',
@@ -292,14 +292,14 @@ watch(searchType, () => {
                     }"
                 >
                     <component :is="statusConfig.icon" class="mx-auto mb-3 h-10 w-10" />
-                    <h3 class="text-xl font-bold">{{ statusConfig.title }}</h3>
+                    <h3 class="text-lg font-bold sm:text-xl">{{ statusConfig.title }}</h3>
                     <p class="mt-1 text-sm opacity-90">{{ statusConfig.hint }}</p>
                 </div>
 
-                <div class="p-8 text-center">
+                <div class="p-5 text-center sm:p-8">
                     <p class="text-sm text-slate-500">رقم تذكرتك</p>
-                    <p class="my-3 text-7xl font-black text-indigo-600" dir="ltr">{{ trackedTicket.ticket_number }}</p>
-                    <p class="text-lg font-semibold text-slate-800">{{ trackedTicket.masked_name }}</p>
+                    <p class="my-3 text-5xl font-black text-indigo-600 sm:text-7xl" dir="ltr">{{ trackedTicket.ticket_number }}</p>
+                    <p class="text-base font-semibold text-slate-800 sm:text-lg">{{ trackedTicket.masked_name }}</p>
                     <span
                         class="mt-4 inline-block rounded-full px-4 py-1.5 text-sm font-bold"
                         :class="{
@@ -313,24 +313,24 @@ watch(searchType, () => {
                         {{ trackedTicket.status_label }}
                     </span>
 
-                    <div v-if="trackedTicket.status === 'waiting'" class="mt-8 grid grid-cols-2 gap-4">
+                    <div v-if="trackedTicket.status === 'waiting'" class="mt-6 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-4">
                         <div class="rounded-2xl bg-amber-50 p-4">
                             <p class="text-sm text-amber-700">ترتيبك</p>
-                            <p class="text-3xl font-black text-amber-600">{{ trackedTicket.position_in_queue }}</p>
+                            <p class="text-2xl font-black text-amber-600 sm:text-3xl">{{ trackedTicket.position_in_queue }}</p>
                         </div>
                         <div class="rounded-2xl bg-slate-50 p-4">
                             <p class="text-sm text-slate-500">أمامك</p>
-                            <p class="text-3xl font-black text-slate-700">{{ trackedTicket.people_ahead }}</p>
+                            <p class="text-2xl font-black text-slate-700 sm:text-3xl">{{ trackedTicket.people_ahead }}</p>
                             <p class="text-xs text-slate-400">تذكرة</p>
                         </div>
                     </div>
 
                     <div
                         v-if="trackedTicket.status === 'serving' && (trackedTicket.teller_name || trackedTicket.counter_name)"
-                        class="mt-8 rounded-2xl bg-blue-50 p-5"
+                        class="mt-6 rounded-2xl bg-blue-50 p-4 sm:mt-8 sm:p-5"
                     >
                         <p class="text-sm text-blue-600">توجّه إلى</p>
-                        <p class="text-3xl font-black text-blue-700">
+                        <p class="text-2xl font-black text-blue-700 sm:text-3xl">
                             {{ trackedTicket.teller_name || trackedTicket.counter_name }}
                         </p>
                         <p
@@ -342,7 +342,7 @@ watch(searchType, () => {
                     </div>
 
                     <button
-                        class="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                        class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 sm:mt-8"
                         :disabled="isRefreshing"
                         @click="trackTicket(true)"
                     >

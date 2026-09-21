@@ -11,7 +11,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call(RolePermissionSeeder::class);
+        $this->call(RoleSeeder::class);
         $this->call(ProcessServiceSeeder::class);
 
         User::query()->updateOrCreate(
@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'سوبر أدمن',
                 'password' => Hash::make('Ahmedgad@2011'),
-                'role' => UserRole::SuperAdmin,
+                'role' => UserRole::SuperAdmin->value,
                 'counter_name' => null,
                 'is_active' => true,
             ]
@@ -30,14 +30,14 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'مدير النظام',
                 'password' => Hash::make('password'),
-                'role' => UserRole::Manager,
+                'role' => UserRole::Manager->value,
                 'counter_name' => null,
                 'is_active' => true,
             ]
         );
 
         $demoTellers = User::query()
-            ->where('role', UserRole::Teller)
+            ->where('role', UserRole::Teller->value)
             ->where('email', 'like', 'teller%@queue.local')
             ->get();
 

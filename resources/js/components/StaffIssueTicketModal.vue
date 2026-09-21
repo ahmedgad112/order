@@ -179,11 +179,11 @@ async function submitForm() {
 </script>
 
 <template>
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" @click.self="emit('close')">
-        <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
-            <div class="mb-6 flex items-start justify-between gap-3">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 sm:p-4" @click.self="emit('close')">
+        <div class="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div class="mb-5 flex items-start justify-between gap-3 sm:mb-6">
                 <div>
-                    <h3 class="flex items-center gap-2 text-xl font-bold text-slate-900">
+                    <h3 class="flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
                         <Plus class="h-5 w-5 text-indigo-600" />
                         {{ requireName ? 'دور جديد' : 'دور بالنوع' }}
                     </h3>

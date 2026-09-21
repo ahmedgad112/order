@@ -57,7 +57,7 @@ const roleBadgeClass = {
 };
 
 const assignableRoles = computed(() => authStore.user?.assignable_roles ?? [
-    { value: 'teller', label: 'موظف' },
+    { value: 'teller', label: 'موظف', serves_queue: true },
 ]);
 
 const canManageUser = (user) => {
@@ -73,8 +73,22 @@ const canManageUser = (user) => {
         return true;
     }
 
-    return authStore.isManager && user.role === 'teller';
+    return assignableRoles.value.some((role) => role.value === user.role);
 };
+
+function roleServesQueue(roleValue) {
+    const matched = assignableRoles.value.find((role) => role.value === roleValue);
+
+    if (matched) {
+        return matched.serves_queue === true;
+    }
+
+    return roleValue === 'teller';
+}
+
+function userServesQueue(user) {
+    return user?.serves_queue === true || user?.role === 'teller';
+}
 
 const isEditing = computed(() => Boolean(editingUser.value));
 const formTitle = computed(() => (isEditing.value ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'));
@@ -140,10 +154,10 @@ async function submitForm() {
         name: form.value.name.trim(),
         email: form.value.email.trim(),
         role: form.value.role,
-        counter_name: form.value.role === 'teller' ? form.value.counter_name.trim() : null,
-        queue_lanes: form.value.role === 'teller' ? form.value.queue_lanes : [],
-        process_steps: form.value.role === 'teller' ? form.value.process_steps : [],
-        assigned_faculties: form.value.role === 'teller' ? form.value.assigned_faculties : [],
+        counter_name: roleServesQueue(form.value.role) ? form.value.counter_name.trim() : null,
+        queue_lanes: roleServesQueue(form.value.role) ? form.value.queue_lanes : [],
+        process_steps: roleServesQueue(form.value.role) ? form.value.process_steps : [],
+        assigned_faculties: roleServesQueue(form.value.role) ? form.value.assigned_faculties : [],
         is_active: form.value.is_active,
     };
 
@@ -169,7 +183,7 @@ async function submitForm() {
 }
 
 async function saveUserLanes(user, lanes) {
-    if (!canManageUser(user) || user.role !== 'teller') {
+    if (!canManageUser(user) || !userServesQueue(user)) {
         return;
     }
 
@@ -189,7 +203,7 @@ async function saveUserLanes(user, lanes) {
 }
 
 async function saveUserProcessSteps(user, steps) {
-    if (!canManageUser(user) || user.role !== 'teller') {
+    if (!canManageUser(user) || !userServesQueue(user)) {
         return;
     }
 
@@ -209,7 +223,7 @@ async function saveUserProcessSteps(user, steps) {
 }
 
 async function saveUserFaculties(user, faculties) {
-    if (!canManageUser(user) || user.role !== 'teller') {
+    if (!canManageUser(user) || !userServesQueue(user)) {
         return;
     }
 
@@ -301,10 +315,10 @@ async function handleDelete(user) {
 </script>
 
 <template>
-    <section class="rounded-3xl bg-white p-6 shadow-sm">
+    <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-6">
         <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h2 class="flex items-center gap-2 text-lg font-bold text-slate-800">
+                <h2 class="flex items-center gap-2 text-base font-bold text-slate-800 sm:text-lg">
                     <UserCog class="h-5 w-5" />
                     إدارة المستخدمين
                 </h2>
@@ -363,7 +377,7 @@ async function handleDelete(user) {
                                 class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
                                 :class="roleBadgeClass[user.role] ?? 'bg-slate-100 text-slate-700'"
                             >
-                                <Shield v-if="user.role === 'super_admin' || user.role === 'manager'" class="h-3 w-3" />
+                                <Shield v-if="!userServesQueue(user)" class="h-3 w-3" />
                                 {{ user.role_label ?? roleLabel[user.role] ?? user.role }}
                             </span>
                         </dd>
@@ -372,7 +386,7 @@ async function handleDelete(user) {
                         <dt class="text-slate-500">الشباك</dt>
                         <dd class="text-slate-700">{{ user.counter_name ?? '—' }}</dd>
                     </div>
-                    <div v-if="user.role === 'teller'" class="space-y-2">
+                    <div v-if="userServesQueue(user)" class="space-y-2">
                         <dt class="text-slate-500">أنواع الطلب</dt>
                         <dd>
                             <QueueLaneSelect
@@ -383,7 +397,7 @@ async function handleDelete(user) {
                             />
                         </dd>
                     </div>
-                    <div v-if="user.role === 'teller'" class="space-y-2">
+                    <div v-if="userServesQueue(user)" class="space-y-2">
                         <dt class="text-slate-500">العمليات</dt>
                         <dd>
                             <QueueLaneSelect
@@ -397,7 +411,7 @@ async function handleDelete(user) {
                             />
                         </dd>
                     </div>
-                    <div v-if="user.role === 'teller'" class="space-y-2">
+                    <div v-if="userServesQueue(user)" class="space-y-2">
                         <dt class="text-slate-500">الكليات</dt>
                         <dd>
                             <QueueLaneSelect
@@ -503,7 +517,7 @@ async function handleDelete(user) {
                         </select>
                     </div>
 
-                    <div v-if="form.role === 'teller'">
+                    <div v-if="roleServesQueue(form.role)">
                         <label class="mb-1 block text-sm font-semibold text-slate-700">اسم الشباك</label>
                         <input
                             v-model="form.counter_name"
@@ -514,13 +528,13 @@ async function handleDelete(user) {
                         />
                     </div>
 
-                    <div v-if="form.role === 'teller'" class="space-y-2">
+                    <div v-if="roleServesQueue(form.role)" class="space-y-2">
                         <label class="block text-sm font-semibold text-slate-700">أنواع الطلب المخصصة</label>
                         <QueueLaneSelect v-model="form.queue_lanes" :options="availableQueueLanes" />
                         <p class="text-xs text-slate-500">يمكن اختيار أكثر من نوع من القائمة.</p>
                     </div>
 
-                    <div v-if="form.role === 'teller'" class="space-y-2">
+                    <div v-if="roleServesQueue(form.role)" class="space-y-2">
                         <label class="block text-sm font-semibold text-slate-700">العمليات المخصصة</label>
                         <QueueLaneSelect
                             v-model="form.process_steps"
@@ -532,7 +546,7 @@ async function handleDelete(user) {
                         <p class="text-xs text-slate-500">الموظف يشوف أزرار العمليات المختارة فقط.</p>
                     </div>
 
-                    <div v-if="form.role === 'teller'" class="space-y-2">
+                    <div v-if="roleServesQueue(form.role)" class="space-y-2">
                         <label class="block text-sm font-semibold text-slate-700">الكليات المخصصة</label>
                         <QueueLaneSelect
                             v-model="form.assigned_faculties"

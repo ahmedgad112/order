@@ -185,7 +185,7 @@ onUnmounted(() => {
                 class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl"
             >
                 <div
-                    class="px-8 py-6 text-center text-white"
+                    class="px-5 py-5 text-center text-white sm:px-8 sm:py-6"
                     :class="{
                         'bg-amber-500': statusConfig.color === 'amber',
                         'bg-blue-600': statusConfig.color === 'blue',
@@ -201,7 +201,7 @@ onUnmounted(() => {
 
                 <div class="p-6 sm:p-8">
                     <p class="text-center text-sm text-slate-500">رقم التذكرة</p>
-                    <p class="my-3 text-center text-7xl font-black text-blue-600" dir="ltr">{{ ticket.ticket_number }}</p>
+                    <p class="my-3 text-center text-5xl font-black text-blue-600 sm:text-7xl" dir="ltr">{{ ticket.ticket_number }}</p>
                     <div class="flex justify-center">
                         <span
                             class="rounded-full px-4 py-1.5 text-sm font-bold"

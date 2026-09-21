@@ -7,6 +7,7 @@ use App\Events\CallsRestartedEvent;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Jobs\GenerateTicketAudioJob;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -331,7 +332,10 @@ class TellerQueueControlsTest extends TestCase
     {
         QueueSystemSetting::current();
         $teller = User::factory()->teller()->create();
-        $ticket = QueueTicket::factory()->serving($teller)->create(['ticket_number' => 1]);
+        $ticket = QueueTicket::factory()->serving($teller)->create([
+            'ticket_number' => 1,
+            'college' => Faculty::IndustryEnergy,
+        ]);
         $originalCalledAt = $ticket->called_at;
         Queue::fake();
         Event::fake([TicketCalledEvent::class, TicketUpdatedEvent::class]);
@@ -349,6 +353,28 @@ class TellerQueueControlsTest extends TestCase
         );
         $this->assertTrue($ticket->fresh()->called_at->eq($originalCalledAt));
         $this->assertNotNull($ticket->fresh()->paid_at);
+    }
+
+    public function test_marking_a_checkpoint_on_waiting_ticket_does_not_invent_call_time(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        $ticket = QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'entered_at' => now(),
+            'college' => Faculty::IndustryEnergy,
+        ]);
+        Queue::fake();
+        Event::fake([TicketCalledEvent::class, TicketUpdatedEvent::class]);
+        Sanctum::actingAs($teller);
+
+        $this->postJson("/api/teller/tickets/{$ticket->id}/mark-paid")->assertOk();
+
+        Event::assertNotDispatched(TicketCalledEvent::class);
+        Queue::assertNotPushed(GenerateTicketAudioJob::class);
+        $this->assertNull($ticket->fresh()->called_at);
+        $this->assertNotNull($ticket->fresh()->paid_at);
+        $this->assertSame(TicketStatus::Serving, $ticket->fresh()->status);
     }
 
     public function test_returns_422_when_recalling_a_waiting_ticket(): void

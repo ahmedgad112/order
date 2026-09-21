@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\DocumentKind;
 use App\Enums\ProcessStep;
 use App\Enums\StudentKind;
-use App\Enums\UserRole;
 use App\Events\QueueDayResetEvent;
 use App\Events\QueueSystemUpdatedEvent;
 use App\Models\College;
@@ -13,6 +12,7 @@ use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\RequestType;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -193,7 +193,7 @@ class QueueSystemService
         $selected = array_values(array_unique(array_map('intval', $tellerIds)));
 
         $tellers = User::query()
-            ->where('role', UserRole::Teller)
+            ->whereIn('role', Role::queueSlugs())
             ->orderBy('id')
             ->get();
 
@@ -223,7 +223,7 @@ class QueueSystemService
     public function queueLaneAssignments(): array
     {
         $tellers = User::query()
-            ->where('role', UserRole::Teller)
+            ->whereIn('role', Role::queueSlugs())
             ->orderBy('name')
             ->get();
 

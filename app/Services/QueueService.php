@@ -485,7 +485,7 @@ class QueueService
 
     public function restoreCancelledTicket(QueueTicket $ticket, User $admin): QueueTicket
     {
-        abort_unless($admin->isSuperAdmin(), 403, 'ليس لديك صلاحية للوصول.');
+        abort_unless($admin->canRestoreTickets(), 403, 'ليس لديك صلاحية للوصول.');
 
         if ($ticket->status !== TicketStatus::Cancelled) {
             throw ValidationException::withMessages([
@@ -765,6 +765,8 @@ class QueueService
 
         if ($step && $step !== 'all') {
             $query->atProcessStep($step);
+        } elseif (! $status || $status === 'all') {
+            $this->constrainToAssignedProcessSteps($query, $teller);
         }
 
         if ($requestType && $requestType !== 'all') {
@@ -913,6 +915,17 @@ class QueueService
         $query->forAssignedFaculties($user->assignedFacultyValues());
     }
 
+    private function constrainToAssignedProcessSteps(mixed $query, User $user): void
+    {
+        $steps = $user->constrainedTicketProcessSteps();
+
+        if ($steps === null) {
+            return;
+        }
+
+        $query->atAnyProcessStep($steps);
+    }
+
     private function assertTicketMatchesTellerLanes(QueueTicket $ticket, User $teller): void
     {
         if (! $teller->constrainsTicketsToAssignedLanes()) {
@@ -1041,15 +1054,15 @@ class QueueService
     }
 
     /**
-     * @return array{status: TicketStatus, user_id: int, called_at: Carbon}
+     * @return array{status: TicketStatus, user_id: int, called_at: Carbon|null}
      */
     private function servingAssignment(QueueTicket $ticket, User $teller): array
     {
         return [
             'status' => TicketStatus::Serving,
             'user_id' => $ticket->user_id ?? $teller->id,
-            // Keep the original call time so process-step marks do not re-trigger display audio.
-            'called_at' => $ticket->called_at ?? now(),
+            // Never invent a call time — process marks must not trigger display announcements.
+            'called_at' => $ticket->called_at,
         ];
     }
 

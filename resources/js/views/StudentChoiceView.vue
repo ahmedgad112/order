@@ -28,39 +28,39 @@ onUnmounted(() => {
         subtitle="التسجيل عند الموظف"
         page-class="bg-gradient-to-br from-blue-50 via-white to-indigo-50"
     >
-        <main class="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+        <main class="mx-auto w-full max-w-3xl px-3 py-5 sm:px-6 sm:py-10">
             <div
                 v-if="!queueStore.isSystemOpen"
-                class="mb-6 rounded-3xl border border-red-200 bg-red-50 p-6 text-center"
+                class="mb-5 rounded-3xl border border-red-200 bg-red-50 p-5 text-center sm:mb-6 sm:p-6"
             >
                 <Lock class="mx-auto mb-3 h-10 w-10 text-red-500" />
-                <h2 class="text-xl font-bold text-red-800">النظام مغلق حالياً</h2>
-                <p class="mt-2 text-red-700">{{ queueStore.system.closed_message || 'لا يمكن إصدار أدوار جديدة في الوقت الحالي.' }}</p>
+                <h2 class="text-lg font-bold text-red-800 sm:text-xl">النظام مغلق حالياً</h2>
+                <p class="mt-2 text-sm text-red-700 sm:text-base">{{ queueStore.system.closed_message || 'لا يمكن إصدار أدوار جديدة في الوقت الحالي.' }}</p>
             </div>
             <div
                 v-else-if="!queueStore.isAcceptingTickets"
-                class="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center"
+                class="mb-5 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-center sm:mb-6 sm:p-6"
             >
                 <Lock class="mx-auto mb-3 h-10 w-10 text-amber-500" />
-                <h2 class="text-xl font-bold text-amber-800">انتهى استقبال الطلبات اليوم</h2>
-                <p class="mt-2 text-amber-700">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
+                <h2 class="text-lg font-bold text-amber-800 sm:text-xl">انتهى استقبال الطلبات اليوم</h2>
+                <p class="mt-2 text-sm text-amber-700 sm:text-base">{{ queueStore.system.day_ended_message || 'لا يمكن تسجيل ناس جديدة الآن. يمكن متابعة الطلبات الحالية.' }}</p>
             </div>
 
             <div class="rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-xl sm:p-8">
-                <h2 class="text-3xl font-bold text-slate-800">التسجيل عند الموظف</h2>
-                <p class="mt-3 text-slate-500">
+                <h2 class="text-2xl font-bold text-slate-800 sm:text-3xl">التسجيل عند الموظف</h2>
+                <p class="mt-3 text-sm text-slate-500 sm:text-base">
                     إصدار الدور يتم من الموظف. توجه إلى شباك التسجيل لإدخال اسم الطالب ورقم الطلب ونوعه.
                 </p>
                 <RouterLink
                     to="/login"
-                    class="mt-6 inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-base font-bold text-white hover:bg-indigo-700"
+                    class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-base font-bold text-white hover:bg-indigo-700 sm:w-auto"
                 >
                     <UserRound class="h-5 w-5" />
                     دخول الموظفين
                 </RouterLink>
             </div>
 
-            <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:mt-6">
                 <p class="mb-4 text-center text-sm text-slate-500">اعرف رقمك وحالة تذكرتك</p>
                 <RouterLink
                     to="/track"

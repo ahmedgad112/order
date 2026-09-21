@@ -9,16 +9,36 @@ export const useAuthStore = defineStore('auth', () => {
     const loading = ref(false);
     const error = ref(null);
 
+    function can(permission) {
+        return user.value?.permissions?.[permission] === true;
+    }
+
+    function canAny(permissions = []) {
+        return permissions.some((permission) => can(permission));
+    }
+
     const isAuthenticated = computed(() => Boolean(token.value && user.value));
     const isSuperAdmin = computed(() => user.value?.role === 'super_admin');
     const isManager = computed(() => user.value?.role === 'manager');
-    const isAdmin = computed(() => isSuperAdmin.value || isManager.value);
-    const isTeller = computed(() => user.value?.role === 'teller');
-    const canManageUsers = computed(() => user.value?.permissions?.manage_users === true);
-    const canControlSystem = computed(() => user.value?.permissions?.control_system === true);
-    const canEditTickets = computed(() => user.value?.permissions?.edit_tickets === true);
-    const canDeleteTickets = computed(() => user.value?.permissions?.delete_tickets === true);
-    const homeRoute = computed(() => (isAdmin.value ? 'admin' : 'teller'));
+    const isAdmin = computed(() => can('access_admin_panel'));
+    const isTeller = computed(() => user.value?.serves_queue === true);
+    const canManageUsers = computed(() => can('manage_users'));
+    const canControlSystem = computed(() => can('control_system'));
+    const canEditTickets = computed(() => can('edit_tickets'));
+    const canDeleteTickets = computed(() => can('delete_tickets'));
+    const canRestoreTickets = computed(() => can('restore_tickets'));
+    const canManageRoles = computed(() => can('manage_roles'));
+    const homeRoute = computed(() => {
+        if (can('access_admin_panel')) {
+            return 'admin';
+        }
+
+        if (can('access_teller_panel')) {
+            return 'teller';
+        }
+
+        return 'login';
+    });
     const allowedProcessSteps = computed(() => {
         if (!isTeller.value) {
             return null;
@@ -130,8 +150,12 @@ export const useAuthStore = defineStore('auth', () => {
         canControlSystem,
         canEditTickets,
         canDeleteTickets,
+        canRestoreTickets,
+        canManageRoles,
         homeRoute,
         allowedProcessSteps,
+        can,
+        canAny,
         bootstrap,
         login,
         logout,

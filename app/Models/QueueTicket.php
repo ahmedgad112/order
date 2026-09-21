@@ -668,8 +668,32 @@ class QueueTicket extends Model
                                 ->whereNotNull('documents_reviewed_at');
                         });
                 }),
+            'completed' => $query
+                ->where('status', '!=', TicketStatus::Completed)
+                ->whereNotIn('status', [TicketStatus::Cancelled, TicketStatus::Absent])
+                ->whereNotNull('file_delivered_at'),
             default => $query,
         };
+    }
+
+    /**
+     * @param  list<string>  $steps
+     */
+    public function scopeAtAnyProcessStep(Builder $query, array $steps): Builder
+    {
+        $steps = array_values(array_unique(array_filter($steps)));
+
+        if ($steps === []) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where(function (Builder $outer) use ($steps): void {
+            foreach ($steps as $step) {
+                $outer->orWhere(function (Builder $inner) use ($step): void {
+                    $inner->atProcessStep($step);
+                });
+            }
+        });
     }
 
     public function scopeMatchingSearch(Builder $query, string $search, ?string $field = null): Builder

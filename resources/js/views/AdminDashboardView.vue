@@ -169,7 +169,7 @@ onUnmounted(() => {
 
 <template>
     <AppNavbar title="لوحة الإدارة" :subtitle="navbarSubtitle">
-        <main class="mx-auto w-full max-w-7xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
+        <main class="mx-auto w-full max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
             <section
                 class="rounded-3xl border p-4 shadow-sm sm:p-6"
                 :class="queueStore.isSystemOpen
@@ -266,40 +266,40 @@ onUnmounted(() => {
                 <p v-if="actionError" class="mt-4 text-sm font-semibold text-red-700">{{ actionError }}</p>
             </section>
 
-            <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <article class="rounded-3xl bg-white p-5 shadow-sm">
+            <section class="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+                <article class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3 flex items-center justify-between">
-                        <p class="text-sm text-slate-500">إجمالي التذاكر</p>
+                        <p class="text-xs text-slate-500 sm:text-sm">إجمالي التذاكر</p>
                         <BarChart3 class="h-5 w-5 text-blue-500" />
                     </div>
-                    <p class="text-3xl font-black text-slate-900">{{ queueStore.metrics?.total ?? 0 }}</p>
+                    <p class="text-2xl font-black text-slate-900 sm:text-3xl">{{ queueStore.metrics?.total ?? 0 }}</p>
                 </article>
-                <article class="rounded-3xl bg-white p-5 shadow-sm">
+                <article class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3 flex items-center justify-between">
-                        <p class="text-sm text-slate-500">في الانتظار</p>
+                        <p class="text-xs text-slate-500 sm:text-sm">في الانتظار</p>
                         <Users class="h-5 w-5 text-amber-500" />
                     </div>
-                    <p class="text-3xl font-black text-amber-600">{{ queueStore.metrics?.waiting ?? 0 }}</p>
+                    <p class="text-2xl font-black text-amber-600 sm:text-3xl">{{ queueStore.metrics?.waiting ?? 0 }}</p>
                 </article>
-                <article class="rounded-3xl bg-white p-5 shadow-sm">
+                <article class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3 flex items-center justify-between">
-                        <p class="text-sm text-slate-500">مكتمل</p>
+                        <p class="text-xs text-slate-500 sm:text-sm">مكتمل</p>
                         <CheckCircle class="h-5 w-5 text-green-500" />
                     </div>
-                    <p class="text-3xl font-black text-green-600">{{ queueStore.metrics?.completed ?? 0 }}</p>
+                    <p class="text-2xl font-black text-green-600 sm:text-3xl">{{ queueStore.metrics?.completed ?? 0 }}</p>
                 </article>
-                <article class="rounded-3xl bg-white p-5 shadow-sm">
+                <article class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                     <div class="mb-3 flex items-center justify-between">
-                        <p class="text-sm text-slate-500">متوسط وقت الخدمة</p>
+                        <p class="text-xs text-slate-500 sm:text-sm">متوسط وقت الخدمة</p>
                         <Timer class="h-5 w-5 text-indigo-500" />
                     </div>
-                    <p class="text-3xl font-black text-indigo-600">{{ avgHandlingMinutes }} د</p>
+                    <p class="text-2xl font-black text-indigo-600 sm:text-3xl">{{ avgHandlingMinutes }} د</p>
                 </article>
             </section>
 
             <section class="grid gap-6 lg:grid-cols-3">
-                <div class="rounded-3xl bg-white p-6 shadow-sm lg:col-span-2">
-                    <h2 class="mb-4 flex items-center gap-2 text-lg font-bold text-slate-800">
+                <div class="rounded-3xl bg-white p-4 shadow-sm sm:p-6 lg:col-span-2">
+                    <h2 class="mb-4 flex items-center gap-2 text-base font-bold text-slate-800 sm:text-lg">
                         <UserCheck class="h-5 w-5" />
                         أداء الموظفين
                     </h2>
@@ -343,15 +343,15 @@ onUnmounted(() => {
                 </div>
 
                 <div class="space-y-4">
-                    <div class="rounded-3xl bg-white p-6 shadow-sm">
+                    <div class="rounded-3xl bg-white p-4 shadow-sm sm:p-6">
                         <h3 class="mb-3 flex items-center gap-2 font-bold text-slate-800">
                             <Clock3 class="h-5 w-5 text-blue-500" />
                             متوسط الانتظار
                         </h3>
-                        <p class="text-4xl font-black text-blue-600">{{ avgWaitMinutes }} دقيقة</p>
+                        <p class="text-3xl font-black text-blue-600 sm:text-4xl">{{ avgWaitMinutes }} دقيقة</p>
                     </div>
 
-                    <div class="rounded-3xl bg-white p-6 shadow-sm">
+                    <div class="rounded-3xl bg-white p-4 shadow-sm sm:p-6">
                         <h3 class="mb-3 font-bold text-slate-800">شبابيك الموظفين</h3>
                         <ul class="space-y-2">
                             <li
@@ -373,10 +373,10 @@ onUnmounted(() => {
                 <div class="h-px flex-1 bg-slate-200" />
             </div>
 
-            <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
                 <div class="mb-4 flex items-center gap-2">
                     <GraduationCap class="h-5 w-5 text-indigo-600" />
-                    <h2 class="text-lg font-bold text-slate-900">اختر نوع الطالب للمتابعة</h2>
+                    <h2 class="text-base font-bold text-slate-900 sm:text-lg">اختر نوع الطالب للمتابعة</h2>
                 </div>
                 <p class="mb-4 text-sm text-slate-600">
                     فعّل أو ألغِ الخيارات اللي تظهر للطالب في شاشة البداية. الخيار الملغي مش هيظهر خالص.

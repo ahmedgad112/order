@@ -111,7 +111,7 @@ class AdminUserManagementTest extends TestCase
         $this->assertNotNull($employee);
         $this->assertSame('موظف 1', $employee->name);
         $this->assertSame('شباك 1', $employee->counter_name);
-        $this->assertSame(UserRole::Teller, $employee->role);
+        $this->assertSame(UserRole::Teller->value, $employee->role);
         $this->assertTrue($employee->is_active);
         $this->assertTrue(Hash::check('123456789', $employee->password));
 

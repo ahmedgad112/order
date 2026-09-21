@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,12 +19,7 @@ class EnsureUserRole
             return response()->json(['message' => 'غير مصرح.'], 401);
         }
 
-        $allowedRoles = array_map(
-            fn (string $role) => UserRole::from($role),
-            $roles
-        );
-
-        if (! in_array($user->role, $allowedRoles, true)) {
+        if (! in_array($user->role, $roles, true)) {
             return response()->json(['message' => 'ليس لديك صلاحية للوصول.'], 403);
         }
 

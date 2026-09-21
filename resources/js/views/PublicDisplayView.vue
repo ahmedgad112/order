@@ -479,7 +479,11 @@ watch(() => queueStore.serving, (list) => {
         return;
     }
 
-    const fresh = list.filter((ticket) => ticket?.id && !announcedCallKeys.has(callKey(ticket)));
+    const fresh = list.filter((ticket) => (
+        ticket?.id
+        && ticket?.called_at
+        && !announcedCallKeys.has(callKey(ticket))
+    ));
 
     if (fresh.length === 0) {
         return;
@@ -543,12 +547,12 @@ onUnmounted(() => {
         <button
             v-if="!soundReady"
             type="button"
-            class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-slate-900/90 text-white backdrop-blur-sm"
+            class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-slate-900/90 px-4 text-center text-white backdrop-blur-sm sm:gap-6"
             @click="enableSound"
         >
-            <Volume2 class="h-20 w-20 animate-pulse" />
-            <span class="text-3xl font-black">اضغط لتفعيل الصوت</span>
-            <span class="text-lg text-slate-300">الصوت مطلوب لسماع النداء والإعلانات على هذه الشاشة</span>
+            <Volume2 class="h-14 w-14 animate-pulse sm:h-20 sm:w-20" />
+            <span class="text-2xl font-black sm:text-3xl">اضغط لتفعيل الصوت</span>
+            <span class="max-w-md text-sm text-slate-300 sm:text-lg">الصوت مطلوب لسماع النداء والإعلانات على هذه الشاشة</span>
         </button>
         <AppNavbar
             title="شاشة عرض الطابور"
@@ -557,10 +561,10 @@ onUnmounted(() => {
             max-width="full"
             :show-nav="false"
         >
-            <div class="flex flex-wrap items-center justify-end gap-3">
+            <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <button
                     type="button"
-                    class="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-bold"
+                    class="flex items-center gap-1.5 rounded-2xl border px-2.5 py-1.5 text-xs font-bold sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                     :class="voiceEnabled
                         ? 'border-blue-200 bg-blue-50 text-blue-800'
                         : 'border-slate-200 bg-white text-slate-400'"
@@ -568,18 +572,18 @@ onUnmounted(() => {
                 >
                     <Volume2 v-if="voiceEnabled" class="h-4 w-4" />
                     <VolumeX v-else class="h-4 w-4" />
-                    نداء صوتي
+                    نداء
                 </button>
                 <button
                     type="button"
-                    class="flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-bold"
+                    class="flex items-center gap-1.5 rounded-2xl border px-2.5 py-1.5 text-xs font-bold sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
                     :class="pendingSoundCount > 0
                         ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
                         : 'border-slate-200 bg-white text-slate-400'"
                     @click="clearAudioQueue"
                 >
                     <ListX class="h-4 w-4" />
-                    مسح الأصوات
+                    مسح
                     <span
                         v-if="pendingSoundCount > 0"
                         class="rounded-full bg-red-600 px-2 py-0.5 text-xs font-black text-white"
@@ -589,22 +593,22 @@ onUnmounted(() => {
                 </button>
                 <div
                     v-if="liveMic"
-                    class="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-red-700"
+                    class="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-2.5 py-1.5 text-red-700 sm:px-3 sm:py-2"
                 >
                     <Mic class="h-4 w-4 animate-pulse" />
-                    <span class="text-sm font-bold">بث مباشر</span>
+                    <span class="text-xs font-bold sm:text-sm">بث مباشر</span>
                 </div>
                 <div
                     v-else
-                    class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800"
+                    class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-emerald-800 sm:px-3 sm:py-2"
                 >
                     <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
-                    <span class="text-sm font-bold">مباشر</span>
+                    <span class="text-xs font-bold sm:text-sm">مباشر</span>
                 </div>
-                <div class="rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
-                    <p class="text-xs font-semibold text-slate-500">{{ today }}</p>
-                    <p class="flex items-center gap-2 font-mono text-xl font-black text-slate-900 sm:text-2xl">
-                        <Clock class="h-5 w-5 text-blue-600" />
+                <div class="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm sm:px-4 sm:py-2">
+                    <p class="text-[10px] font-semibold text-slate-500 sm:text-xs">{{ today }}</p>
+                    <p class="flex items-center gap-1.5 font-mono text-lg font-black text-slate-900 sm:gap-2 sm:text-2xl">
+                        <Clock class="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
                         {{ clock }}
                     </p>
                 </div>
@@ -626,33 +630,33 @@ onUnmounted(() => {
             {{ queueStore.system.day_ended_message || 'انتهى استقبال الطلبات اليوم' }}
         </div>
 
-        <main class="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8">
-            <section class="grid gap-3 sm:grid-cols-3">
-                <div class="flex items-center gap-3 rounded-2xl border border-amber-200 bg-white px-4 py-3 shadow-sm">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                        <Users class="h-6 w-6" />
+        <main class="flex flex-1 flex-col gap-4 p-3 sm:gap-6 sm:p-6 lg:p-8">
+            <section class="grid grid-cols-3 gap-2 sm:gap-3">
+                <div class="flex flex-col items-center gap-1 rounded-2xl border border-amber-200 bg-white px-2 py-3 text-center shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:text-start">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 sm:h-12 sm:w-12">
+                        <Users class="h-5 w-5 sm:h-6 sm:w-6" />
                     </span>
                     <div>
-                        <p class="text-sm font-semibold text-slate-500">بالانتظار</p>
-                        <p class="text-3xl font-black text-amber-600">{{ queueStore.stats.waiting }}</p>
+                        <p class="text-[11px] font-semibold text-slate-500 sm:text-sm">بالانتظار</p>
+                        <p class="text-2xl font-black text-amber-600 sm:text-3xl">{{ queueStore.stats.waiting }}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-3 rounded-2xl border border-blue-200 bg-white px-4 py-3 shadow-sm">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
-                        <Volume2 class="h-6 w-6" />
+                <div class="flex flex-col items-center gap-1 rounded-2xl border border-blue-200 bg-white px-2 py-3 text-center shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:text-start">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 sm:h-12 sm:w-12">
+                        <Volume2 class="h-5 w-5 sm:h-6 sm:w-6" />
                     </span>
                     <div>
-                        <p class="text-sm font-semibold text-slate-500">قيد الخدمة</p>
-                        <p class="text-3xl font-black text-blue-700">{{ queueStore.stats.serving }}</p>
+                        <p class="text-[11px] font-semibold text-slate-500 sm:text-sm">قيد الخدمة</p>
+                        <p class="text-2xl font-black text-blue-700 sm:text-3xl">{{ queueStore.stats.serving }}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-sm">
-                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                        <CheckCircle2 class="h-6 w-6" />
+                <div class="flex flex-col items-center gap-1 rounded-2xl border border-emerald-200 bg-white px-2 py-3 text-center shadow-sm sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:text-start">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 sm:h-12 sm:w-12">
+                        <CheckCircle2 class="h-5 w-5 sm:h-6 sm:w-6" />
                     </span>
                     <div>
-                        <p class="text-sm font-semibold text-slate-500">مكتمل اليوم</p>
-                        <p class="text-3xl font-black text-emerald-700">{{ queueStore.stats.completed }}</p>
+                        <p class="text-[11px] font-semibold text-slate-500 sm:text-sm">مكتمل اليوم</p>
+                        <p class="text-2xl font-black text-emerald-700 sm:text-3xl">{{ queueStore.stats.completed }}</p>
                     </div>
                 </div>
             </section>
@@ -664,7 +668,7 @@ onUnmounted(() => {
                             <Volume2 class="h-5 w-5" />
                         </span>
                         <div>
-                            <h2 class="text-2xl font-black text-slate-900">يتم الخدمة الآن</h2>
+                            <h2 class="text-xl font-black text-slate-900 sm:text-2xl">يتم الخدمة الآن</h2>
                             <p class="text-sm text-slate-500">توجه إلى الشباك المعلن عند سماع رقمك</p>
                         </div>
                     </div>
@@ -680,7 +684,7 @@ onUnmounted(() => {
                         <article
                             v-for="ticket in queueStore.serving"
                             :key="ticket.id"
-                            class="flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-lg sm:p-8"
+                            class="flex flex-col justify-between rounded-3xl border bg-white p-4 shadow-lg sm:p-8"
                             :class="ticket.id === lastCalledId
                                 ? 'pulse-badge border-blue-400 ring-4 ring-blue-100'
                                 : 'border-slate-200'"
@@ -708,13 +712,13 @@ onUnmounted(() => {
                             <p
                                 class="my-4 text-center font-black tracking-tight text-blue-700"
                                 dir="ltr"
-                                :class="queueStore.serving.length === 1 ? 'text-8xl sm:text-9xl' : 'text-7xl'"
+                                :class="queueStore.serving.length === 1 ? 'text-6xl sm:text-8xl md:text-9xl' : 'text-5xl sm:text-7xl'"
                             >
                                 {{ formatTicketNumber(ticket.ticket_number) }}
                             </p>
 
                             <div class="text-center">
-                            <p v-if="displayName(ticket)" class="text-3xl font-black text-slate-800 sm:text-4xl">{{ displayName(ticket) }}</p>
+                            <p v-if="displayName(ticket)" class="text-xl font-black text-slate-800 sm:text-3xl md:text-4xl">{{ displayName(ticket) }}</p>
                                 <p v-if="ticket.request_type_label" class="mt-2 text-sm font-semibold text-slate-500">
                                     {{ ticket.request_type_label }}
                                 </p>
@@ -760,7 +764,7 @@ onUnmounted(() => {
                                     </p>
                                 </div>
                             </div>
-                            <span class="font-mono text-2xl font-black text-amber-600" dir="ltr">
+                            <span class="font-mono text-xl font-black text-amber-600 sm:text-2xl" dir="ltr">
                                 {{ formatTicketNumber(ticket.ticket_number) }}
                             </span>
                         </li>
@@ -783,16 +787,16 @@ onUnmounted(() => {
         </main>
 
         <footer class="sticky bottom-0 border-t border-slate-200 bg-white/95 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md">
-            <div class="flex items-center justify-center gap-3 px-4 py-3 sm:px-6">
+            <div class="flex items-center justify-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
                 <template v-if="footerAnnouncement">
-                    <Megaphone class="h-6 w-6 shrink-0 animate-pulse text-indigo-600" />
-                    <p class="truncate text-lg font-bold text-indigo-800 sm:text-xl">
+                    <Megaphone class="h-5 w-5 shrink-0 animate-pulse text-indigo-600 sm:h-6 sm:w-6" />
+                    <p class="line-clamp-2 text-sm font-bold text-indigo-800 sm:truncate sm:text-xl">
                         {{ footerAnnouncement }}
                     </p>
                 </template>
                 <template v-else-if="lastCall">
-                    <Volume2 class="h-6 w-6 shrink-0 text-blue-600" />
-                    <p class="text-base font-semibold text-slate-600 sm:text-lg">
+                    <Volume2 class="h-5 w-5 shrink-0 text-blue-600 sm:h-6 sm:w-6" />
+                    <p class="text-sm font-semibold text-slate-600 sm:text-lg">
                         النداء الأخير:
                         <span class="font-black text-blue-700" dir="ltr">{{ lastCall.number }}</span>
                         <span v-if="lastCall.name"> — {{ lastCall.name }}</span>

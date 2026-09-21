@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\AdminFacultyController;
 use App\Http\Controllers\Api\AdminProcessServiceController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AdminRequestTypeController;
-use App\Http\Controllers\Api\AdminRolePermissionController;
+use App\Http\Controllers\Api\AdminRoleController;
 use App\Http\Controllers\Api\AdminStepAnnouncementController;
 use App\Http\Controllers\Api\AdminSystemController;
 use App\Http\Controllers\Api\AdminTicketController;
@@ -39,7 +39,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('/me/password', [AuthController::class, 'changePassword'])
         ->middleware('throttle:6,1');
 
-    Route::prefix('teller')->middleware('role:teller,manager,super_admin')->group(function (): void {
+    Route::prefix('teller')->middleware('permission:access_teller_panel')->group(function (): void {
         Route::get('/queue-status', [TellerQueueController::class, 'queueStatus']);
         Route::get('/tickets', [TellerQueueController::class, 'tickets']);
         Route::post('/tickets', [TellerQueueController::class, 'store']);
@@ -71,17 +71,23 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::delete('/admin/tickets/{ticket}', [AdminTicketController::class, 'destroy'])
         ->middleware('permission:delete_tickets');
     Route::post('/admin/tickets/{ticket}/restore', [AdminTicketController::class, 'restore'])
-        ->middleware('role:super_admin');
+        ->middleware('permission:restore_tickets');
 
-    Route::prefix('admin')->middleware('role:manager,super_admin')->group(function (): void {
+    Route::prefix('admin')->middleware('permission:access_admin_panel')->group(function (): void {
         Route::get('/dashboard', [AdminReportController::class, 'dashboard']);
         Route::get('/system/status', [AdminSystemController::class, 'status']);
         Route::get('/reports/daily', [AdminReportController::class, 'dailyMetrics']);
         Route::get('/reports/teller-performance', [AdminReportController::class, 'tellerPerformance']);
         Route::get('/tellers', [AdminReportController::class, 'tellers']);
+        Route::put('/queue-lanes/{lane}/tellers', [AdminSystemController::class, 'updateLaneTellers']);
+    });
+
+    Route::prefix('admin')->middleware('permission:access_registrations')->group(function (): void {
         Route::get('/tickets', [AdminTicketController::class, 'index']);
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
-        Route::put('/queue-lanes/{lane}/tellers', [AdminSystemController::class, 'updateLaneTellers']);
+    });
+
+    Route::prefix('admin')->middleware('permission:access_mic')->group(function (): void {
         Route::post('/announce', [SpeechController::class, 'announce']);
         Route::apiResource('/announcement-presets', AdminAnnouncementPresetController::class)
             ->only(['index', 'store', 'update', 'destroy']);
@@ -91,7 +97,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
             ->middleware('throttle:60,1');
     });
 
-    Route::prefix('admin')->middleware(['role:manager,super_admin', 'permission:manage_users'])->group(function (): void {
+    Route::prefix('admin')->middleware('permission:manage_users')->group(function (): void {
         Route::get('/users', [AdminUserController::class, 'index']);
         Route::post('/users', [AdminUserController::class, 'store']);
         Route::post('/users/bulk', [AdminUserController::class, 'bulkStore']);
@@ -123,8 +129,12 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete('/colleges/{college}', [AdminCollegeController::class, 'destroy']);
     });
 
-    Route::prefix('admin')->middleware('role:super_admin')->group(function (): void {
-        Route::get('/role-permissions', [AdminRolePermissionController::class, 'index']);
-        Route::put('/role-permissions', [AdminRolePermissionController::class, 'update']);
+    Route::prefix('admin')->middleware('permission:manage_roles')->group(function (): void {
+        Route::get('/roles', [AdminRoleController::class, 'index']);
+        Route::post('/roles', [AdminRoleController::class, 'store']);
+        Route::put('/roles/{role}', [AdminRoleController::class, 'update']);
+        Route::delete('/roles/{role}', [AdminRoleController::class, 'destroy']);
+        Route::get('/role-permissions', [AdminRoleController::class, 'permissions']);
+        Route::put('/role-permissions', [AdminRoleController::class, 'syncPermissions']);
     });
 });

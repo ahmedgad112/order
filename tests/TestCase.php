@@ -5,7 +5,9 @@ namespace Tests;
 use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
+use App\Models\Role;
 use App\Models\User;
+use App\Services\RolePermissionResolver;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
@@ -19,8 +21,14 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         Cache::flush();
+        Role::flushCatalog();
         RequestType::flushCatalog();
         ProcessService::flushCatalog();
+
+        if (Schema::hasTable('roles')) {
+            Role::seedSystemRoles();
+            app(RolePermissionResolver::class)->seedDefaults();
+        }
 
         if (Schema::hasTable('process_services') && ProcessService::query()->doesntExist()) {
             ProcessService::seedDefaults();

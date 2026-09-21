@@ -101,32 +101,42 @@ const navItems = computed(() => {
     }
 
     if (authStore.isAuthenticated) {
-        const items = [
-            { to: '/teller', label: 'لوحة الموظف', icon: UserRound, match: 'teller' },
-        ];
+        const items = [];
 
-        if (authStore.isAdmin) {
+        if (authStore.can('access_teller_panel')) {
+            items.push({ to: '/teller', label: 'لوحة الموظف', icon: UserRound, match: 'teller' });
+        }
+
+        if (authStore.can('access_admin_panel')) {
             items.push(
                 { to: '/admin', label: 'لوحة الإدارة', icon: LayoutDashboard, match: 'admin' },
             );
+        }
 
-            if (authStore.canManageUsers) {
-                items.push({ to: '/admin/users', label: 'المستخدمون', icon: Users, match: 'admin-users' });
-            }
+        if (authStore.canManageUsers) {
+            items.push({ to: '/admin/users', label: 'المستخدمون', icon: Users, match: 'admin-users' });
+        }
 
-            if (authStore.isSuperAdmin) {
-                items.push({
-                    to: '/admin/permissions',
-                    label: 'الصلاحيات',
-                    icon: KeyRound,
-                    match: 'admin-permissions',
-                });
-            }
+        if (authStore.canManageRoles) {
+            items.push({
+                to: '/admin/permissions',
+                label: 'الأدوار',
+                icon: KeyRound,
+                match: 'admin-permissions',
+            });
+        }
 
-            items.push(
-                { to: '/admin/registrations', label: 'السجل والأرشيف', icon: ClipboardList, match: 'admin-registrations' },
-                { to: '/mic', label: 'الميكروفون', icon: Mic, match: 'mic' },
-            );
+        if (authStore.can('access_registrations')) {
+            items.push({
+                to: '/admin/registrations',
+                label: 'السجل والأرشيف',
+                icon: ClipboardList,
+                match: 'admin-registrations',
+            });
+        }
+
+        if (authStore.can('access_mic')) {
+            items.push({ to: '/mic', label: 'الميكروفون', icon: Mic, match: 'mic' });
         }
 
         items.push({
@@ -227,32 +237,6 @@ async function logout() {
     >
         <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md lg:hidden">
             <div class="flex items-center gap-2 px-3 py-2.5 ps-[max(0.75rem,env(safe-area-inset-right))] pe-[max(0.75rem,env(safe-area-inset-left))]">
-                <img
-                    :src="'/logo.webp'"
-                    alt="جامعة برج العرب التكنولوجية"
-                    width="96"
-                    height="40"
-                    decoding="async"
-                    fetchpriority="high"
-                    class="h-9 w-auto shrink-0 object-contain"
-                />
-                <div class="min-w-0 flex-1">
-                    <h1 class="truncate text-sm font-bold text-slate-900">
-                        {{ title }}
-                    </h1>
-                    <p
-                        v-if="subtitle"
-                        class="truncate text-[11px] leading-tight text-slate-500"
-                    >
-                        {{ subtitle }}
-                    </p>
-                </div>
-                <div
-                    v-if="hasActions"
-                    class="shrink-0"
-                >
-                    <slot name="actions" />
-                </div>
                 <button
                     v-if="hasSidebar"
                     type="button"
@@ -265,6 +249,32 @@ async function logout() {
                     <X v-if="menuOpen" class="h-5 w-5" />
                     <Menu v-else class="h-5 w-5" />
                 </button>
+                <img
+                    :src="'/logo.webp'"
+                    alt="جامعة برج العرب التكنولوجية"
+                    width="96"
+                    height="40"
+                    decoding="async"
+                    fetchpriority="high"
+                    class="h-8 w-auto shrink-0 object-contain sm:h-9"
+                />
+                <div class="min-w-0 flex-1">
+                    <h1 class="truncate text-sm font-bold leading-tight text-slate-900 sm:text-base">
+                        {{ title }}
+                    </h1>
+                    <p
+                        v-if="subtitle"
+                        class="truncate text-[11px] leading-tight text-slate-500 sm:text-xs"
+                    >
+                        {{ subtitle }}
+                    </p>
+                </div>
+                <div
+                    v-if="hasActions"
+                    class="max-w-[40%] shrink-0 sm:max-w-none"
+                >
+                    <slot name="actions" />
+                </div>
             </div>
         </header>
 
@@ -276,7 +286,7 @@ async function logout() {
 
         <aside
             id="app-sidebar"
-            class="fixed inset-y-0 start-0 z-[70] flex w-72 max-w-[85vw] flex-col border-e border-slate-200 bg-white shadow-xl transition-transform duration-200 lg:w-72 lg:max-w-none lg:translate-x-0 lg:shadow-none"
+            class="fixed inset-y-0 start-0 z-[70] flex w-[min(18rem,88vw)] flex-col border-e border-slate-200 bg-white shadow-xl transition-transform duration-200 lg:w-72 lg:translate-x-0 lg:shadow-none"
             :class="menuOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full lg:pointer-events-auto lg:translate-x-0'"
         >
             <div class="flex items-start gap-3 border-b border-slate-100 px-4 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
@@ -364,7 +374,7 @@ async function logout() {
             </div>
         </aside>
 
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip lg:ps-72">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip pb-[env(safe-area-inset-bottom)] lg:ps-72">
             <slot />
         </div>
     </div>

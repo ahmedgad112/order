@@ -316,46 +316,46 @@ onUnmounted(() => {
 <template>
     <AppNavbar title="سجل التسجيلات" :subtitle="pageSubtitle">
         <main class="mx-auto w-full max-w-7xl space-y-5 px-3 py-4 sm:px-6 sm:py-6">
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                <div class="rounded-2xl bg-white p-4 shadow-sm">
+            <section class="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
+                <div class="rounded-2xl bg-white p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-slate-500">الإجمالي</p>
-                    <p class="text-2xl font-black text-slate-800">{{ queueStore.registrationStats.total }}</p>
+                    <p class="text-xl font-black text-slate-800 sm:text-2xl">{{ queueStore.registrationStats.total }}</p>
                 </div>
-                <div class="rounded-2xl bg-amber-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-amber-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-amber-700">انتظار</p>
-                    <p class="text-2xl font-black text-amber-600">{{ queueStore.registrationStats.waiting }}</p>
+                    <p class="text-xl font-black text-amber-600 sm:text-2xl">{{ queueStore.registrationStats.waiting }}</p>
                 </div>
-                <div class="rounded-2xl bg-blue-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-blue-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-blue-700">طلب دخول</p>
-                    <p class="text-2xl font-black text-blue-600">{{ queueStore.registrationStats.entered }}</p>
+                    <p class="text-xl font-black text-blue-600 sm:text-2xl">{{ queueStore.registrationStats.entered }}</p>
                 </div>
-                <div class="rounded-2xl bg-cyan-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-cyan-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-cyan-700">دفع</p>
-                    <p class="text-2xl font-black text-cyan-600">{{ queueStore.registrationStats.paid }}</p>
+                    <p class="text-xl font-black text-cyan-600 sm:text-2xl">{{ queueStore.registrationStats.paid }}</p>
                 </div>
-                <div class="rounded-2xl bg-orange-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-orange-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-orange-700">سحب ملف</p>
-                    <p class="text-2xl font-black text-orange-600">{{ queueStore.registrationStats.file_withdrawn }}</p>
+                    <p class="text-xl font-black text-orange-600 sm:text-2xl">{{ queueStore.registrationStats.file_withdrawn }}</p>
                 </div>
-                <div class="rounded-2xl bg-indigo-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-indigo-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-indigo-700">مراجعة ورق</p>
-                    <p class="text-2xl font-black text-indigo-600">{{ queueStore.registrationStats.documents_reviewed }}</p>
+                    <p class="text-xl font-black text-indigo-600 sm:text-2xl">{{ queueStore.registrationStats.documents_reviewed }}</p>
                 </div>
-                <div class="rounded-2xl bg-teal-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-teal-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-teal-700">كشف طبي</p>
-                    <p class="text-2xl font-black text-teal-600">{{ queueStore.registrationStats.medical_checked }}</p>
+                    <p class="text-xl font-black text-teal-600 sm:text-2xl">{{ queueStore.registrationStats.medical_checked }}</p>
                 </div>
-                <div class="rounded-2xl bg-violet-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-violet-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-violet-700">بصمة وجه</p>
-                    <p class="text-2xl font-black text-violet-600">{{ queueStore.registrationStats.face_printed }}</p>
+                    <p class="text-xl font-black text-violet-600 sm:text-2xl">{{ queueStore.registrationStats.face_printed }}</p>
                 </div>
-                <div class="rounded-2xl bg-green-50 p-4 shadow-sm">
+                <div class="col-span-2 rounded-2xl bg-green-50 p-3 shadow-sm sm:col-span-1 sm:p-4">
                     <p class="text-xs text-green-700">تسليم الملف</p>
-                    <p class="text-2xl font-black text-green-600">{{ queueStore.registrationStats.file_delivered }}</p>
+                    <p class="text-xl font-black text-green-600 sm:text-2xl">{{ queueStore.registrationStats.file_delivered }}</p>
                 </div>
             </section>
 
-            <section class="rounded-3xl bg-white p-5 shadow-sm">
+            <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                 <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h2 class="flex items-center gap-2 text-lg font-bold text-slate-800">

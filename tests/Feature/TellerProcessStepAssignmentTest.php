@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\ProcessStep;
 use App\Enums\TicketStatus;
+use App\Models\Faculty;
 use App\Models\QueueSystemSetting;
 use App\Models\QueueTicket;
 use App\Models\User;
@@ -14,6 +15,87 @@ use Tests\TestCase;
 class TellerProcessStepAssignmentTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_teller_ticket_list_defaults_to_assigned_process_steps(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->forProcessSteps([
+            ProcessStep::MedicalChecked->value,
+        ])->create();
+
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'في انتظار الدخول',
+            'college' => Faculty::IndustryEnergy,
+        ]);
+        QueueTicket::factory()->fileWithdrawn($teller)->create([
+            'ticket_number' => 2,
+            'full_name' => 'في انتظار الكشف',
+            'college' => Faculty::IndustryEnergy,
+        ]);
+        QueueTicket::factory()->medicalChecked($teller)->create([
+            'ticket_number' => 3,
+            'full_name' => 'في انتظار البصمة',
+            'college' => Faculty::IndustryEnergy,
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'في انتظار الكشف');
+    }
+
+    public function test_teller_with_all_process_steps_sees_unfiltered_ticket_list(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'في انتظار الدخول',
+            'college' => Faculty::IndustryEnergy,
+        ]);
+        QueueTicket::factory()->fileWithdrawn($teller)->create([
+            'ticket_number' => 2,
+            'full_name' => 'في انتظار الكشف',
+            'college' => Faculty::IndustryEnergy,
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets')
+            ->assertOk()
+            ->assertJsonCount(2, 'tickets');
+    }
+
+    public function test_teller_status_filter_bypasses_assigned_process_step_constraint(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->forProcessSteps([
+            ProcessStep::MedicalChecked->value,
+        ])->create();
+
+        QueueTicket::factory()->waiting()->create([
+            'ticket_number' => 1,
+            'full_name' => 'في انتظار الدخول',
+            'status' => TicketStatus::Absent,
+            'college' => Faculty::IndustryEnergy,
+        ]);
+        QueueTicket::factory()->fileWithdrawn($teller)->create([
+            'ticket_number' => 2,
+            'full_name' => 'في انتظار الكشف',
+            'college' => Faculty::IndustryEnergy,
+        ]);
+
+        Sanctum::actingAs($teller);
+
+        $this->getJson('/api/teller/tickets?status=absent')
+            ->assertOk()
+            ->assertJsonCount(1, 'tickets')
+            ->assertJsonPath('tickets.0.full_name', 'في انتظار الدخول');
+    }
 
     public function test_admin_can_assign_process_steps_to_a_teller(): void
     {
@@ -47,6 +129,7 @@ class TellerProcessStepAssignmentTest extends TestCase
             'ticket_number' => 3,
             'entered_at' => now(),
             'status' => TicketStatus::Serving,
+            'college' => Faculty::IndustryEnergy,
         ]);
         Sanctum::actingAs($teller);
 
@@ -71,6 +154,7 @@ class TellerProcessStepAssignmentTest extends TestCase
         $ticket = QueueTicket::factory()->waiting()->create([
             'ticket_number' => 4,
             'status' => TicketStatus::Waiting,
+            'college' => Faculty::IndustryEnergy,
         ]);
         Sanctum::actingAs($teller);
 
@@ -88,6 +172,7 @@ class TellerProcessStepAssignmentTest extends TestCase
             'ticket_number' => 5,
             'entered_at' => now(),
             'status' => TicketStatus::Serving,
+            'college' => Faculty::IndustryEnergy,
         ]);
         Sanctum::actingAs($manager);
 

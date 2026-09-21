@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Permission;
-use App\Enums\UserRole;
+use App\Models\Role;
 use App\Models\RolePermission;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,24 +14,30 @@ class RolePermissionResolver
 
     private const CACHE_TTL_SECONDS = 300;
 
-    public function allows(UserRole $role, Permission $permission): bool
+    public function allows(Role|string $role, Permission $permission): bool
     {
-        if ($role === UserRole::SuperAdmin) {
+        $roleModel = $role instanceof Role ? $role : Role::findBySlug($role);
+
+        if (! $roleModel) {
+            return false;
+        }
+
+        if ($roleModel->is_super_admin) {
             return true;
         }
 
-        if ($permission->isLockedOffFor($role)) {
+        if ($permission->isLockedOffFor($roleModel)) {
             return false;
         }
 
         $map = $this->map();
-        $key = $this->mapKey($role, $permission);
+        $key = $this->mapKey($roleModel->slug, $permission);
 
         if (array_key_exists($key, $map)) {
             return $map[$key];
         }
 
-        return $permission->defaultFor($role);
+        return $permission->defaultFor($roleModel);
     }
 
     /**
@@ -59,9 +65,14 @@ class RolePermissionResolver
      * @return list<array{
      *     role: string,
      *     role_label: string,
+     *     is_system: bool,
+     *     is_super_admin: bool,
+     *     serves_queue: bool,
      *     permissions: list<array{
      *         permission: string,
      *         label: string,
+     *         group: string,
+     *         group_label: string,
      *         allowed: bool,
      *         editable: bool
      *     }>
@@ -69,24 +80,29 @@ class RolePermissionResolver
      */
     public function matrix(): array
     {
-        return array_map(
-            function (UserRole $role): array {
+        return Role::catalog()
+            ->map(function (Role $role): array {
                 return [
-                    'role' => $role->value,
-                    'role_label' => $role->label(),
+                    'role' => $role->slug,
+                    'role_label' => $role->name,
+                    'is_system' => $role->is_system,
+                    'is_super_admin' => $role->is_super_admin,
+                    'serves_queue' => $role->serves_queue,
                     'permissions' => array_map(
                         fn (Permission $permission): array => [
                             'permission' => $permission->value,
                             'label' => $permission->label(),
+                            'group' => $permission->group(),
+                            'group_label' => $permission->groupLabel(),
                             'allowed' => $this->allows($role, $permission),
                             'editable' => $permission->isEditableFor($role),
                         ],
                         Permission::cases(),
                     ),
                 ];
-            },
-            UserRole::cases(),
-        );
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -96,7 +112,12 @@ class RolePermissionResolver
     {
         DB::transaction(function () use ($rows): void {
             foreach ($rows as $row) {
-                $role = UserRole::from($row['role']);
+                $role = Role::findBySlug($row['role']);
+
+                if (! $role) {
+                    continue;
+                }
+
                 $permission = Permission::from($row['permission']);
 
                 if (! $permission->isEditableFor($role)) {
@@ -111,7 +132,7 @@ class RolePermissionResolver
 
                 RolePermission::query()->updateOrCreate(
                     [
-                        'role' => $role->value,
+                        'role' => $role->slug,
                         'permission' => $permission->value,
                     ],
                     ['allowed' => $allowed],
@@ -123,15 +144,17 @@ class RolePermissionResolver
     }
 
     /**
-     * Seed missing role/permission pairs from enum defaults.
+     * Seed missing role/permission pairs from defaults.
      */
     public function seedDefaults(): void
     {
-        foreach (UserRole::cases() as $role) {
+        Role::seedSystemRoles();
+
+        foreach (Role::catalog() as $role) {
             foreach (Permission::cases() as $permission) {
                 RolePermission::query()->firstOrCreate(
                     [
-                        'role' => $role->value,
+                        'role' => $role->slug,
                         'permission' => $permission->value,
                     ],
                     [
@@ -146,8 +169,46 @@ class RolePermissionResolver
         $this->forget();
     }
 
-    private function mapKey(UserRole $role, Permission $permission): string
+    /**
+     * Ensure a role has permission rows for every known permission.
+     */
+    public function ensureRolePermissions(Role $role): void
     {
-        return $role->value.'.'.$permission->value;
+        foreach (Permission::cases() as $permission) {
+            RolePermission::query()->firstOrCreate(
+                [
+                    'role' => $role->slug,
+                    'permission' => $permission->value,
+                ],
+                [
+                    'allowed' => $permission->isLockedOffFor($role)
+                        ? false
+                        : $permission->defaultFor($role),
+                ],
+            );
+        }
+
+        $this->forget();
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    public function permissionMapFor(Role|string $role): array
+    {
+        $map = [];
+
+        foreach (Permission::cases() as $permission) {
+            $map[$permission->value] = $this->allows($role, $permission);
+        }
+
+        return $map;
+    }
+
+    private function mapKey(string $roleSlug, Permission|string $permission): string
+    {
+        $permissionValue = $permission instanceof Permission ? $permission->value : $permission;
+
+        return $roleSlug.'.'.$permissionValue;
     }
 }

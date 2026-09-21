@@ -35,7 +35,7 @@ const routes = [
         meta: {
             title: 'بيانات التذكرة',
             requiresAuth: true,
-            roles: ['teller', 'manager', 'super_admin'],
+            permissions: ['access_teller_panel'],
         },
     },
     {
@@ -48,37 +48,37 @@ const routes = [
         path: '/teller',
         name: 'teller',
         component: () => import('../views/TellerDashboardView.vue'),
-        meta: { title: 'لوحة الموظف', requiresAuth: true, roles: ['teller', 'manager', 'super_admin'] },
+        meta: { title: 'لوحة الموظف', requiresAuth: true, permissions: ['access_teller_panel'] },
     },
     {
         path: '/admin',
         name: 'admin',
         component: () => import('../views/AdminDashboardView.vue'),
-        meta: { title: 'لوحة الإدارة', requiresAuth: true, roles: ['manager', 'super_admin'] },
+        meta: { title: 'لوحة الإدارة', requiresAuth: true, permissions: ['access_admin_panel'] },
     },
     {
         path: '/admin/registrations',
         name: 'admin-registrations',
         component: () => import('../views/AdminRegistrationsView.vue'),
-        meta: { title: 'السجل والأرشيف', requiresAuth: true, roles: ['manager', 'super_admin'] },
+        meta: { title: 'السجل والأرشيف', requiresAuth: true, permissions: ['access_registrations'] },
     },
     {
         path: '/admin/users',
         name: 'admin-users',
         component: () => import('../views/AdminUsersView.vue'),
-        meta: { title: 'إدارة المستخدمين', requiresAuth: true, roles: ['manager', 'super_admin'] },
+        meta: { title: 'إدارة المستخدمين', requiresAuth: true, permissions: ['manage_users'] },
     },
     {
         path: '/admin/permissions',
         name: 'admin-permissions',
         component: () => import('../views/AdminPermissionsView.vue'),
-        meta: { title: 'صلاحيات الأدوار', requiresAuth: true, roles: ['super_admin'] },
+        meta: { title: 'الأدوار والصلاحيات', requiresAuth: true, permissions: ['manage_roles'] },
     },
     {
         path: '/mic',
         name: 'mic',
         component: () => import('../views/MicView.vue'),
-        meta: { title: 'الميكروفون', requiresAuth: true, roles: ['manager', 'super_admin'] },
+        meta: { title: 'الميكروفون', requiresAuth: true, permissions: ['access_mic'] },
     },
 ];
 
@@ -106,10 +106,10 @@ router.beforeEach(async (to) => {
         return { name: authStore.homeRoute };
     }
 
-    if (to.meta.roles && authStore.user) {
-        const allowed = to.meta.roles.includes(authStore.user.role);
+    if (to.meta.permissions?.length && authStore.user) {
+        const allowed = authStore.canAny(to.meta.permissions);
         if (!allowed) {
-            return { name: authStore.homeRoute };
+            return { name: authStore.homeRoute === to.name ? 'login' : authStore.homeRoute };
         }
     }
 

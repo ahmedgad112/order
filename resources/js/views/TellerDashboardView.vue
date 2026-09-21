@@ -69,7 +69,17 @@ function toggleServingNow() {
     }
 }
 
-const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
+const processStepCatalog = [
+    { value: 'entered', label: 'طلب دخول' },
+    { value: 'paid', label: 'دفع' },
+    { value: 'file_withdrawn', label: 'سحب ملف' },
+    { value: 'documents_reviewed', label: 'مراجعة ورق' },
+    { value: 'medical_checked', label: 'كشف طبي' },
+    { value: 'face_printed', label: 'بصمة وجه' },
+    { value: 'file_delivered', label: 'تسليم الملف' },
+];
+
+const processStepValues = processStepCatalog.map((step) => step.value);
 
 const statusLabel = {
     waiting: 'في الانتظار',
@@ -87,19 +97,28 @@ const statusBadgeClass = {
     absent: 'bg-orange-100 text-orange-800',
 };
 
-const stepOptions = [
-    { value: 'all', label: 'الكل' },
-    { value: 'entered', label: 'طلب دخول' },
-    { value: 'paid', label: 'دفع' },
-    { value: 'file_withdrawn', label: 'سحب ملف' },
-    { value: 'documents_reviewed', label: 'مراجعة ورق' },
-    { value: 'medical_checked', label: 'كشف طبي' },
-    { value: 'face_printed', label: 'بصمة وجه' },
-    { value: 'file_delivered', label: 'تسليم الملف' },
-    { value: 'completed', label: 'مكتمل' },
-    { value: 'absent', label: 'مش موجود' },
-    { value: 'cancelled', label: 'ملغى' },
-];
+const stepOptions = computed(() => {
+    const allowed = authStore.allowedProcessSteps;
+    const processOptions = processStepCatalog.filter((opt) => (
+        !Array.isArray(allowed) || allowed.includes(opt.value)
+    ));
+
+    const options = [
+        { value: 'all', label: 'الكل' },
+        ...processOptions,
+    ];
+
+    if (!Array.isArray(allowed) || allowed.includes('completed')) {
+        options.push({ value: 'completed', label: 'مكتمل' });
+    }
+
+    options.push(
+        { value: 'absent', label: 'مش موجود' },
+        { value: 'cancelled', label: 'ملغى' },
+    );
+
+    return options;
+});
 const searchFieldOptions = [
     { value: 'all', label: 'كل الحقول' },
     { value: 'full_name', label: 'الاسم' },
@@ -525,7 +544,7 @@ onUnmounted(() => {
 
 <template>
     <AppNavbar title="لوحة الموظف" :subtitle="navbarSubtitle">
-        <main class="mx-auto w-full max-w-7xl space-y-6 px-3 py-4 sm:px-6 sm:py-6">
+        <main class="mx-auto w-full max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-6">
             <div
                 v-if="!queueStore.isSystemOpen"
                 class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800"
@@ -585,42 +604,42 @@ onUnmounted(() => {
                 </p>
             </section>
 
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                <div class="rounded-2xl bg-white p-4 shadow-sm">
+            <section class="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
+                <div class="rounded-2xl bg-white p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-slate-500">الإجمالي</p>
-                    <p class="text-2xl font-black text-slate-800">{{ queueStore.tellerTicketStats.total }}</p>
+                    <p class="text-xl font-black text-slate-800 sm:text-2xl">{{ queueStore.tellerTicketStats.total }}</p>
                 </div>
-                <div class="rounded-2xl bg-amber-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-amber-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-amber-700">انتظار</p>
-                    <p class="text-2xl font-black text-amber-600">{{ queueStore.tellerTicketStats.waiting }}</p>
+                    <p class="text-xl font-black text-amber-600 sm:text-2xl">{{ queueStore.tellerTicketStats.waiting }}</p>
                 </div>
-                <div class="rounded-2xl bg-blue-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-blue-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-blue-700">طلب دخول</p>
-                    <p class="text-2xl font-black text-blue-600">{{ queueStore.tellerTicketStats.entered }}</p>
+                    <p class="text-xl font-black text-blue-600 sm:text-2xl">{{ queueStore.tellerTicketStats.entered }}</p>
                 </div>
-                <div class="rounded-2xl bg-cyan-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-cyan-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-cyan-700">دفع</p>
-                    <p class="text-2xl font-black text-cyan-600">{{ queueStore.tellerTicketStats.paid }}</p>
+                    <p class="text-xl font-black text-cyan-600 sm:text-2xl">{{ queueStore.tellerTicketStats.paid }}</p>
                 </div>
-                <div class="rounded-2xl bg-orange-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-orange-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-orange-700">سحب ملف</p>
-                    <p class="text-2xl font-black text-orange-600">{{ queueStore.tellerTicketStats.file_withdrawn }}</p>
+                    <p class="text-xl font-black text-orange-600 sm:text-2xl">{{ queueStore.tellerTicketStats.file_withdrawn }}</p>
                 </div>
-                <div class="rounded-2xl bg-indigo-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-indigo-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-indigo-700">مراجعة ورق</p>
-                    <p class="text-2xl font-black text-indigo-600">{{ queueStore.tellerTicketStats.documents_reviewed }}</p>
+                    <p class="text-xl font-black text-indigo-600 sm:text-2xl">{{ queueStore.tellerTicketStats.documents_reviewed }}</p>
                 </div>
-                <div class="rounded-2xl bg-teal-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-teal-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-teal-700">كشف طبي</p>
-                    <p class="text-2xl font-black text-teal-600">{{ queueStore.tellerTicketStats.medical_checked }}</p>
+                    <p class="text-xl font-black text-teal-600 sm:text-2xl">{{ queueStore.tellerTicketStats.medical_checked }}</p>
                 </div>
-                <div class="rounded-2xl bg-violet-50 p-4 shadow-sm">
+                <div class="rounded-2xl bg-violet-50 p-3 shadow-sm sm:p-4">
                     <p class="text-xs text-violet-700">بصمة وجه</p>
-                    <p class="text-2xl font-black text-violet-600">{{ queueStore.tellerTicketStats.face_printed }}</p>
+                    <p class="text-xl font-black text-violet-600 sm:text-2xl">{{ queueStore.tellerTicketStats.face_printed }}</p>
                 </div>
-                <div class="rounded-2xl bg-green-50 p-4 shadow-sm">
+                <div class="col-span-2 rounded-2xl bg-green-50 p-3 shadow-sm sm:col-span-1 sm:p-4 xl:col-span-1">
                     <p class="text-xs text-green-700">تسليم الملف</p>
-                    <p class="text-2xl font-black text-green-600">{{ queueStore.tellerTicketStats.file_delivered }}</p>
+                    <p class="text-xl font-black text-green-600 sm:text-2xl">{{ queueStore.tellerTicketStats.file_delivered }}</p>
                 </div>
             </section>
 
@@ -667,23 +686,23 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <section class="rounded-3xl bg-white p-5 shadow-sm">
+            <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                 <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h2 class="flex items-center gap-2 text-lg font-bold text-slate-800">
+                        <h2 class="flex items-center gap-2 text-base font-bold text-slate-800 sm:text-lg">
                             <ClipboardList class="h-5 w-5 text-indigo-600" />
                             سجل الطلبات
                         </h2>
                         <p class="mt-1 text-sm text-slate-500">كل الطلبات اليوم — سجّل الخطوات من الكارد أو من مسح QR</p>
                     </div>
-                    <span class="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    <span class="hidden w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 sm:inline-flex">
                         مسافة: نداء التالي | Enter: إكمال | Esc: إلغاء
                     </span>
                 </div>
 
-                <div class="mb-5 flex flex-wrap gap-2">
+                <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                     <button
-                        class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 disabled:opacity-50 sm:flex-none"
                         :disabled="!queueStore.isSystemOpen"
                         @click="handleCallNext"
                     >
@@ -692,7 +711,7 @@ onUnmounted(() => {
                     </button>
                     <button
                         type="button"
-                        class="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50 sm:flex-none sm:text-base"
                         :disabled="restartingCalls"
                         @click="handleRestartCalls"
                     >
@@ -783,7 +802,7 @@ onUnmounted(() => {
                     >
                         <div class="mb-3 flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                                <p class="text-2xl font-black text-indigo-600" dir="ltr">{{ ticket.ticket_number }}</p>
+                                <p class="text-xl font-black text-indigo-600 sm:text-2xl" dir="ltr">{{ ticket.ticket_number }}</p>
                                 <p class="mt-1 break-words font-semibold text-slate-800">{{ ticketPersonLabel(ticket) }}</p>
                             </div>
                             <span
@@ -909,10 +928,10 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <section class="rounded-3xl bg-white p-6 shadow-sm">
-                <div class="mb-4 flex items-center gap-2">
+            <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-6">
+                <div class="mb-4 flex flex-wrap items-center gap-2">
                     <UserX class="h-5 w-5 text-orange-600" />
-                    <h2 class="text-lg font-bold text-slate-800">تم نداؤهم ولم يحضروا</h2>
+                    <h2 class="text-base font-bold text-slate-800 sm:text-lg">تم نداؤهم ولم يحضروا</h2>
                     <span class="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
                         {{ queueStore.absentTickets.length }}
                     </span>

@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\Faculty;
 use App\Models\ProcessService;
 use App\Models\RequestType;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -24,13 +25,15 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        Role::seedSystemRoles();
+
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
-            'role' => UserRole::Teller,
+            'role' => UserRole::Teller->value,
             'counter_name' => 'شباك '.fake()->numberBetween(1, 9),
             'queue_lanes' => RequestType::laneValues(),
             'process_steps' => ProcessService::assignableValues() ?: ProcessStep::assignableValues(),
@@ -54,7 +57,7 @@ class UserFactory extends Factory
     public function superAdmin(): static
     {
         return $this->state(fn () => [
-            'role' => UserRole::SuperAdmin,
+            'role' => UserRole::SuperAdmin->value,
             'counter_name' => null,
             'queue_lanes' => null,
             'process_steps' => null,
@@ -65,7 +68,7 @@ class UserFactory extends Factory
     public function manager(): static
     {
         return $this->state(fn () => [
-            'role' => UserRole::Manager,
+            'role' => UserRole::Manager->value,
             'counter_name' => null,
             'queue_lanes' => null,
             'process_steps' => null,
@@ -76,7 +79,7 @@ class UserFactory extends Factory
     public function teller(?string $counterName = null): static
     {
         return $this->state(fn () => [
-            'role' => UserRole::Teller,
+            'role' => UserRole::Teller->value,
             'counter_name' => $counterName ?? 'شباك 1',
             'queue_lanes' => RequestType::laneValues(),
             'process_steps' => ProcessService::assignableValues() ?: ProcessStep::assignableValues(),

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\TicketStatus;
-use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CollegeResource;
 use App\Http\Resources\FacultyResource;
@@ -11,6 +10,7 @@ use App\Http\Resources\UserResource;
 use App\Models\College;
 use App\Models\Faculty;
 use App\Models\QueueTicket;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\QueueSystemService;
 use Illuminate\Http\JsonResponse;
@@ -54,7 +54,7 @@ class AdminReportController extends Controller
     public function tellers(): JsonResponse
     {
         $tellers = User::query()
-            ->where('role', UserRole::Teller)
+            ->whereIn('role', Role::queueSlugs())
             ->orderBy('name')
             ->get();
 
@@ -120,7 +120,7 @@ class AdminReportController extends Controller
             ->keyBy('user_id');
 
         return User::query()
-            ->where('role', UserRole::Teller)
+            ->whereIn('role', Role::queueSlugs())
             ->orderBy('name')
             ->get()
             ->map(function (User $teller) use ($stats): array {

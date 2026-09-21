@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\Permission;
-use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -11,7 +10,7 @@ class UpdateRolePermissionsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isSuperAdmin() === true;
+        return $this->user()?->canManageRoles() === true;
     }
 
     /**
@@ -21,7 +20,7 @@ class UpdateRolePermissionsRequest extends FormRequest
     {
         return [
             'permissions' => ['required', 'array', 'min:1'],
-            'permissions.*.role' => ['required', 'string', Rule::enum(UserRole::class)],
+            'permissions.*.role' => ['required', 'string', Rule::exists('roles', 'slug')],
             'permissions.*.permission' => ['required', 'string', Rule::enum(Permission::class)],
             'permissions.*.allowed' => ['required', 'boolean'],
         ];
