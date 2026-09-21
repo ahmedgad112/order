@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TicketStatus;
+use App\Events\DisplayAudioClearedEvent;
 use App\Events\TicketCalledEvent;
 use App\Events\TicketUpdatedEvent;
 use App\Jobs\GenerateTicketAudioJob;
@@ -360,5 +361,28 @@ class TellerQueueControlsTest extends TestCase
         $this->postJson("/api/teller/tickets/{$ticket->id}/recall")
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ticket']);
+    }
+
+    public function test_teller_can_clear_display_audio(): void
+    {
+        QueueSystemSetting::current();
+        $teller = User::factory()->teller()->create();
+        Event::fake([DisplayAudioClearedEvent::class]);
+        Sanctum::actingAs($teller);
+
+        $this->postJson('/api/teller/clear-display-audio')
+            ->assertOk()
+            ->assertJsonPath('message', 'تم إلغاء النداءات المسجلة على شاشة العرض.');
+
+        Event::assertDispatched(
+            DisplayAudioClearedEvent::class,
+            fn (DisplayAudioClearedEvent $event): bool => $event->clearedBy === $teller->name,
+        );
+    }
+
+    public function test_returns_401_when_guest_clears_display_audio(): void
+    {
+        $this->postJson('/api/teller/clear-display-audio')
+            ->assertUnauthorized();
     }
 }

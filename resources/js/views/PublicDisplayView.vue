@@ -91,7 +91,7 @@ function playNextAudio() {
 
     const lane = priorityQueue.value.length > 0 ? priorityQueue : audioQueue;
 
-    if (lane.value.length === 0) {
+    if (lane.value.length === 0 || (lane === audioQueue && liveMic.value)) {
         return;
     }
 
@@ -248,6 +248,7 @@ function armMicIdle(delay = 6000) {
     clearTimeout(micIdleTimer);
     micIdleTimer = setTimeout(() => {
         liveMic.value = false;
+        playNextAudio();
     }, delay);
 }
 
@@ -339,6 +340,7 @@ async function onTicketCalled(event) {
 }
 
 function onAnnouncement(event) {
+    clearAudioQueue();
     enqueueAudio(event.audio_url, 'announcement');
 
     if (event.text) {
@@ -392,6 +394,11 @@ function onMicChunk(event) {
 
     if (!streamUrl) {
         return;
+    }
+
+    // A new mic session preempts whatever is queued or playing.
+    if (!liveMic.value && micPending === 0) {
+        clearAudioQueue();
     }
 
     const mime = micMimeFor(streamUrl);
@@ -507,6 +514,7 @@ onMounted(async () => {
         TicketCalled: onTicketCalled,
         AnnouncementMade: consumeAnnouncement,
         MicAudioChunk: onMicChunk,
+        DisplayAudioCleared: () => clearAudioQueue(),
     });
 
     stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 4000);

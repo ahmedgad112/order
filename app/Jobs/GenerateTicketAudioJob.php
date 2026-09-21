@@ -21,7 +21,10 @@ class GenerateTicketAudioJob implements ShouldQueue
 
     public function handle(SpeechService $speech): void
     {
-        if ($this->step !== null && ! StepAnnouncement::isEnabledFor($this->step)) {
+        // Payloads serialized before $step existed leave it uninitialized — ?? null is safe there.
+        $step = $this->step ?? null;
+
+        if ($step !== null && ! StepAnnouncement::isEnabledFor($step)) {
             return;
         }
 
@@ -34,7 +37,7 @@ class GenerateTicketAudioJob implements ShouldQueue
         }
 
         try {
-            $speech->synthesizeToFile($speech->ticketAnnouncementText($ticket, $this->step));
+            $speech->synthesizeToFile($speech->ticketAnnouncementText($ticket, $step));
         } catch (\Throwable $exception) {
             Log::warning('Ticket TTS pre-generation failed: '.$exception->getMessage());
         }

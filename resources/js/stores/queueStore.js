@@ -90,6 +90,7 @@ export const useQueueStore = defineStore('queue', () => {
         QueueDayReset: new Set(),
         AnnouncementMade: new Set(),
         MicAudioChunk: new Set(),
+        DisplayAudioCleared: new Set(),
     };
 
     const hasWaiting = computed(() => stats.value.waiting > 0);
@@ -660,6 +661,11 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
+    async function clearDisplayAudio() {
+        const { data } = await axios.post('/teller/clear-display-audio');
+        return data;
+    }
+
     function scheduleDataRefresh() {
         clearTimeout(refreshDebounceTimer);
         refreshDebounceTimer = setTimeout(async () => {
@@ -938,6 +944,9 @@ export const useQueueStore = defineStore('queue', () => {
                 })
                 .listen('.MicAudioChunk', (event) => {
                     runExtras('MicAudioChunk', event);
+                })
+                .listen('.DisplayAudioCleared', (event) => {
+                    runExtras('DisplayAudioCleared', event);
                 });
 
             echoBound = true;
@@ -963,7 +972,7 @@ export const useQueueStore = defineStore('queue', () => {
 
     /**
      * Subscribe to the shared queue channel. Returns an unsubscribe function.
-     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'TicketUpdated'|'QueueSystemUpdated'|'QueueDayReset'|'AnnouncementMade'|'MicAudioChunk', Function>>} handlers
+     * @param {Partial<Record<'TicketIssued'|'TicketCalled'|'TicketCompleted'|'TicketAbsent'|'TicketRestored'|'TicketDeleted'|'TicketUpdated'|'QueueSystemUpdated'|'QueueDayReset'|'AnnouncementMade'|'MicAudioChunk'|'DisplayAudioCleared', Function>>} handlers
      */
     function subscribeEcho(handlers = {}) {
         Object.entries(handlers).forEach(([eventName, handler]) => {
@@ -1177,6 +1186,7 @@ export const useQueueStore = defineStore('queue', () => {
         handleTicketDeleted,
         handleTicketUpdated,
         requestTicketAudio,
+        clearDisplayAudio,
         sendAnnouncement,
         sendMicChunk,
         subscribeEcho,

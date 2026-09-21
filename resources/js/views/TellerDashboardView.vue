@@ -12,6 +12,7 @@ import {
     RotateCcw,
     SkipForward,
     UserX,
+    VolumeX,
 } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
@@ -35,6 +36,7 @@ const absentId = ref(null);
 const deletingId = ref(null);
 const editingId = ref(null);
 const callingId = ref(null);
+const clearingAudio = ref(false);
 const skippingId = ref(null);
 const recallingId = ref(null);
 const search = ref('');
@@ -256,6 +258,24 @@ async function handleCallNext() {
         actionError.value = err.response?.data?.message
             ?? err.response?.data?.errors?.queue?.[0]
             ?? 'تعذر نداء التذكرة التالية.';
+    }
+}
+
+async function handleClearDisplayAudio() {
+    if (!confirm('إلغاء كل النداءات الصوتية المسجلة على شاشة العرض؟')) {
+        return;
+    }
+
+    clearingAudio.value = true;
+    actionError.value = '';
+    try {
+        const result = await queueStore.clearDisplayAudio();
+        actionMessage.value = result.message ?? 'تم إلغاء النداءات المسجلة.';
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? 'تعذر إلغاء النداءات المسجلة.';
+    } finally {
+        clearingAudio.value = false;
     }
 }
 
@@ -669,6 +689,15 @@ onUnmounted(() => {
                     >
                         <PhoneCall class="h-5 w-5" />
                         نداء التالي
+                    </button>
+                    <button
+                        type="button"
+                        class="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        :disabled="clearingAudio"
+                        @click="handleClearDisplayAudio"
+                    >
+                        <VolumeX class="h-5 w-5" />
+                        {{ clearingAudio ? 'جاري الإلغاء...' : 'إلغاء النداءات المسجلة' }}
                     </button>
                 </div>
 
