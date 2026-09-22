@@ -325,6 +325,61 @@ class QueueService
         return $ticket;
     }
 
+    /**
+     * @param  list<int>  $ticketIds
+     * @return array{
+     *     updated: list<QueueTicket>,
+     *     failed: list<array{ticket_id: int, ticket_number: string|null, message: string}>,
+     *     updated_count: int,
+     *     failed_count: int
+     * }
+     */
+    public function markProcessServiceBulk(User $teller, ProcessService $service, array $ticketIds): array
+    {
+        $ticketIds = array_values(array_unique(array_map('intval', $ticketIds)));
+
+        $tickets = QueueTicket::query()
+            ->today()
+            ->whereIn('id', $ticketIds)
+            ->with(['teller', 'serviceCompletions.service'])
+            ->get()
+            ->keyBy('id');
+
+        $updated = [];
+        $failed = [];
+
+        foreach ($ticketIds as $ticketId) {
+            $ticket = $tickets->get($ticketId);
+
+            if (! $ticket) {
+                $failed[] = [
+                    'ticket_id' => $ticketId,
+                    'ticket_number' => null,
+                    'message' => 'التذكرة غير موجودة ضمن طلبات اليوم.',
+                ];
+
+                continue;
+            }
+
+            try {
+                $updated[] = $this->markProcessService($ticket, $service, $teller);
+            } catch (ValidationException $exception) {
+                $failed[] = [
+                    'ticket_id' => $ticket->id,
+                    'ticket_number' => $ticket->ticketCode(),
+                    'message' => (string) collect($exception->errors())->flatten()->first(),
+                ];
+            }
+        }
+
+        return [
+            'updated' => $updated,
+            'failed' => $failed,
+            'updated_count' => count($updated),
+            'failed_count' => count($failed),
+        ];
+    }
+
     public function cancelTicket(QueueTicket $ticket, User $teller): QueueTicket
     {
         $this->assertTicketOwnedByTeller($ticket, $teller);

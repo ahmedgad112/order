@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-medical-checked', [TellerQueueController::class, 'markMedicalChecked']);
         Route::post('/tickets/{ticket}/mark-face-printed', [TellerQueueController::class, 'markFacePrinted']);
         Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);
+        Route::post('/tickets/services/{serviceSlug}/complete-bulk', [TellerQueueController::class, 'markServiceBulk']);
         Route::post('/tickets/{ticket}/services/{serviceSlug}/complete', [TellerQueueController::class, 'markService']);
     });
 

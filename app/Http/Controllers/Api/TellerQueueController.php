@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\BulkCompleteProcessServiceRequest;
 use App\Http\Requests\IssueTicketRequest;
 use App\Http\Resources\PublicTicketResource;
 use App\Http\Resources\ScannedTicketResource;
@@ -175,6 +176,33 @@ class TellerQueueController extends Controller
         return response()->json([
             'message' => 'تم تسجيل الخدمة.',
             'ticket' => new TicketResource($ticket),
+        ]);
+    }
+
+    public function markServiceBulk(BulkCompleteProcessServiceRequest $request, string $serviceSlug): JsonResponse
+    {
+        $processService = ProcessService::findBySlug($serviceSlug);
+
+        abort_if($processService === null, 404);
+
+        $result = $this->queueService->markProcessServiceBulk(
+            $request->user(),
+            $processService,
+            $request->validated('ticket_ids'),
+        );
+
+        $message = match (true) {
+            $result['updated_count'] === 0 => 'لم يتم تطبيق العملية على أي تذكرة.',
+            $result['failed_count'] === 0 => 'تم تطبيق العملية على '.$result['updated_count'].' تذكرة.',
+            default => 'تم تطبيق العملية على '.$result['updated_count'].' تذكرة، وتعذر على '.$result['failed_count'].'.',
+        };
+
+        return response()->json([
+            'message' => $message,
+            'updated_count' => $result['updated_count'],
+            'failed_count' => $result['failed_count'],
+            'failed' => $result['failed'],
+            'tickets' => TicketResource::collection($result['updated']),
         ]);
     }
 

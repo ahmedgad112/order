@@ -314,6 +314,20 @@ export const useQueueStore = defineStore('queue', () => {
         return data;
     }
 
+    async function markProcessStepBulk(step, ticketIds) {
+        const { data } = await axios.post(`/teller/tickets/services/${step}/complete-bulk`, {
+            ticket_ids: ticketIds,
+        });
+
+        for (const ticket of data.tickets ?? []) {
+            upsertTellerTicket(ticket);
+        }
+
+        await fetchTellerTickets();
+
+        return data;
+    }
+
     async function markTellerEntered(ticketId) {
         return markProcessStep(ticketId, 'entered');
     }
@@ -1150,6 +1164,7 @@ export const useQueueStore = defineStore('queue', () => {
         markTellerEntered,
         markFileDelivered,
         markProcessStep,
+        markProcessStepBulk,
         markAbsent,
         restoreTicket,
         fetchDailyMetrics,

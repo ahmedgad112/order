@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
     Archive,
     CalendarDays,
+    CheckCircle2,
     RefreshCw,
 } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
@@ -21,6 +22,8 @@ const stepFilter = ref('all');
 const typeFilter = ref('all');
 const selectedDate = ref('');
 const loading = ref(false);
+const bulkActionStep = ref('');
+const bulkApplying = ref(false);
 
 const processStepValues = ['entered', 'paid', 'file_withdrawn', 'documents_reviewed', 'medical_checked', 'face_printed', 'file_delivered'];
 const stepOptions = [
@@ -100,6 +103,52 @@ const pageSubtitle = computed(() => {
 
     return 'كل الأشخاص المسجلين اليوم — ويمكن فتح أرشيف الأيام السابقة';
 });
+
+const bulkActionOptions = computed(() => {
+    const options = new Map();
+
+    for (const ticket of queueStore.registrations) {
+        for (const step of ticket.process_pipeline ?? []) {
+            if (!options.has(step.key)) {
+                options.set(step.key, {
+                    value: step.key,
+                    label: step.label,
+                    systemKey: step.system_key,
+                });
+            }
+        }
+    }
+
+    if (options.size) {
+        return [...options.values()];
+    }
+
+    return stepOptions.filter((opt) => processStepValues.includes(opt.value));
+});
+
+const bulkEligibleTickets = computed(() => {
+    if (!bulkActionStep.value || !isToday.value) {
+        return [];
+    }
+
+    return queueStore.registrations.filter((ticket) => ticketCanMarkStep(ticket, bulkActionStep.value));
+});
+
+const selectedBulkActionLabel = computed(() => (
+    bulkActionOptions.value.find((opt) => opt.value === bulkActionStep.value)?.label
+        ?? bulkActionStep.value
+));
+
+watch(bulkActionOptions, (options) => {
+    if (!options.length) {
+        bulkActionStep.value = '';
+        return;
+    }
+
+    if (!options.some((opt) => opt.value === bulkActionStep.value)) {
+        bulkActionStep.value = options.length === 1 ? options[0].value : '';
+    }
+}, { immediate: true });
 
 function listParams() {
     const params = {
@@ -197,6 +246,71 @@ async function handleProcessMark(ticket, step) {
     } finally {
         processBusyId.value = null;
         busyStep.value = null;
+    }
+}
+
+function ticketCanMarkStep(ticket, stepKey) {
+    if (['cancelled', 'absent', 'completed'].includes(ticket.status)) {
+        return false;
+    }
+
+    const pipeline = Array.isArray(ticket.process_pipeline) ? ticket.process_pipeline : [];
+    const index = pipeline.findIndex((step) => (
+        step.key === stepKey || step.system_key === stepKey
+    ));
+
+    if (index < 0) {
+        return false;
+    }
+
+    const step = pipeline[index];
+
+    if (step.done) {
+        return false;
+    }
+
+    if (index > 0 && !pipeline[index - 1]?.done) {
+        return false;
+    }
+
+    if ((step.system_key === 'entered' || step.key === 'entered') && !queueStore.isSystemOpen) {
+        return false;
+    }
+
+    return true;
+}
+
+async function handleBulkProcessMark() {
+    if (!bulkActionStep.value || !bulkEligibleTickets.value.length) {
+        return;
+    }
+
+    const label = selectedBulkActionLabel.value;
+    const count = bulkEligibleTickets.value.length;
+
+    if (!confirm(`تطبيق «${label}» على ${count} رقم معروض؟`)) {
+        return;
+    }
+
+    bulkApplying.value = true;
+    feedback.value = '';
+    actionError.value = '';
+    try {
+        const result = await queueStore.markProcessStepBulk(
+            bulkActionStep.value,
+            bulkEligibleTickets.value.map((ticket) => ticket.id),
+        );
+        feedback.value = result.message;
+        if (result.failed_count > 0 && result.failed?.[0]?.message) {
+            actionError.value = result.failed[0].message;
+        }
+        await loadTickets(true);
+    } catch (err) {
+        actionError.value = err.response?.data?.message
+            ?? err.response?.data?.errors?.ticket_ids?.[0]
+            ?? 'تعذر تطبيق العملية على الأرقام.';
+    } finally {
+        bulkApplying.value = false;
     }
 }
 
@@ -467,6 +581,44 @@ onUnmounted(() => {
                             <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" />
                         </button>
                     </div>
+                </div>
+
+                <div
+                    v-if="isToday"
+                    class="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4"
+                >
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <label class="min-w-0 flex-1">
+                            <span class="mb-1 block text-sm font-semibold text-slate-700">عملية واحدة لكل الأرقام</span>
+                            <select
+                                v-model="bulkActionStep"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                            >
+                                <option value="">اختر العملية...</option>
+                                <option
+                                    v-for="opt in bulkActionOptions"
+                                    :key="opt.value"
+                                    :value="opt.value"
+                                >
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                        </label>
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                            :disabled="bulkApplying || !bulkActionStep || !bulkEligibleTickets.length"
+                            @click="handleBulkProcessMark"
+                        >
+                            <CheckCircle2 class="h-4 w-4" />
+                            {{ bulkApplying
+                                ? 'جاري التطبيق...'
+                                : `تطبيق على ${bulkEligibleTickets.length || 0} رقم` }}
+                        </button>
+                    </div>
+                    <p class="mt-2 text-xs text-slate-500">
+                        اختر العملية ثم طبّقها مرة واحدة على كل الأرقام المعروضة الجاهزة لها.
+                    </p>
                 </div>
 
                 <p v-if="feedback" class="mb-4 rounded-xl bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
