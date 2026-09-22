@@ -344,16 +344,31 @@ function onCallsRestarted() {
     queueStore.fetchPublicStatus();
 }
 
+function announcementPlayTimes(event) {
+    const times = Number(event?.times);
+
+    if (!Number.isFinite(times)) {
+        return 2;
+    }
+
+    return Math.max(1, Math.min(5, Math.round(times)));
+}
+
 function onAnnouncement(event) {
     clearAudioQueue();
-    enqueueAudio(event.audio_url, 'announcement');
+
+    const times = announcementPlayTimes(event);
+
+    for (let i = 0; i < times; i += 1) {
+        enqueueAudio(event.audio_url, 'announcement');
+    }
 
     if (event.text) {
         footerAnnouncement.value = event.text;
         clearTimeout(announcementTimer);
         announcementTimer = setTimeout(() => {
             footerAnnouncement.value = '';
-        }, 12000);
+        }, Math.max(12000, times * 8000));
     }
 }
 

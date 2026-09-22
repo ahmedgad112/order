@@ -23,6 +23,7 @@ class AnnounceRequest extends FormRequest
             'text' => ['required', 'string', 'min:2', 'max:500'],
             'voice' => ['sometimes', 'nullable', 'string', Rule::in(array_keys(SpeechService::voices()))],
             'rate' => ['sometimes', 'nullable', 'string', Rule::in(SpeechService::rates())],
+            'times' => ['sometimes', 'integer', 'min:1', 'max:5'],
         ];
     }
 
@@ -37,6 +38,9 @@ class AnnounceRequest extends FormRequest
             'text.max' => 'نص الإعلان طويل جداً (500 حرف كحد أقصى).',
             'voice.in' => 'الصوت المختار غير متاح.',
             'rate.in' => 'سرعة الكلام غير صحيحة.',
+            'times.integer' => 'عدد مرات التكرار يجب أن يكون رقماً.',
+            'times.min' => 'عدد مرات التكرار يجب ألا يقل عن مرة واحدة.',
+            'times.max' => 'عدد مرات التكرار يجب ألا يزيد عن 5.',
         ];
     }
 }

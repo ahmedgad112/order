@@ -65,6 +65,7 @@ class SpeechAnnouncementTest extends TestCase
         Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
             return $event->text === 'على الجميع التوجه إلى القاعة الرئيسية'
                 && $event->id !== null
+                && $event->times === 2
                 && str_contains($event->audioUrl, '/api/public/audio/');
         });
 
@@ -99,13 +100,46 @@ class SpeechAnnouncementTest extends TestCase
         Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
             return $event->text === 'على الجميع التوجه إلى القاعة الرئيسية'
                 && $event->audioUrl === ''
-                && $event->id !== null;
+                && $event->id !== null
+                && $event->times === 2;
         });
 
         $this->getJson('/api/public/queue-status')
             ->assertOk()
             ->assertJsonPath('announcement.text', 'على الجميع التوجه إلى القاعة الرئيسية')
             ->assertJsonPath('announcement.audio_url', null);
+    }
+
+    public function test_announcement_accepts_custom_repeat_times(): void
+    {
+        Event::fake();
+        $this->fakeSpeech();
+
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/announce', [
+            'text' => 'على الجميع التوجه إلى القاعة الرئيسية',
+            'times' => 3,
+        ])
+            ->assertOk()
+            ->assertJsonPath('times', 3);
+
+        Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
+            return $event->times === 3
+                && $event->broadcastWith()['times'] === 3;
+        });
+    }
+
+    public function test_announcement_rejects_invalid_repeat_times(): void
+    {
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/announce', [
+            'text' => 'على الجميع التوجه إلى القاعة الرئيسية',
+            'times' => 6,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('times');
     }
 
     public function test_public_queue_status_returns_null_announcement_when_none_exist(): void

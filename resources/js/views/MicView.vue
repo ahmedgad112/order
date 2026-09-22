@@ -18,6 +18,7 @@ const sendSuccess = ref('');
 const announceText = ref('');
 const announceVoice = ref('ar-EG-SalmaNeural');
 const announceRate = ref('0%');
+const announceTimes = ref(2);
 const announceLoading = ref(false);
 
 const presets = ref([]);
@@ -40,6 +41,14 @@ const rateOptions = [
     { value: '0%', label: 'عادي' },
     { value: '+25%', label: 'سريع' },
     { value: '+50%', label: 'سريع جداً' },
+];
+
+const timesOptions = [
+    { value: 1, label: 'مرة واحدة' },
+    { value: 2, label: 'مرتين' },
+    { value: 3, label: '3 مرات' },
+    { value: 4, label: '4 مرات' },
+    { value: 5, label: '5 مرات' },
 ];
 
 const supported = computed(() => (
@@ -263,6 +272,7 @@ async function sendTextAnnouncement() {
             text,
             voice: announceVoice.value,
             rate: announceRate.value,
+            times: announceTimes.value,
         });
         sendSuccess.value = data?.message || 'تم إرسال الإعلان الصوتي.';
         announceText.value = '';
@@ -348,6 +358,7 @@ async function sendPreset(preset) {
             text: preset.text,
             voice: announceVoice.value,
             rate: announceRate.value,
+            times: announceTimes.value,
         });
         sendSuccess.value = data?.message || 'تم إرسال الإعلان الصوتي.';
     } catch {
@@ -535,7 +546,7 @@ onUnmounted(() => {
                         placeholder="مثال: على المتقدمين لكلية الهندسة التوجه إلى الطابق الأول"
                     />
 
-                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div class="mt-3 grid gap-3 sm:grid-cols-3">
                         <div class="text-right">
                             <label class="mb-1 block text-sm font-semibold text-slate-700">الصوت</label>
                             <select
@@ -555,6 +566,17 @@ onUnmounted(() => {
                             >
                                 <option v-for="rate in rateOptions" :key="rate.value" :value="rate.value">
                                     {{ rate.label }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="text-right">
+                            <label class="mb-1 block text-sm font-semibold text-slate-700">عدد التكرار</label>
+                            <select
+                                v-model.number="announceTimes"
+                                class="w-full rounded-xl border border-slate-200 px-4 py-2.5 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                            >
+                                <option v-for="times in timesOptions" :key="times.value" :value="times.value">
+                                    {{ times.label }}
                                 </option>
                             </select>
                         </div>

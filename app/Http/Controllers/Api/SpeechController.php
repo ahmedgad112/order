@@ -87,6 +87,8 @@ class SpeechController extends Controller
             Log::warning('Announcement TTS failed: '.$exception->getMessage());
         }
 
+        $times = max(1, min(5, (int) ($data['times'] ?? 2)));
+
         $log = AnnouncementLog::create([
             'user_id' => $request->user()->id,
             'text' => $data['text'],
@@ -95,13 +97,14 @@ class SpeechController extends Controller
             'audio_filename' => $filename,
         ]);
 
-        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, $data['text'], $log->id));
+        $this->broadcastSafely(new AnnouncementMadeEvent($audioUrl, $data['text'], $log->id, $times));
 
         return response()->json([
             'message' => $audioUrl !== ''
                 ? 'تم إرسال الإعلان الصوتي.'
                 : 'تم إرسال الإعلان النصي.',
             'audio_url' => $audioUrl !== '' ? $audioUrl : null,
+            'times' => $times,
         ]);
     }
 

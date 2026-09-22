@@ -16,6 +16,7 @@ class AnnouncementMadeEvent implements ShouldBroadcastNow
         public string $audioUrl,
         public string $text,
         public ?int $id = null,
+        public int $times = 1,
     ) {}
 
     /**
@@ -40,6 +41,7 @@ class AnnouncementMadeEvent implements ShouldBroadcastNow
             'id' => $this->id,
             'audio_url' => $this->audioUrl !== '' ? $this->audioUrl : null,
             'text' => $this->text,
+            'times' => max(1, min(5, $this->times)),
         ];
     }
 }
