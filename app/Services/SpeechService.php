@@ -60,7 +60,13 @@ class SpeechService
 
         $this->pruneExpiredFiles();
 
-        Storage::put($path, $this->synthesize($text, $voice, $rate));
+        $audio = $this->synthesize($text, $voice, $rate);
+
+        if ($audio === '') {
+            throw new \RuntimeException('No audio data available.');
+        }
+
+        Storage::put($path, $audio);
 
         return $filename;
     }
@@ -393,7 +399,9 @@ class SpeechService
 
     public function audioUrl(string $filename): string
     {
-        return url('/api/public/audio/'.$filename);
+        // Relative so the display/browser always fetch from the same origin
+        // (avoids silent playback when APP_URL differs from the public host).
+        return '/api/public/audio/'.$filename;
     }
 
     /**

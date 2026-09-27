@@ -66,13 +66,19 @@ class SpeechAnnouncementTest extends TestCase
             return $event->text === 'على الجميع التوجه إلى القاعة الرئيسية'
                 && $event->id !== null
                 && $event->times === 2
-                && str_contains($event->audioUrl, '/api/public/audio/');
+                && str_starts_with($event->audioUrl, '/api/public/audio/')
+                && ! str_contains($event->audioUrl, '://');
         });
 
-        $this->getJson('/api/public/queue-status')
+        $status = $this->getJson('/api/public/queue-status')
             ->assertOk()
             ->assertJsonPath('announcement.text', 'على الجميع التوجه إلى القاعة الرئيسية')
             ->assertJsonPath('announcement.id', AnnouncementLog::query()->latest('id')->value('id'));
+
+        $audioUrl = $status->json('announcement.audio_url');
+        $this->assertIsString($audioUrl);
+        $this->assertTrue(str_starts_with($audioUrl, '/api/public/audio/'));
+        $this->assertStringNotContainsString('://', $audioUrl);
     }
 
     public function test_text_announcement_is_sent_when_tts_fails(): void
@@ -208,6 +214,8 @@ class SpeechAnnouncementTest extends TestCase
         ])->json('audio_url');
 
         $this->assertStringContainsString('/api/public/audio/', $audioUrl);
+        $this->assertStringStartsWith('/api/public/audio/', $audioUrl);
+        $this->assertStringNotContainsString('://', $audioUrl);
         $this->assertStringEndsWith('.mp3', $audioUrl);
     }
 
@@ -459,7 +467,8 @@ class SpeechAnnouncementTest extends TestCase
         Event::assertDispatched(AnnouncementMadeEvent::class, function (AnnouncementMadeEvent $event): bool {
             return $event->text === 'تسجيل صوتي'
                 && $event->id !== null
-                && str_contains($event->audioUrl, '/api/public/audio/');
+                && str_starts_with($event->audioUrl, '/api/public/audio/')
+                && ! str_contains($event->audioUrl, '://');
         });
     }
 

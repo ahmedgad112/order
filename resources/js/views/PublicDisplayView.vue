@@ -72,6 +72,58 @@ function enqueueAudio(url, kind = 'tts') {
     playNextAudio();
 }
 
+function cancelSpeechSynthesis() {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+}
+
+function pickArabicVoice() {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+        return null;
+    }
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find((voice) => /^ar(-|$)/i.test(voice.lang));
+
+    return preferred ?? null;
+}
+
+function speakTextAnnouncement(text, times = 1) {
+    if (!text || typeof window === 'undefined' || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+        return;
+    }
+
+    cancelSpeechSynthesis();
+
+    const voice = pickArabicVoice();
+    let remaining = Math.max(1, times);
+
+    const speakOnce = () => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = voice?.lang || 'ar-EG';
+        utterance.rate = 1;
+
+        if (voice) {
+            utterance.voice = voice;
+        }
+
+        utterance.onend = () => {
+            remaining -= 1;
+
+            if (remaining > 0) {
+                speakOnce();
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    };
+
+    speakOnce();
+}
+
 function releaseItem(item) {
     if (item.kind !== 'mic') {
         return;
@@ -127,6 +179,7 @@ function clearAudioQueue() {
     audioQueue.value = [];
     priorityQueue.value.forEach(releaseItem);
     priorityQueue.value = [];
+    cancelSpeechSynthesis();
 
     if (currentAudio) {
         currentAudio.onended = null;
@@ -359,8 +412,13 @@ function onAnnouncement(event) {
 
     const times = announcementPlayTimes(event);
 
-    for (let i = 0; i < times; i += 1) {
-        enqueueAudio(event.audio_url, 'announcement');
+    if (event.audio_url) {
+        for (let i = 0; i < times; i += 1) {
+            enqueueAudio(event.audio_url, 'announcement');
+        }
+    } else if (event.text && voiceEnabled.value) {
+        // TTS unavailable — speak the text on the display so the announcement is still heard.
+        speakTextAnnouncement(event.text, times);
     }
 
     if (event.text) {
