@@ -1074,6 +1074,9 @@ export const useQueueStore = defineStore('queue', () => {
         sync();
     }
 
+    // Keep polling at the requested interval. Echo "live" only stretches the
+    // interval moderately so announcements still arrive within a few seconds
+    // when the websocket path is down.
     function startAutoRefresh(callback, intervalMs = 5000) {
         let inFlight = false;
         let timer = null;
@@ -1096,7 +1099,7 @@ export const useQueueStore = defineStore('queue', () => {
         const controller = {
             arm() {
                 clearInterval(timer);
-                const ms = echoLive ? Math.max(intervalMs, 25000) : intervalMs;
+                const ms = echoLive ? Math.max(intervalMs, 8000) : intervalMs;
                 timer = setInterval(tick, ms);
             },
             stop() {

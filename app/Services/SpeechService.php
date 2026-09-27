@@ -405,7 +405,7 @@ class SpeechService
     }
 
     /**
-     * @return array{id: int, text: string, audio_url: string|null}|null
+     * @return array{id: int, text: string, audio_url: string|null, created_at: string|null}|null
      */
     public function latestPublicAnnouncement(): ?array
     {
@@ -425,6 +425,7 @@ class SpeechService
             'id' => $log->id,
             'text' => $log->text,
             'audio_url' => $audioUrl,
+            'created_at' => $log->created_at?->toIso8601String(),
         ];
     }
 

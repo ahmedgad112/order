@@ -255,6 +255,17 @@ async function sendRecording() {
 
 // ---- Text announcement ----
 
+function previewAnnouncementAudio(audioUrl) {
+    if (!audioUrl) {
+        return;
+    }
+
+    const audio = new Audio(audioUrl);
+    audio.play().catch(() => {
+        // Autoplay may be blocked — display screen still receives the announcement.
+    });
+}
+
 async function sendTextAnnouncement() {
     const text = announceText.value.trim();
 
@@ -275,6 +286,7 @@ async function sendTextAnnouncement() {
             times: announceTimes.value,
         });
         sendSuccess.value = data?.message || 'تم إرسال الإعلان الصوتي.';
+        previewAnnouncementAudio(data?.audio_url);
         announceText.value = '';
     } catch (err) {
         micError.value = err.response?.data?.message
@@ -361,6 +373,7 @@ async function sendPreset(preset) {
             times: announceTimes.value,
         });
         sendSuccess.value = data?.message || 'تم إرسال الإعلان الصوتي.';
+        previewAnnouncementAudio(data?.audio_url);
     } catch {
         micError.value = 'تعذر إرسال الإعلان.';
     } finally {

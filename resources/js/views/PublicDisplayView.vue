@@ -155,12 +155,17 @@ function playNextAudio() {
     currentAudio = audio;
 
     let finished = false;
-    const done = () => {
+    const done = (failed = false) => {
         if (finished) {
             return;
         }
 
         finished = true;
+
+        if (failed && item.kind === 'announcement' && footerAnnouncement.value) {
+            speakTextAnnouncement(footerAnnouncement.value, 1);
+        }
+
         audioPlaying.value = false;
         currentAudio = null;
         currentItem = null;
@@ -168,9 +173,9 @@ function playNextAudio() {
         playNextAudio();
     };
 
-    audio.onended = done;
-    audio.onerror = done;
-    audio.play().catch(done);
+    audio.onended = () => done(false);
+    audio.onerror = () => done(true);
+    audio.play().catch(() => done(true));
 }
 
 function clearAudioQueue() {
@@ -412,6 +417,14 @@ function onAnnouncement(event) {
 
     const times = announcementPlayTimes(event);
 
+    if (event.text) {
+        footerAnnouncement.value = event.text;
+        clearTimeout(announcementTimer);
+        announcementTimer = setTimeout(() => {
+            footerAnnouncement.value = '';
+        }, Math.max(12000, times * 8000));
+    }
+
     if (event.audio_url) {
         for (let i = 0; i < times; i += 1) {
             enqueueAudio(event.audio_url, 'announcement');
@@ -419,14 +432,6 @@ function onAnnouncement(event) {
     } else if (event.text && voiceEnabled.value) {
         // TTS unavailable — speak the text on the display so the announcement is still heard.
         speakTextAnnouncement(event.text, times);
-    }
-
-    if (event.text) {
-        footerAnnouncement.value = event.text;
-        clearTimeout(announcementTimer);
-        announcementTimer = setTimeout(() => {
-            footerAnnouncement.value = '';
-        }, Math.max(12000, times * 8000));
     }
 }
 
@@ -567,9 +572,23 @@ watch(() => queueStore.serving, (list) => {
     announceCall(fresh[0]);
 });
 
+function isRecentAnnouncement(event, maxAgeMs = 120000) {
+    if (!event?.created_at) {
+        return false;
+    }
+
+    const createdAt = Date.parse(event.created_at);
+
+    if (!Number.isFinite(createdAt)) {
+        return false;
+    }
+
+    return (Date.now() - createdAt) <= maxAgeMs;
+}
+
 watch(() => queueStore.announcement, (event) => {
     if (!announcementsSeeded) {
-        if (event) {
+        if (event && !isRecentAnnouncement(event)) {
             rememberAnnouncement(event);
         }
 
@@ -581,9 +600,18 @@ watch(() => queueStore.announcement, (event) => {
 
 onMounted(async () => {
     await queueStore.fetchPublicStatus();
-    if (queueStore.announcement) {
-        rememberAnnouncement(queueStore.announcement);
+
+    const initial = queueStore.announcement;
+
+    if (initial) {
+        if (isRecentAnnouncement(initial)) {
+            // Replay a just-sent announcement after a display refresh.
+            consumeAnnouncement(initial);
+        } else {
+            rememberAnnouncement(initial);
+        }
     }
+
     announcementsSeeded = true;
     probeAudio();
 
@@ -599,7 +627,8 @@ onMounted(async () => {
         CallsRestarted: onCallsRestarted,
     });
 
-    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 4000);
+    // Keep polling snappy for announcements even if Echo falsely looks "live".
+    stopAutoRefresh = queueStore.startAutoRefresh(() => queueStore.fetchPublicStatus({ silent: true }), 2500);
 });
 
 onUnmounted(() => {

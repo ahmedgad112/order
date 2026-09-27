@@ -73,12 +73,14 @@ class SpeechAnnouncementTest extends TestCase
         $status = $this->getJson('/api/public/queue-status')
             ->assertOk()
             ->assertJsonPath('announcement.text', 'على الجميع التوجه إلى القاعة الرئيسية')
-            ->assertJsonPath('announcement.id', AnnouncementLog::query()->latest('id')->value('id'));
+            ->assertJsonPath('announcement.id', AnnouncementLog::query()->latest('id')->value('id'))
+            ->assertJsonStructure(['announcement' => ['id', 'text', 'audio_url', 'created_at']]);
 
         $audioUrl = $status->json('announcement.audio_url');
         $this->assertIsString($audioUrl);
         $this->assertTrue(str_starts_with($audioUrl, '/api/public/audio/'));
         $this->assertStringNotContainsString('://', $audioUrl);
+        $this->assertNotEmpty($status->json('announcement.created_at'));
     }
 
     public function test_text_announcement_is_sent_when_tts_fails(): void
