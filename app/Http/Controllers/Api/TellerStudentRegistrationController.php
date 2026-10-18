@@ -38,6 +38,16 @@ class TellerStudentRegistrationController extends Controller
         ]);
     }
 
+    public function markAbsent(Request $request, StudentRegistration $studentRegistration): JsonResponse
+    {
+        $studentRegistration = $studentRegistration->markAbsentBy($request->user()?->id);
+
+        return response()->json([
+            'message' => 'تم تسجيل الطالب كـ "مش موجود".',
+            'registration' => new StudentRegistrationResource($studentRegistration),
+        ]);
+    }
+
     /**
      * @return Collection<int, StudentRegistration>
      */

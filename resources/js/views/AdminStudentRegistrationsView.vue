@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { Download, RefreshCw, Search, Trash2 } from 'lucide-vue-next';
+import { Download, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-vue-next';
 import { axios } from '../bootstrap';
 import AppNavbar from '../components/AppNavbar.vue';
 
@@ -15,8 +15,10 @@ const sectionNumber = ref('');
 const search = ref('');
 const loading = ref(false);
 const downloading = ref(false);
+const resetting = ref(false);
 const deletingId = ref(null);
 const completingId = ref(null);
+const absentId = ref(null);
 const notice = ref('');
 const error = ref('');
 
@@ -110,7 +112,27 @@ function downloadCurrent() {
         ? `${department.value}${sectionNumber.value ? `-سكشن-${sectionNumber.value}` : ''}`
         : 'كل-الأقسام';
 
-    return download(currentFilters(), `سجل-الطلاب-${label}.xls`);
+    return download(currentFilters(), `سجل-الطلاب-${label}.xml`);
+}
+
+async function resetDay() {
+    if (!confirm('هيتصفر كل تسجيلات الطلاب ويبدأ الدور من 1، والطلاب يقدروا يسجلوا تاني. متأكد؟')) {
+        return;
+    }
+
+    resetting.value = true;
+    error.value = '';
+    notice.value = '';
+
+    try {
+        const { data } = await axios.post('/admin/student-registrations/reset-day');
+        notice.value = data.message ?? 'تم تصفير أدوار اليوم.';
+        await load(1);
+    } catch {
+        error.value = 'تعذر تصفير الأدوار.';
+    } finally {
+        resetting.value = false;
+    }
 }
 
 async function completeRegistration(registration) {
@@ -128,6 +150,28 @@ async function completeRegistration(registration) {
             ?? 'تعذر إنهاء الدور.';
     } finally {
         completingId.value = null;
+    }
+}
+
+async function markRegistrationAbsent(registration) {
+    if (!confirm(`تسجيل الدور ${registration.turn_number} كـ "مش موجود"؟`)) {
+        return;
+    }
+
+    absentId.value = registration.id;
+    error.value = '';
+
+    try {
+        const { data } = await axios.post(`/admin/student-registrations/${registration.id}/mark-absent`);
+        const ahead = data.registration?.people_ahead ?? 0;
+        notice.value = `الدور ${registration.turn_number} مش موجود. ${peopleAheadLabel(ahead)}.`;
+        await load(currentPage.value);
+    } catch (requestError) {
+        notice.value = '';
+        error.value = requestError.response?.data?.errors?.registration?.[0]
+            ?? 'تعذر تسجيل "مش موجود".';
+    } finally {
+        absentId.value = null;
     }
 }
 
@@ -187,15 +231,26 @@ onMounted(() => {
                         <h2 class="text-xl font-bold text-slate-900">الطلاب المسجلون</h2>
                         <p class="mt-1 text-sm text-slate-500">{{ total }} طالب. الأرقام ظاهرة بترتيب الدور، حتى لو الطلاب من سكاشن مختلفة.</p>
                     </div>
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
-                        :disabled="downloading || total === 0"
-                        @click="downloadCurrent"
-                    >
-                        <Download class="h-4 w-4" />
-                        تنزيل الجداول
-                    </button>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                            :disabled="resetting || loading || total === 0"
+                            @click="resetDay"
+                        >
+                            <RotateCcw class="h-4 w-4" />
+                            {{ resetting ? 'جاري التصفير...' : 'تصفير أدوار اليوم' }}
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+                            :disabled="downloading || total === 0"
+                            @click="downloadCurrent"
+                        >
+                            <Download class="h-4 w-4" />
+                            تنزيل الجداول
+                        </button>
+                    </div>
                 </div>
 
                 <form class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" @submit.prevent="submitSearch">
@@ -261,28 +316,49 @@ onMounted(() => {
                         v-for="registration in orderedRegistrations"
                         :key="registration.id"
                         class="flex items-start gap-3 rounded-2xl border p-4"
-                        :class="registration.is_completed ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-slate-50'"
+                        :class="{
+                            'border-emerald-200 bg-emerald-50/70': registration.is_completed,
+                            'border-orange-200 bg-orange-50/70': registration.is_absent,
+                            'border-slate-200 bg-slate-50': registration.is_waiting,
+                        }"
                     >
-                        <button
-                            v-if="!registration.is_completed"
-                            type="button"
-                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white hover:bg-emerald-700 disabled:opacity-60"
-                            :disabled="completingId === registration.id"
-                            @click="completeRegistration(registration)"
-                        >
-                            {{ completingId === registration.id ? '...' : 'تم' }}
-                        </button>
-                        <span
-                            v-else
-                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white"
-                        >
-                            تم
-                        </span>
+                        <div class="flex shrink-0 flex-col gap-2">
+                            <template v-if="registration.is_waiting">
+                                <button
+                                    type="button"
+                                    class="rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+                                    :disabled="completingId === registration.id || absentId === registration.id"
+                                    @click="completeRegistration(registration)"
+                                >
+                                    {{ completingId === registration.id ? '...' : 'تم' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-2xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800 hover:bg-orange-100 disabled:opacity-60"
+                                    :disabled="completingId === registration.id || absentId === registration.id"
+                                    @click="markRegistrationAbsent(registration)"
+                                >
+                                    {{ absentId === registration.id ? '...' : 'مش موجود' }}
+                                </button>
+                            </template>
+                            <span
+                                v-else-if="registration.is_completed"
+                                class="rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white"
+                            >
+                                تم
+                            </span>
+                            <span
+                                v-else
+                                class="rounded-2xl bg-orange-500 px-3 py-3 text-sm font-black text-white"
+                            >
+                                مش موجود
+                            </span>
+                        </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-3xl font-black text-indigo-700">{{ registration.turn_number }}</p>
                             <p class="mt-1 font-bold text-slate-900">{{ registration.full_name }}</p>
                             <p
-                                v-if="registration.is_completed && registration.people_ahead !== null"
+                                v-if="!registration.is_waiting && registration.people_ahead !== null"
                                 class="mt-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-amber-800"
                             >
                                 {{ peopleAheadLabel(registration.people_ahead) }}

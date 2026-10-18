@@ -49,6 +49,7 @@ const registrationSearch = ref('');
 const registrationMessage = ref('');
 const registrationError = ref('');
 const completingRegistrationId = ref(null);
+const absentRegistrationId = ref(null);
 const search = ref('');
 const searchBy = ref('all');
 const stepFilter = ref('all');
@@ -320,6 +321,28 @@ async function completeRegistration(registration) {
             ?? 'تعذر إنهاء الدور.';
     } finally {
         completingRegistrationId.value = null;
+    }
+}
+
+async function markRegistrationAbsent(registration) {
+    if (!confirm(`تسجيل الدور ${registration.turn_number} كـ "مش موجود"؟`)) {
+        return;
+    }
+
+    absentRegistrationId.value = registration.id;
+    registrationError.value = '';
+
+    try {
+        const { data } = await axios.post(`/teller/student-registrations/${registration.id}/mark-absent`);
+        const ahead = data.registration?.people_ahead ?? 0;
+        registrationMessage.value = `الدور ${registration.turn_number} مش موجود. ${peopleAheadLabel(ahead)}.`;
+        await loadWaitingRegistrations();
+    } catch (error) {
+        registrationMessage.value = '';
+        registrationError.value = error.response?.data?.errors?.registration?.[0]
+            ?? 'تعذر تسجيل "مش موجود".';
+    } finally {
+        absentRegistrationId.value = null;
     }
 }
 
@@ -767,7 +790,7 @@ onUnmounted(() => {
                         <p class="text-sm text-slate-500">
                             {{ registrationSearch.trim()
                                 ? 'نتائج البحث'
-                                : `${waitingRegistrations.filter((item) => !item.is_completed).length} في الانتظار` }}
+                                : `${waitingRegistrations.filter((item) => item.is_waiting).length} في الانتظار` }}
                         </p>
                     </div>
                     <label class="relative w-full sm:max-w-xs">
@@ -795,28 +818,49 @@ onUnmounted(() => {
                         v-for="registration in waitingRegistrations"
                         :key="registration.id"
                         class="flex items-start gap-3 rounded-2xl border p-4 shadow-sm"
-                        :class="registration.is_completed ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-200 bg-white'"
+                        :class="{
+                            'border-emerald-200 bg-emerald-50/60': registration.is_completed,
+                            'border-orange-200 bg-orange-50/60': registration.is_absent,
+                            'border-slate-200 bg-white': registration.is_waiting,
+                        }"
                     >
-                        <button
-                            v-if="!registration.is_completed"
-                            type="button"
-                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white hover:bg-emerald-700 disabled:opacity-60"
-                            :disabled="completingRegistrationId === registration.id"
-                            @click="completeRegistration(registration)"
-                        >
-                            {{ completingRegistrationId === registration.id ? '...' : 'تم' }}
-                        </button>
-                        <span
-                            v-else
-                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white"
-                        >
-                            تم
-                        </span>
+                        <div class="flex shrink-0 flex-col gap-2">
+                            <template v-if="registration.is_waiting">
+                                <button
+                                    type="button"
+                                    class="rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+                                    :disabled="completingRegistrationId === registration.id || absentRegistrationId === registration.id"
+                                    @click="completeRegistration(registration)"
+                                >
+                                    {{ completingRegistrationId === registration.id ? '...' : 'تم' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-2xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800 hover:bg-orange-100 disabled:opacity-60"
+                                    :disabled="completingRegistrationId === registration.id || absentRegistrationId === registration.id"
+                                    @click="markRegistrationAbsent(registration)"
+                                >
+                                    {{ absentRegistrationId === registration.id ? '...' : 'مش موجود' }}
+                                </button>
+                            </template>
+                            <span
+                                v-else-if="registration.is_completed"
+                                class="rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white"
+                            >
+                                تم
+                            </span>
+                            <span
+                                v-else
+                                class="rounded-2xl bg-orange-500 px-3 py-3 text-sm font-black text-white"
+                            >
+                                مش موجود
+                            </span>
+                        </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-3xl font-black text-indigo-700">{{ registration.turn_number }}</p>
                             <p class="mt-1 font-bold text-slate-900">{{ registration.full_name }}</p>
                             <p
-                                v-if="registration.is_completed && registration.people_ahead !== null"
+                                v-if="!registration.is_waiting && registration.people_ahead !== null"
                                 class="mt-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-amber-800"
                             >
                                 {{ peopleAheadLabel(registration.people_ahead) }}

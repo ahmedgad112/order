@@ -108,6 +108,11 @@ class StudentRegistration extends Model
             || str_contains($message, 'service_date_turn_number');
     }
 
+    public static function resetDay(): int
+    {
+        return static::query()->delete();
+    }
+
     public function countPeopleAhead(): int
     {
         return (int) static::query()
@@ -125,8 +130,32 @@ class StudentRegistration extends Model
             ]);
         }
 
+        if ($this->status === StudentRegistrationStatus::Absent) {
+            throw ValidationException::withMessages([
+                'registration' => 'لا يمكن إنهاء دور مسجّل كـ "مش موجود".',
+            ]);
+        }
+
         $this->update([
             'status' => StudentRegistrationStatus::Completed,
+            'completed_at' => now(),
+            'completed_by' => $userId,
+            'people_ahead' => $this->countPeopleAhead(),
+        ]);
+
+        return $this->refresh();
+    }
+
+    public function markAbsentBy(?int $userId): self
+    {
+        if ($this->status !== StudentRegistrationStatus::Waiting) {
+            throw ValidationException::withMessages([
+                'registration' => 'يمكن تسجيل "مش موجود" للطلاب في الانتظار فقط.',
+            ]);
+        }
+
+        $this->update([
+            'status' => StudentRegistrationStatus::Absent,
             'completed_at' => now(),
             'completed_by' => $userId,
             'people_ahead' => $this->countPeopleAhead(),

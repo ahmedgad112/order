@@ -36,7 +36,7 @@ class AdminStudentRegistrationController extends Controller
 
         return response()->streamDownload(function () use ($sheets): void {
             echo $this->workbook($sheets);
-        }, 'student-roster.xls', [
+        }, 'student-roster.xml', [
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
         ]);
     }
@@ -51,12 +51,32 @@ class AdminStudentRegistrationController extends Controller
         ]);
     }
 
+    public function markAbsent(Request $request, StudentRegistration $studentRegistration): JsonResponse
+    {
+        $studentRegistration = $studentRegistration->markAbsentBy($request->user()?->id);
+
+        return response()->json([
+            'message' => 'تم تسجيل الطالب كـ "مش موجود".',
+            'registration' => new StudentRegistrationResource($studentRegistration),
+        ]);
+    }
+
     public function destroy(StudentRegistration $studentRegistration): JsonResponse
     {
         $studentRegistration->delete();
 
         return response()->json([
             'message' => 'تم حذف تسجيل الطالب.',
+        ]);
+    }
+
+    public function resetDay(): JsonResponse
+    {
+        $deleted = StudentRegistration::resetDay();
+
+        return response()->json([
+            'message' => 'تم تصفير أدوار اليوم. الدور هيبدأ من 1.',
+            'deleted' => $deleted,
         ]);
     }
 

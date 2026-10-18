@@ -74,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/services/{serviceSlug}/complete', [TellerQueueController::class, 'markService']);
         Route::get('/student-registrations', [TellerStudentRegistrationController::class, 'index']);
         Route::post('/student-registrations/{studentRegistration}/complete', [TellerStudentRegistrationController::class, 'complete']);
+        Route::post('/student-registrations/{studentRegistration}/mark-absent', [TellerStudentRegistrationController::class, 'markAbsent']);
     });
 
     Route::put('/admin/tickets/{ticket}', [AdminTicketController::class, 'update'])
@@ -97,7 +98,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
         Route::get('/student-registrations', [AdminStudentRegistrationController::class, 'index']);
         Route::get('/student-registrations/export', [AdminStudentRegistrationController::class, 'export']);
+        Route::post('/student-registrations/reset-day', [AdminStudentRegistrationController::class, 'resetDay']);
         Route::post('/student-registrations/{studentRegistration}/complete', [AdminStudentRegistrationController::class, 'complete']);
+        Route::post('/student-registrations/{studentRegistration}/mark-absent', [AdminStudentRegistrationController::class, 'markAbsent']);
         Route::delete('/student-registrations/{studentRegistration}', [AdminStudentRegistrationController::class, 'destroy']);
     });
 

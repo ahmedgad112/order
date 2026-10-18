@@ -348,6 +348,7 @@ class StudentRegistrationTest extends TestCase
 
         $content = $this->get('/api/admin/student-registrations/export')
             ->assertOk()
+            ->assertHeader('content-disposition', 'attachment; filename=student-roster.xml')
             ->streamedContent();
 
         $this->assertStringContainsString('الرقم القومي', $content);
@@ -402,6 +403,45 @@ class StudentRegistrationTest extends TestCase
         $this->postJson('/api/public/student-registrations', $this->payload())
             ->assertCreated()
             ->assertJsonPath('registration.academic_number', '2020123456');
+    }
+
+    public function test_manager_can_reset_day_turns_and_students_can_register_again_from_one(): void
+    {
+        StudentRegistration::factory()->create([
+            'academic_number' => '2020123456',
+            'national_id' => '29501011234567',
+            'turn_number' => 12,
+        ]);
+        StudentRegistration::factory()->create([
+            'academic_number' => '2020123457',
+            'national_id' => '29501011234568',
+            'turn_number' => 13,
+            'service_date' => now('Africa/Cairo')->subDay()->toDateString(),
+        ]);
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/student-registrations/reset-day')
+            ->assertOk()
+            ->assertJsonPath('message', 'تم تصفير أدوار اليوم. الدور هيبدأ من 1.')
+            ->assertJsonPath('deleted', 2);
+
+        $this->assertDatabaseCount('student_registrations', 0);
+
+        $this->postJson('/api/public/student-registrations', $this->payload())
+            ->assertCreated()
+            ->assertJsonPath('registration.turn_number', 1)
+            ->assertJsonPath('registration.academic_number', '2020123456');
+    }
+
+    public function test_teller_cannot_reset_day_turns(): void
+    {
+        StudentRegistration::factory()->create();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/admin/student-registrations/reset-day')
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('student_registrations', 1);
     }
 
     public function test_short_national_id_is_rejected(): void
@@ -650,6 +690,78 @@ class StudentRegistrationTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
                 'registration' => 'تم إنهاء هذا الدور من قبل.',
+            ]);
+    }
+
+    public function test_teller_can_mark_a_registration_absent(): void
+    {
+        StudentRegistration::factory()->create([
+            'turn_number' => 1,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        $teller = User::factory()->teller()->create();
+        $registration = StudentRegistration::factory()->create([
+            'turn_number' => 2,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        Sanctum::actingAs($teller);
+
+        $this->postJson('/api/teller/student-registrations/'.$registration->id.'/mark-absent')
+            ->assertOk()
+            ->assertJsonPath('message', 'تم تسجيل الطالب كـ "مش موجود".')
+            ->assertJsonPath('registration.status', 'absent')
+            ->assertJsonPath('registration.status_label', 'مش موجود')
+            ->assertJsonPath('registration.is_absent', true)
+            ->assertJsonPath('registration.people_ahead', 1);
+
+        $registration->refresh();
+
+        $this->assertSame(StudentRegistrationStatus::Absent, $registration->status);
+        $this->assertNotNull($registration->completed_at);
+        $this->assertSame($teller->id, $registration->completed_by);
+        $this->assertSame(1, $registration->people_ahead);
+    }
+
+    public function test_manager_can_mark_a_registration_absent_from_the_roster(): void
+    {
+        $registration = StudentRegistration::factory()->create([
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/student-registrations/'.$registration->id.'/mark-absent')
+            ->assertOk()
+            ->assertJsonPath('registration.status_label', 'مش موجود')
+            ->assertJsonPath('registration.is_absent', true);
+
+        $this->assertSame(StudentRegistrationStatus::Absent, $registration->fresh()->status);
+    }
+
+    public function test_marking_an_absent_registration_absent_again_returns_422(): void
+    {
+        $registration = StudentRegistration::factory()->create([
+            'status' => StudentRegistrationStatus::Absent,
+        ]);
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/student-registrations/'.$registration->id.'/mark-absent')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'registration' => 'يمكن تسجيل "مش موجود" للطلاب في الانتظار فقط.',
+            ]);
+    }
+
+    public function test_marking_an_absent_registration_done_returns_422(): void
+    {
+        $registration = StudentRegistration::factory()->create([
+            'status' => StudentRegistrationStatus::Absent,
+        ]);
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/student-registrations/'.$registration->id.'/complete')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'registration' => 'لا يمكن إنهاء دور مسجّل كـ "مش موجود".',
             ]);
     }
 
