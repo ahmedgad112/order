@@ -26,6 +26,8 @@ Route::prefix('public')->group(function (): void {
         ->middleware('throttle:20,1');
     Route::post('/student-registrations', [PublicStudentRegistrationController::class, 'store'])
         ->middleware('throttle:20,1');
+    Route::post('/student-registrations/lookup', [PublicStudentRegistrationController::class, 'lookup'])
+        ->middleware('throttle:30,1');
     Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket'])
         ->middleware('throttle:60,1');
     Route::post('/ticket-audio', [SpeechController::class, 'ticketAudio'])
@@ -95,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
         Route::get('/student-registrations', [AdminStudentRegistrationController::class, 'index']);
         Route::get('/student-registrations/export', [AdminStudentRegistrationController::class, 'export']);
+        Route::post('/student-registrations/{studentRegistration}/complete', [AdminStudentRegistrationController::class, 'complete']);
         Route::delete('/student-registrations/{studentRegistration}', [AdminStudentRegistrationController::class, 'destroy']);
     });
 

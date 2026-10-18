@@ -16,27 +16,19 @@ const search = ref('');
 const loading = ref(false);
 const downloading = ref(false);
 const deletingId = ref(null);
+const completingId = ref(null);
+const notice = ref('');
 const error = ref('');
 
-const groups = computed(() => {
-    const grouped = new Map();
+const orderedRegistrations = computed(() => [...registrations.value].sort((left, right) => {
+    const byTurn = Number(left.turn_number) - Number(right.turn_number);
 
-    for (const registration of registrations.value) {
-        const key = `${registration.department}::${registration.section_number}`;
+    return byTurn === 0 ? Number(left.id) - Number(right.id) : byTurn;
+}));
 
-        if (!grouped.has(key)) {
-            grouped.set(key, {
-                department: registration.department,
-                section_number: registration.section_number,
-                rows: [],
-            });
-        }
-
-        grouped.get(key).rows.push(registration);
-    }
-
-    return [...grouped.values()];
-});
+function peopleAheadLabel(count) {
+    return Number(count) === 0 ? 'مفيش حد قدامه' : `قدامه ${count} نفر`;
+}
 
 function formatDate(value) {
     if (!value) {
@@ -121,14 +113,22 @@ function downloadCurrent() {
     return download(currentFilters(), `سجل-الطلاب-${label}.xls`);
 }
 
-function downloadGroup(group) {
-    return download(
-        {
-            department: group.department,
-            section_number: group.section_number,
-        },
-        `سجل-الطلاب-${group.department}-سكشن-${group.section_number}.xls`,
-    );
+async function completeRegistration(registration) {
+    completingId.value = registration.id;
+    error.value = '';
+
+    try {
+        const { data } = await axios.post(`/admin/student-registrations/${registration.id}/complete`);
+        const ahead = data.registration?.people_ahead ?? 0;
+        notice.value = `تم إنهاء الدور ${registration.turn_number}. ${peopleAheadLabel(ahead)}.`;
+        await load(currentPage.value);
+    } catch (requestError) {
+        notice.value = '';
+        error.value = requestError.response?.data?.errors?.registration?.[0]
+            ?? 'تعذر إنهاء الدور.';
+    } finally {
+        completingId.value = null;
+    }
 }
 
 async function removeRegistration(registration) {
@@ -179,13 +179,13 @@ onMounted(() => {
 </script>
 
 <template>
-    <AppNavbar title="سجل الطلاب" subtitle="جداول التسجيل حسب القسم والسكشن">
+    <AppNavbar title="سجل الطلاب" subtitle="الأدوار مرتبة حتى لو اختلف السكشن">
         <main class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
             <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                         <h2 class="text-xl font-bold text-slate-900">الطلاب المسجلون</h2>
-                        <p class="mt-1 text-sm text-slate-500">{{ total }} طالب. كل سكشن في جدول مستقل، ويمكن تنزيل الجداول لفتحها في إكسل.</p>
+                        <p class="mt-1 text-sm text-slate-500">{{ total }} طالب. الأرقام ظاهرة بترتيب الدور، حتى لو الطلاب من سكاشن مختلفة.</p>
                     </div>
                     <button
                         type="button"
@@ -225,7 +225,7 @@ onMounted(() => {
                             v-model="search"
                             type="search"
                             class="rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-indigo-500"
-                            placeholder="الاسم أو الرقم الأكاديمي أو القومي"
+                            placeholder="الاسم أو الرقم الأكاديمي أو القومي أو رقم الدور"
                         />
                     </label>
                     <div class="flex items-end gap-2">
@@ -248,80 +248,78 @@ onMounted(() => {
                 </form>
             </section>
 
+            <p v-if="notice" class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{{ notice }}</p>
             <p v-if="error" class="rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</p>
 
             <p v-if="!loading && total === 0" class="rounded-3xl bg-white px-5 py-10 text-center text-slate-500 shadow-sm">
                 لا يوجد طلاب مسجلون بهذه البيانات.
             </p>
 
-            <section
-                v-for="group in groups"
-                :key="`${group.department}-${group.section_number}`"
-                class="overflow-hidden rounded-3xl bg-white shadow-sm"
-            >
-                <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-900">{{ group.department }}</h3>
-                        <p class="text-sm text-slate-500">سكشن {{ group.section_number }}</p>
-                    </div>
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-                        :disabled="downloading"
-                        @click="downloadGroup(group)"
+            <section v-else-if="orderedRegistrations.length" class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <article
+                        v-for="registration in orderedRegistrations"
+                        :key="registration.id"
+                        class="flex items-start gap-3 rounded-2xl border p-4"
+                        :class="registration.is_completed ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-slate-50'"
                     >
-                        <Download class="h-4 w-4" />
-                        تنزيل جدول السكشن
-                    </button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-slate-50 text-slate-500">
-                            <tr>
-                                <th class="px-4 py-3 text-start font-semibold">الدور</th>
-                                <th class="px-4 py-3 text-start font-semibold">الاسم</th>
-                                <th class="px-4 py-3 text-start font-semibold">الرقم الأكاديمي</th>
-                                <th class="px-4 py-3 text-start font-semibold">الرقم القومي</th>
-                                <th class="px-4 py-3 text-start font-semibold">القسم</th>
-                                <th class="px-4 py-3 text-start font-semibold">السكشن</th>
-                                <th class="px-4 py-3 text-start font-semibold">المجموعة</th>
-                                <th class="px-4 py-3 text-start font-semibold">الحالة</th>
-                                <th class="px-4 py-3 text-start font-semibold">وقت التسجيل</th>
-                                <th class="px-4 py-3 text-start font-semibold">حذف</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="registration in group.rows" :key="registration.id" class="border-t border-slate-100">
-                                <td class="px-4 py-3 text-lg font-black text-indigo-700">{{ registration.turn_number }}</td>
-                                <td class="px-4 py-3 font-semibold text-slate-900">{{ registration.full_name }}</td>
-                                <td class="px-4 py-3 tracking-wider text-slate-700">{{ registration.academic_number }}</td>
-                                <td class="px-4 py-3 tracking-wider text-slate-700">{{ registration.national_id }}</td>
-                                <td class="px-4 py-3 text-slate-700">{{ registration.department }}</td>
-                                <td class="px-4 py-3 text-slate-700">{{ registration.section_number }}</td>
-                                <td class="px-4 py-3 font-bold text-slate-900">{{ registration.student_group }}</td>
-                                <td class="px-4 py-3">
-                                    <span
-                                        class="rounded-full px-2.5 py-1 text-xs font-bold"
-                                        :class="registration.is_completed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
-                                    >
-                                        {{ registration.status_label }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-slate-500">{{ formatDate(registration.created_at) }}</td>
-                                <td class="px-4 py-3">
-                                    <button
-                                        type="button"
-                                        class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                                        :disabled="deletingId === registration.id"
-                                        @click="removeRegistration(registration)"
-                                    >
-                                        <Trash2 class="h-4 w-4" />
-                                        حذف
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                        <button
+                            v-if="!registration.is_completed"
+                            type="button"
+                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+                            :disabled="completingId === registration.id"
+                            @click="completeRegistration(registration)"
+                        >
+                            {{ completingId === registration.id ? '...' : 'تم' }}
+                        </button>
+                        <span
+                            v-else
+                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white"
+                        >
+                            تم
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-3xl font-black text-indigo-700">{{ registration.turn_number }}</p>
+                            <p class="mt-1 font-bold text-slate-900">{{ registration.full_name }}</p>
+                            <p
+                                v-if="registration.is_completed && registration.people_ahead !== null"
+                                class="mt-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-amber-800"
+                            >
+                                {{ peopleAheadLabel(registration.people_ahead) }}
+                            </p>
+                            <dl class="mt-3 grid gap-1 text-sm text-slate-600">
+                                <div class="flex justify-between gap-3">
+                                    <dt>الرقم الأكاديمي</dt>
+                                    <dd class="font-semibold tracking-wider">{{ registration.academic_number }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt>الرقم القومي</dt>
+                                    <dd class="font-semibold tracking-wider">{{ registration.national_id }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt>القسم / السكشن</dt>
+                                    <dd class="font-semibold">{{ registration.department }} — {{ registration.section_number }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt>المجموعة</dt>
+                                    <dd class="font-bold text-slate-900">{{ registration.group_code }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt>التسجيل</dt>
+                                    <dd>{{ formatDate(registration.created_at) }}</dd>
+                                </div>
+                            </dl>
+                            <button
+                                type="button"
+                                class="mt-3 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                :disabled="deletingId === registration.id"
+                                @click="removeRegistration(registration)"
+                            >
+                                <Trash2 class="h-4 w-4" />
+                                حذف
+                            </button>
+                        </div>
+                    </article>
                 </div>
             </section>
 

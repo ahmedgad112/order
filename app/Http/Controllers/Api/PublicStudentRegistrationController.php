@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\LookupStudentRegistrationRequest;
 use App\Http\Requests\StoreStudentRegistrationRequest;
 use App\Http\Resources\StudentRegistrationResource;
 use App\Models\StudentRegistration;
@@ -20,6 +21,7 @@ class PublicStudentRegistrationController extends Controller
             'national_id',
             'department',
             'section_number',
+            'group_number',
             'student_group',
         ]);
 
@@ -47,5 +49,36 @@ class PublicStudentRegistrationController extends Controller
             'message' => 'تم تسجيل بياناتك بنجاح.',
             'registration' => new StudentRegistrationResource($registration),
         ], 201);
+    }
+
+    public function lookup(LookupStudentRegistrationRequest $request): JsonResponse
+    {
+        $query = $request->validated('query');
+        $registration = StudentRegistration::query()
+            ->where('academic_number', $query)
+            ->first()
+            ?? StudentRegistration::query()
+                ->where('national_id', $query)
+                ->first();
+
+        if ($registration === null) {
+            throw ValidationException::withMessages([
+                'query' => 'لا يوجد تسجيل بهذه البيانات.',
+            ]);
+        }
+
+        return response()->json([
+            'registration' => [
+                'full_name' => $registration->full_name,
+                'turn_number' => $registration->turn_number,
+                'group_number' => $registration->group_number,
+                'student_group' => $registration->student_group?->value,
+                'group_code' => $registration->groupCode(),
+                'department' => $registration->department,
+                'section_number' => $registration->section_number,
+                'status' => $registration->status?->value,
+                'status_label' => $registration->status?->label(),
+            ],
+        ]);
     }
 }

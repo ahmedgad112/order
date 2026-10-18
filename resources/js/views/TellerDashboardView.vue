@@ -11,6 +11,7 @@ import {
     Plus,
     RefreshCw,
     RotateCcw,
+    Search,
     SkipForward,
     UserX,
     VolumeX,
@@ -44,6 +45,9 @@ const restartingCalls = ref(false);
 const skippingId = ref(null);
 const recallingId = ref(null);
 const waitingRegistrations = ref([]);
+const registrationSearch = ref('');
+const registrationMessage = ref('');
+const registrationError = ref('');
 const completingRegistrationId = ref(null);
 const search = ref('');
 const searchBy = ref('all');
@@ -283,23 +287,36 @@ async function loadTickets(silent = false) {
 
 async function loadWaitingRegistrations() {
     try {
-        const { data } = await axios.get('/teller/student-registrations');
+        const params = {};
+        const term = registrationSearch.value.trim();
+
+        if (term) {
+            params.search = term;
+        }
+
+        const { data } = await axios.get('/teller/student-registrations', { params });
         waitingRegistrations.value = data.registrations ?? [];
     } catch {
         // Keep the last list when the refresh fails.
     }
 }
 
+function peopleAheadLabel(count) {
+    return Number(count) === 0 ? 'مفيش حد قدامه' : `قدامه ${count} نفر`;
+}
+
 async function completeRegistration(registration) {
     completingRegistrationId.value = registration.id;
-    actionError.value = '';
+    registrationError.value = '';
 
     try {
-        await axios.post(`/teller/student-registrations/${registration.id}/complete`);
-        actionMessage.value = `تم إنهاء الدور ${registration.turn_number}.`;
+        const { data } = await axios.post(`/teller/student-registrations/${registration.id}/complete`);
+        const ahead = data.registration?.people_ahead ?? 0;
+        registrationMessage.value = `تم إنهاء الدور ${registration.turn_number}. ${peopleAheadLabel(ahead)}.`;
         await loadWaitingRegistrations();
     } catch (error) {
-        actionError.value = error.response?.data?.errors?.registration?.[0]
+        registrationMessage.value = '';
+        registrationError.value = error.response?.data?.errors?.registration?.[0]
             ?? 'تعذر إنهاء الدور.';
     } finally {
         completingRegistrationId.value = null;
@@ -646,10 +663,18 @@ function onKeydown(event) {
 }
 
 let searchTimer = null;
+let registrationSearchTimer = null;
 let unsubscribeEcho = null;
 let stopAutoRefresh = null;
 
 watch([stepFilter, typeFilter], () => loadTickets());
+
+watch(registrationSearch, () => {
+    clearTimeout(registrationSearchTimer);
+    registrationSearchTimer = setTimeout(() => {
+        loadWaitingRegistrations();
+    }, 300);
+});
 
 watch(search, () => {
     clearTimeout(searchTimer);
@@ -686,6 +711,7 @@ onMounted(() => {
 onUnmounted(() => {
     window.removeEventListener('keydown', onKeydown);
     clearTimeout(searchTimer);
+    clearTimeout(registrationSearchTimer);
     unsubscribeEcho?.();
     stopAutoRefresh?.();
 });
@@ -735,49 +761,81 @@ onUnmounted(() => {
             </section>
 
             <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
-                <div class="flex items-center justify-between gap-3">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h2 class="text-lg font-bold text-slate-900">أدوار تسجيل الطلاب</h2>
-                        <p class="text-sm text-slate-500">{{ waitingRegistrations.length }} في الانتظار</p>
+                        <h2 class="text-lg font-bold text-slate-900">الطلاب المسجلون</h2>
+                        <p class="text-sm text-slate-500">
+                            {{ registrationSearch.trim()
+                                ? 'نتائج البحث'
+                                : `${waitingRegistrations.filter((item) => !item.is_completed).length} في الانتظار` }}
+                        </p>
                     </div>
+                    <label class="relative w-full sm:max-w-xs">
+                        <span class="sr-only">بحث في المسجلين</span>
+                        <Search class="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                            v-model="registrationSearch"
+                            type="search"
+                            class="w-full rounded-xl border border-slate-200 py-2.5 ps-9 pe-3 text-sm outline-none focus:border-indigo-500"
+                            placeholder="ابحث بالاسم أو الرقم ويظهر الدور"
+                        />
+                    </label>
                 </div>
-                <p v-if="waitingRegistrations.length === 0" class="mt-4 text-sm text-slate-500">
-                    لا يوجد طلاب منتظرون من صفحة التسجيل.
+                <p v-if="registrationMessage" class="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+                    {{ registrationMessage }}
                 </p>
-                <div v-else class="mt-4 grid gap-3 sm:grid-cols-2">
+                <p v-if="registrationError" class="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                    {{ registrationError }}
+                </p>
+                <p v-if="waitingRegistrations.length === 0" class="mt-4 text-sm text-slate-500">
+                    {{ registrationSearch.trim() ? 'لا يوجد تسجيل بهذه البيانات.' : 'لا يوجد طلاب منتظرون من صفحة التسجيل.' }}
+                </p>
+                <div v-else class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <article
                         v-for="registration in waitingRegistrations"
                         :key="registration.id"
-                        class="rounded-2xl border border-slate-200 p-4"
+                        class="flex items-start gap-3 rounded-2xl border p-4 shadow-sm"
+                        :class="registration.is_completed ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-200 bg-white'"
                     >
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="text-3xl font-black text-indigo-700">{{ registration.turn_number }}</p>
-                                <p class="mt-1 font-bold text-slate-900">{{ registration.full_name }}</p>
-                            </div>
-                            <button
-                                type="button"
-                                class="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
-                                :disabled="completingRegistrationId === registration.id"
-                                @click="completeRegistration(registration)"
+                        <button
+                            v-if="!registration.is_completed"
+                            type="button"
+                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+                            :disabled="completingRegistrationId === registration.id"
+                            @click="completeRegistration(registration)"
+                        >
+                            {{ completingRegistrationId === registration.id ? '...' : 'تم' }}
+                        </button>
+                        <span
+                            v-else
+                            class="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-base font-black text-white"
+                        >
+                            تم
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-3xl font-black text-indigo-700">{{ registration.turn_number }}</p>
+                            <p class="mt-1 font-bold text-slate-900">{{ registration.full_name }}</p>
+                            <p
+                                v-if="registration.is_completed && registration.people_ahead !== null"
+                                class="mt-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-amber-800"
                             >
-                                {{ completingRegistrationId === registration.id ? 'جاري...' : 'تم' }}
-                            </button>
+                                {{ peopleAheadLabel(registration.people_ahead) }}
+                            </p>
+                            <dl class="mt-3 grid gap-1 text-sm text-slate-600">
+                                <div class="flex justify-between gap-3">
+                                    <dt>الرقم القومي</dt>
+                                    <dd class="font-semibold tracking-wider">{{ registration.national_id }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt>القسم / السكشن</dt>
+                                    <dd class="font-semibold">{{ registration.department }} — {{ registration.section_number }}</dd>
+                                </div>
+                                <div class="flex justify-between gap-3">
+                                    <dt>المجموعة</dt>
+                                    <dd class="font-bold text-slate-900">{{ registration.group_code }}</dd>
+                                </div>
+                            </dl>
                         </div>
-                        <dl class="mt-3 grid gap-1 text-sm text-slate-600">
-                            <div class="flex justify-between gap-3">
-                                <dt>الرقم القومي</dt>
-                                <dd class="font-semibold tracking-wider">{{ registration.national_id }}</dd>
-                            </div>
-                            <div class="flex justify-between gap-3">
-                                <dt>القسم / السكشن</dt>
-                                <dd class="font-semibold">{{ registration.department }} — {{ registration.section_number }}</dd>
-                            </div>
-                            <div class="flex justify-between gap-3">
-                                <dt>المجموعة</dt>
-                                <dd class="font-bold text-slate-900">{{ registration.student_group }}</dd>
-                            </div>
-                        </dl>
                     </article>
                 </div>
             </section>

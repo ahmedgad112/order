@@ -2,23 +2,26 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\StudentRegistrationStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StudentRegistrationResource;
 use App\Models\StudentRegistration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Collection;
 
 class TellerStudentRegistrationController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $registrations = StudentRegistration::query()
-            ->where('status', StudentRegistrationStatus::Waiting)
-            ->orderBy('service_date')
-            ->orderBy('turn_number')
-            ->get();
+        $search = trim((string) ($request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+        ])['search'] ?? ''));
+
+        $registrations = $search === ''
+            ? $this->todayRoster()
+            : StudentRegistration::query()
+                ->matchingRoster('', null, $search)
+                ->get();
 
         return response()->json([
             'registrations' => StudentRegistrationResource::collection($registrations)->resolve(),
@@ -27,21 +30,23 @@ class TellerStudentRegistrationController extends Controller
 
     public function complete(Request $request, StudentRegistration $studentRegistration): JsonResponse
     {
-        if ($studentRegistration->status === StudentRegistrationStatus::Completed) {
-            throw ValidationException::withMessages([
-                'registration' => 'تم إنهاء هذا الدور من قبل.',
-            ]);
-        }
-
-        $studentRegistration->update([
-            'status' => StudentRegistrationStatus::Completed,
-            'completed_at' => now(),
-            'completed_by' => $request->user()?->id,
-        ]);
+        $studentRegistration = $studentRegistration->markCompletedBy($request->user()?->id);
 
         return response()->json([
             'message' => 'تم إنهاء الدور.',
-            'registration' => new StudentRegistrationResource($studentRegistration->fresh()),
+            'registration' => new StudentRegistrationResource($studentRegistration),
         ]);
+    }
+
+    /**
+     * @return Collection<int, StudentRegistration>
+     */
+    private function todayRoster(): Collection
+    {
+        return StudentRegistration::query()
+            ->whereDate('service_date', StudentRegistration::currentServiceDate())
+            ->orderBy('turn_number')
+            ->orderBy('id')
+            ->get();
     }
 }

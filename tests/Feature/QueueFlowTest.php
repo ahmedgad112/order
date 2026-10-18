@@ -36,6 +36,26 @@ class QueueFlowTest extends TestCase
         $this->assertDatabaseCount('queue_tickets', 0);
     }
 
+    public function test_issued_tickets_in_the_same_series_get_unique_sequential_numbers(): void
+    {
+        QueueSystemSetting::current();
+
+        $numbers = [];
+
+        for ($index = 1; $index <= 8; $index++) {
+            $response = $this->issueTicketAsStaff([
+                'full_name' => "عميل {$index}",
+                'order_number' => (string) (123456780 + $index),
+                'request_type' => 'nomination_card',
+            ])->assertCreated();
+
+            $numbers[] = $response->json('ticket.ticket_number');
+        }
+
+        $this->assertSame(['OT1', 'OT2', 'OT3', 'OT4', 'OT5', 'OT6', 'OT7', 'OT8'], $numbers);
+        $this->assertCount(8, QueueTicket::query()->pluck('ticket_number')->unique());
+    }
+
     public function test_public_queue_status_returns_the_same_counts_on_repeated_reads(): void
     {
         QueueSystemSetting::current();

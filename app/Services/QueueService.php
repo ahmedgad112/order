@@ -79,31 +79,40 @@ class QueueService
             ]);
         }
 
-        $tickets = DB::transaction(function () use ($data, $studentKind, $requestType, $count, $college): Collection {
-            $sessionStartedAt = QueueTicket::currentSessionStartedAt();
-            $maxNumber = QueueTicket::query()
-                ->today()
-                ->forTicketSeries($studentKind, $requestType)
-                ->lockForUpdate()
-                ->orderByDesc('ticket_number')
-                ->value('ticket_number');
+        $sessionStartedAt = QueueTicket::currentSessionStartedAt();
+        $seriesKey = $studentKind->value.':'.($requestType ?? 'none');
+        $lockKey = sprintf(
+            'queue-ticket-number:%s:%s',
+            $sessionStartedAt->timestamp,
+            $seriesKey,
+        );
 
-            $created = collect();
+        $tickets = Cache::lock($lockKey, 15)->block(10, function () use ($data, $studentKind, $requestType, $count, $college, $sessionStartedAt): Collection {
+            return DB::transaction(function () use ($data, $studentKind, $requestType, $count, $college, $sessionStartedAt): Collection {
+                $maxNumber = QueueTicket::query()
+                    ->today()
+                    ->forTicketSeries($studentKind, $requestType)
+                    ->orderByDesc('ticket_number')
+                    ->lockForUpdate()
+                    ->value('ticket_number');
 
-            for ($offset = 1; $offset <= $count; $offset++) {
-                $created->push(QueueTicket::query()->create([
-                    'ticket_number' => ($maxNumber ?? 0) + $offset,
-                    'session_started_at' => $sessionStartedAt,
-                    'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : null,
-                    'student_kind' => $studentKind,
-                    'request_type' => $requestType,
-                    'college' => $college,
-                    'order_number' => filled($data['order_number'] ?? null) ? $data['order_number'] : null,
-                    'status' => TicketStatus::Waiting,
-                ]));
-            }
+                $created = collect();
 
-            return $created;
+                for ($offset = 1; $offset <= $count; $offset++) {
+                    $created->push(QueueTicket::query()->create([
+                        'ticket_number' => ($maxNumber ?? 0) + $offset,
+                        'session_started_at' => $sessionStartedAt,
+                        'full_name' => filled($data['full_name'] ?? null) ? $data['full_name'] : null,
+                        'student_kind' => $studentKind,
+                        'request_type' => $requestType,
+                        'college' => $college,
+                        'order_number' => filled($data['order_number'] ?? null) ? $data['order_number'] : null,
+                        'status' => TicketStatus::Waiting,
+                    ]));
+                }
+
+                return $created;
+            });
         });
 
         $tickets->each(fn (QueueTicket $ticket) => $this->broadcastSafely(new TicketIssuedEvent($ticket)));

@@ -24,6 +24,7 @@ class StoreStudentRegistrationRequest extends FormRequest
             'national_id' => ['required', 'digits:14', Rule::unique('student_registrations', 'national_id')],
             'department' => ['required', 'string', 'min:2', 'max:100'],
             'section_number' => ['required', 'integer', 'min:1', 'max:999'],
+            'group_number' => ['required', 'integer', 'min:1', 'max:999'],
             'student_group' => ['required', Rule::in(StudentRegistrationGroup::values())],
         ];
     }
@@ -48,8 +49,12 @@ class StoreStudentRegistrationRequest extends FormRequest
             'section_number.integer' => 'رقم السكشن يجب أن يكون رقمًا.',
             'section_number.min' => 'رقم السكشن يجب أن يكون من 1 إلى 999.',
             'section_number.max' => 'رقم السكشن يجب أن يكون من 1 إلى 999.',
-            'student_group.required' => 'يجب اختيار المجموعة.',
-            'student_group.in' => 'المجموعة يجب أن تكون A أو B.',
+            'group_number.required' => 'رقم المجموعة مطلوب.',
+            'group_number.integer' => 'رقم المجموعة يجب أن يكون رقمًا.',
+            'group_number.min' => 'رقم المجموعة يجب أن يكون من 1 إلى 999.',
+            'group_number.max' => 'رقم المجموعة يجب أن يكون من 1 إلى 999.',
+            'student_group.required' => 'يجب اختيار A أو B.',
+            'student_group.in' => 'يجب اختيار A أو B.',
         ];
     }
 
@@ -61,6 +66,7 @@ class StoreStudentRegistrationRequest extends FormRequest
             'academic_number' => $this->normalizeNumber($this->input('academic_number')),
             'national_id' => $this->normalizeNumber($this->input('national_id')),
             'section_number' => $this->normalizeNumber($this->input('section_number')),
+            'group_number' => $this->normalizeNumber($this->input('group_number')),
             'student_group' => $this->normalizeGroup($this->input('student_group')),
         ]);
     }

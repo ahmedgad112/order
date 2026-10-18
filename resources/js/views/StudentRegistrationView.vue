@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import { ArrowRight, Building2, CheckCircle2, CreditCard, Hash, Layers, User } from 'lucide-vue-next';
+import { ArrowRight, Building2, CheckCircle2, CreditCard, Hash, Layers, Search, User } from 'lucide-vue-next';
 import { axios } from '../bootstrap';
 import AppNavbar from '../components/AppNavbar.vue';
 
@@ -24,9 +24,16 @@ function emptyForm() {
         national_id: '',
         department: '',
         section_number: '',
+        group_number: '',
         student_group: '',
     };
 }
+
+const lookupQuery = ref('');
+const lookupResult = ref(null);
+const lookupError = ref('');
+const lookingUp = ref(false);
+const groupChoiceReady = computed(() => /^\d+$/.test(form.value.group_number) && Number(form.value.group_number) >= 1);
 
 function digitsOnly(value, maxLength) {
     const normalized = String(value ?? '').replace(/[٠-٩۰-۹]/g, (char) => digitMap[char] ?? '');
@@ -42,6 +49,20 @@ function onAcademicNumberInput(event) {
 function onSectionInput(event) {
     form.value.section_number = digitsOnly(event.target.value, 3);
     event.target.value = form.value.section_number;
+}
+
+function onGroupNumberInput(event) {
+    form.value.group_number = digitsOnly(event.target.value, 3);
+    event.target.value = form.value.group_number;
+
+    if (!groupChoiceReady.value) {
+        form.value.student_group = '';
+    }
+}
+
+function onLookupInput(event) {
+    lookupQuery.value = digitsOnly(event.target.value, 20);
+    event.target.value = lookupQuery.value;
 }
 
 function onNationalIdInput(event) {
@@ -75,8 +96,12 @@ function validateClient() {
         errors.section_number = 'رقم السكشن يجب أن يكون من 1 إلى 999.';
     }
 
-    if (!['A', 'B'].includes(form.value.student_group)) {
-        errors.student_group = 'يجب اختيار المجموعة A أو B.';
+    const groupNumber = Number(form.value.group_number);
+
+    if (!Number.isInteger(groupNumber) || groupNumber < 1 || groupNumber > 999) {
+        errors.group_number = 'رقم المجموعة يجب أن يكون من 1 إلى 999.';
+    } else if (!['A', 'B'].includes(form.value.student_group)) {
+        errors.student_group = 'يجب اختيار A أو B.';
     }
 
     fieldErrors.value = errors;
@@ -113,6 +138,7 @@ async function submitForm() {
         national_id: form.value.national_id,
         department: form.value.department.trim().replace(/\s+/g, ' '),
         section_number: Number(form.value.section_number),
+        group_number: Number(form.value.group_number),
         student_group: form.value.student_group,
     };
 
@@ -132,6 +158,31 @@ function registerAnother() {
     fieldErrors.value = {};
 }
 
+async function lookupRegistration() {
+    const query = lookupQuery.value.trim();
+
+    if (!/^\d{4,20}$/.test(query)) {
+        lookupError.value = 'اكتب الرقم الأكاديمي أو الرقم القومي بشكل صحيح.';
+        lookupResult.value = null;
+
+        return;
+    }
+
+    lookingUp.value = true;
+    lookupError.value = '';
+
+    try {
+        const { data } = await axios.post('/public/student-registrations/lookup', { query });
+        lookupResult.value = data.registration;
+    } catch (error) {
+        lookupResult.value = null;
+        lookupError.value = error?.response?.data?.errors?.query?.[0]
+            ?? 'تعذر البحث. حاول مرة أخرى.';
+    } finally {
+        lookingUp.value = false;
+    }
+}
+
 const inputClass = 'w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100';
 </script>
 
@@ -142,6 +193,38 @@ const inputClass = 'w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg
         page-class="bg-gradient-to-br from-blue-50 via-white to-indigo-50"
     >
         <main class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
+            <section id="lookup" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8">
+                <h2 class="text-center text-2xl font-bold text-slate-800">ابحث عن دورك</h2>
+                <p class="mt-2 text-center text-sm text-slate-500">اكتب الرقم الأكاديمي أو الرقم القومي عشان يظهر رقم الدور.</p>
+                <form class="mt-6 flex flex-col gap-3 sm:flex-row" @submit.prevent="lookupRegistration">
+                    <input
+                        :value="lookupQuery"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        maxlength="20"
+                        class="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg tracking-widest outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                        placeholder="الرقم الأكاديمي أو القومي"
+                        @input="onLookupInput"
+                    />
+                    <button
+                        type="submit"
+                        :disabled="lookingUp"
+                        class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-4 text-lg font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+                    >
+                        <Search class="h-5 w-5" />
+                        {{ lookingUp ? 'جاري البحث...' : 'بحث' }}
+                    </button>
+                </form>
+                <p v-if="lookupError" class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-center text-red-700">{{ lookupError }}</p>
+                <div v-if="lookupResult" class="mt-6 rounded-2xl bg-indigo-50 px-5 py-6 text-center">
+                    <p class="text-sm font-semibold text-slate-500">دور {{ lookupResult.full_name }}</p>
+                    <p class="text-6xl font-black text-indigo-700">{{ lookupResult.turn_number }}</p>
+                    <p class="mt-2 font-bold text-slate-800">المجموعة {{ lookupResult.group_code }}</p>
+                    <p class="mt-1 text-sm text-slate-600">{{ lookupResult.department }} — سكشن {{ lookupResult.section_number }} — {{ lookupResult.status_label }}</p>
+                </div>
+            </section>
+
             <RouterLink
                 to="/"
                 class="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-indigo-700"
@@ -183,7 +266,7 @@ const inputClass = 'w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg
                         </div>
                         <div class="rounded-2xl bg-slate-50 px-4 py-3">
                             <dt class="text-xs font-semibold text-slate-500">المجموعة</dt>
-                            <dd class="font-bold text-slate-900">{{ submitted.student_group }}</dd>
+                            <dd class="font-bold text-slate-900">{{ submitted.group_code }}</dd>
                         </div>
                     </div>
                 </dl>
@@ -201,7 +284,7 @@ const inputClass = 'w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg
                 class="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8"
             >
                 <h2 class="text-center text-2xl font-bold text-slate-800 sm:text-3xl">سجّل بياناتك</h2>
-                <p class="mt-2 text-center text-sm text-slate-500">اكتب بياناتك واختار مجموعتك. هتاخد رقم دور بعد الحفظ.</p>
+                <p class="mt-2 text-center text-sm text-slate-500">اكتب رقم المجموعة، وبعدين اختار A أو B. هتاخد رقم دور بعد الحفظ.</p>
 
                 <p v-if="fieldErrors.general" class="mt-6 rounded-xl bg-red-50 px-4 py-3 text-center text-red-700">
                     {{ fieldErrors.general }}
@@ -296,8 +379,27 @@ const inputClass = 'w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg
                         <p v-if="fieldErrors.section_number" class="mt-2 text-sm text-red-600">{{ fieldErrors.section_number }}</p>
                     </div>
 
-                    <fieldset>
-                        <legend class="mb-2 text-sm font-semibold text-slate-700">المجموعة</legend>
+                    <div>
+                        <label class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700" for="group-number">
+                            <Hash class="h-4 w-4" />
+                            رقم المجموعة
+                        </label>
+                        <input
+                            id="group-number"
+                            :value="form.group_number"
+                            type="text"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            maxlength="3"
+                            :class="inputClass"
+                            placeholder="مثال: 4"
+                            @input="onGroupNumberInput"
+                        />
+                        <p v-if="fieldErrors.group_number" class="mt-2 text-sm text-red-600">{{ fieldErrors.group_number }}</p>
+                    </div>
+
+                    <fieldset v-if="groupChoiceReady">
+                        <legend class="mb-2 text-sm font-semibold text-slate-700">بعد الرقم، اختار A أو B</legend>
                         <div class="grid grid-cols-2 gap-3">
                             <label
                                 v-for="group in ['A', 'B']"

@@ -49,15 +49,24 @@ onUnmounted(() => {
             <div class="rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-xl sm:p-8">
                 <h2 class="text-2xl font-bold text-slate-800 sm:text-3xl">تسجيل بياناتك</h2>
                 <p class="mt-3 text-sm text-slate-500 sm:text-base">
-                    اكتب اسمك ورقمك القومي والأكاديمي وقسمك وسكشنك ومجموعتك. هتاخد دور، وموظف الشباك يقدر يعلّمه تم.
+                    اكتب اسمك ورقمك القومي والأكاديمي وقسمك وسكشنك، وبعد رقم المجموعة اختار A أو B. هتاخد دور، وموظف الشباك يقدر يعلّمه تم.
                 </p>
-                <RouterLink
-                    to="/student-register"
-                    class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-base font-bold text-white hover:bg-emerald-700 sm:w-auto"
-                >
-                    <GraduationCap class="h-5 w-5" />
-                    سجّل بياناتك
-                </RouterLink>
+                <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                    <RouterLink
+                        to="/student-register"
+                        class="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-base font-bold text-white hover:bg-emerald-700 sm:w-auto"
+                    >
+                        <GraduationCap class="h-5 w-5" />
+                        سجّل بياناتك
+                    </RouterLink>
+                    <RouterLink
+                        to="/student-register#lookup"
+                        class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-3 text-base font-bold text-indigo-800 hover:bg-indigo-100 sm:w-auto"
+                    >
+                        <Search class="h-5 w-5" />
+                        ابحث عن دورك
+                    </RouterLink>
+                </div>
             </div>
 
             <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-xl sm:mt-6 sm:p-8">

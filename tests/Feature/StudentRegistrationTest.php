@@ -29,6 +29,7 @@ class StudentRegistrationTest extends TestCase
             'national_id' => '29501011234567',
             'department' => 'تكنولوجيا المعلومات',
             'section_number' => 2,
+            'group_number' => 4,
             'student_group' => 'A',
         ], $overrides);
     }
@@ -43,7 +44,9 @@ class StudentRegistrationTest extends TestCase
             ->assertJsonPath('registration.full_name', 'أحمد محمود علي')
             ->assertJsonPath('registration.academic_number', '2020123456')
             ->assertJsonPath('registration.national_id', '29501011234567')
+            ->assertJsonPath('registration.group_number', 4)
             ->assertJsonPath('registration.student_group', 'A')
+            ->assertJsonPath('registration.group_code', '4A')
             ->assertJsonPath('registration.turn_number', 1)
             ->assertJsonPath('registration.status', 'waiting')
             ->assertJsonPath('registration.department', 'تكنولوجيا المعلومات')
@@ -53,6 +56,7 @@ class StudentRegistrationTest extends TestCase
             'full_name' => 'أحمد محمود علي',
             'academic_number' => '2020123456',
             'national_id' => '29501011234567',
+            'group_number' => 4,
             'student_group' => 'A',
             'turn_number' => 1,
             'status' => 'waiting',
@@ -67,12 +71,15 @@ class StudentRegistrationTest extends TestCase
             'academic_number' => '٢٠٢٠ ١٢٣٤٥٦',
             'national_id' => '٢٩٥٠١٠١١٢٣٤٥٦٧',
             'section_number' => '٣',
+            'group_number' => '١٢',
             'student_group' => 'b',
         ]))
             ->assertCreated()
             ->assertJsonPath('registration.academic_number', '2020123456')
             ->assertJsonPath('registration.national_id', '29501011234567')
+            ->assertJsonPath('registration.group_number', 12)
             ->assertJsonPath('registration.student_group', 'B')
+            ->assertJsonPath('registration.group_code', '12B')
             ->assertJsonPath('registration.section_number', 3);
 
         $this->assertDatabaseHas('student_registrations', [
@@ -91,7 +98,8 @@ class StudentRegistrationTest extends TestCase
                 'national_id' => 'الرقم القومي مطلوب.',
                 'department' => 'القسم مطلوب.',
                 'section_number' => 'رقم السكشن مطلوب.',
-                'student_group' => 'يجب اختيار المجموعة.',
+                'group_number' => 'رقم المجموعة مطلوب.',
+                'student_group' => 'يجب اختيار A أو B.',
             ]);
 
         $this->assertDatabaseCount('student_registrations', 0);
@@ -238,6 +246,77 @@ class StudentRegistrationTest extends TestCase
             ->assertJsonPath('registrations.0.section_number', 1);
     }
 
+    public function test_manager_lists_students_by_turn_number_across_sections(): void
+    {
+        StudentRegistration::factory()->create([
+            'full_name' => 'الدور الثالث',
+            'turn_number' => 3,
+            'section_number' => 2,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'الدور الأول',
+            'turn_number' => 1,
+            'section_number' => 9,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'الدور الثاني',
+            'turn_number' => 2,
+            'section_number' => 1,
+        ]);
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->getJson('/api/admin/student-registrations')
+            ->assertOk()
+            ->assertJsonPath('registrations.0.turn_number', 1)
+            ->assertJsonPath('registrations.0.section_number', 9)
+            ->assertJsonPath('registrations.1.turn_number', 2)
+            ->assertJsonPath('registrations.1.section_number', 1)
+            ->assertJsonPath('registrations.2.turn_number', 3)
+            ->assertJsonPath('registrations.2.section_number', 2);
+    }
+
+    public function test_manager_can_mark_a_registration_done_from_the_roster(): void
+    {
+        StudentRegistration::factory()->create([
+            'turn_number' => 1,
+            'section_number' => 4,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        $registration = StudentRegistration::factory()->create([
+            'turn_number' => 2,
+            'section_number' => 1,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->postJson('/api/admin/student-registrations/'.$registration->id.'/complete')
+            ->assertOk()
+            ->assertJsonPath('message', 'تم إنهاء الدور.')
+            ->assertJsonPath('registration.status_label', 'تم')
+            ->assertJsonPath('registration.people_ahead', 1);
+
+        $this->assertSame(StudentRegistrationStatus::Completed, $registration->fresh()->status);
+    }
+
+    public function test_guest_cannot_mark_a_roster_registration_done(): void
+    {
+        $registration = StudentRegistration::factory()->create();
+
+        $this->postJson('/api/admin/student-registrations/'.$registration->id.'/complete')
+            ->assertUnauthorized();
+    }
+
+    public function test_teller_cannot_mark_a_roster_registration_done(): void
+    {
+        $registration = StudentRegistration::factory()->create();
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/admin/student-registrations/'.$registration->id.'/complete')
+            ->assertForbidden();
+
+        $this->assertSame(StudentRegistrationStatus::Waiting, $registration->fresh()->status);
+    }
+
     public function test_searching_for_a_percent_sign_does_not_return_every_student(): void
     {
         StudentRegistration::factory()->create([
@@ -345,7 +424,7 @@ class StudentRegistrationTest extends TestCase
         ]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
-                'student_group' => 'المجموعة يجب أن تكون A أو B.',
+                'student_group' => 'يجب اختيار A أو B.',
             ]);
 
         $this->assertDatabaseCount('student_registrations', 0);
@@ -389,6 +468,48 @@ class StudentRegistrationTest extends TestCase
             ->assertJsonPath('registration.turn_number', 2);
     }
 
+    public function test_rapid_registrations_receive_unique_sequential_turn_numbers(): void
+    {
+        $turns = [];
+
+        for ($index = 1; $index <= 12; $index++) {
+            $response = $this->postJson('/api/public/student-registrations', $this->payload([
+                'full_name' => "طالب رقم {$index}",
+                'academic_number' => (string) (2020100000 + $index),
+                'national_id' => str_pad((string) (29501011234500 + $index), 14, '0', STR_PAD_LEFT),
+            ]))->assertCreated();
+
+            $turns[] = $response->json('registration.turn_number');
+        }
+
+        $this->assertSame(range(1, 12), $turns);
+        $this->assertCount(12, array_unique($turns));
+        $this->assertDatabaseCount('student_registrations', 12);
+    }
+
+    public function test_manager_can_search_by_turn_number(): void
+    {
+        StudentRegistration::factory()->create([
+            'full_name' => 'أحمد محمود',
+            'academic_number' => '2020888001',
+            'national_id' => '30000000000001',
+            'turn_number' => 15,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'سارة علي',
+            'academic_number' => '2020888002',
+            'national_id' => '30000000000002',
+            'turn_number' => 151,
+        ]);
+        Sanctum::actingAs(User::factory()->manager()->create());
+
+        $this->getJson('/api/admin/student-registrations?search=15')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('registrations.0.full_name', 'أحمد محمود')
+            ->assertJsonPath('registrations.0.turn_number', 15);
+    }
+
     public function test_manager_can_search_by_national_id(): void
     {
         StudentRegistration::factory()->create([
@@ -407,7 +528,7 @@ class StudentRegistrationTest extends TestCase
             ->assertJsonPath('registrations.0.full_name', 'أحمد محمود');
     }
 
-    public function test_teller_lists_only_waiting_registrations(): void
+    public function test_teller_lists_todays_waiting_and_finished_registrations(): void
     {
         StudentRegistration::factory()->create([
             'full_name' => 'في الانتظار',
@@ -418,13 +539,56 @@ class StudentRegistrationTest extends TestCase
             'full_name' => 'خلص',
             'turn_number' => 2,
             'status' => StudentRegistrationStatus::Completed,
+            'people_ahead' => 3,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'من أمس',
+            'turn_number' => 1,
+            'service_date' => now('Africa/Cairo')->subDay()->toDateString(),
+            'status' => StudentRegistrationStatus::Waiting,
         ]);
         Sanctum::actingAs(User::factory()->teller()->create());
 
         $this->getJson('/api/teller/student-registrations')
             ->assertOk()
-            ->assertJsonCount(1, 'registrations')
-            ->assertJsonPath('registrations.0.full_name', 'في الانتظار');
+            ->assertJsonCount(2, 'registrations')
+            ->assertJsonPath('registrations.0.full_name', 'في الانتظار')
+            ->assertJsonPath('registrations.1.full_name', 'خلص')
+            ->assertJsonPath('registrations.1.status_label', 'تم')
+            ->assertJsonPath('registrations.1.people_ahead', 3);
+    }
+
+    public function test_teller_lists_turns_in_order_across_sections(): void
+    {
+        StudentRegistration::factory()->create([
+            'full_name' => 'دور لاحق',
+            'turn_number' => 3,
+            'section_number' => 2,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'دور خلص',
+            'turn_number' => 1,
+            'section_number' => 8,
+            'status' => StudentRegistrationStatus::Completed,
+            'people_ahead' => 0,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'دور وسط',
+            'turn_number' => 2,
+            'section_number' => 1,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->getJson('/api/teller/student-registrations')
+            ->assertOk()
+            ->assertJsonPath('registrations.0.turn_number', 1)
+            ->assertJsonPath('registrations.0.section_number', 8)
+            ->assertJsonPath('registrations.1.turn_number', 2)
+            ->assertJsonPath('registrations.1.section_number', 1)
+            ->assertJsonPath('registrations.2.turn_number', 3)
+            ->assertJsonPath('registrations.2.section_number', 2);
     }
 
     public function test_teller_can_mark_a_registration_done(): void
@@ -440,13 +604,39 @@ class StudentRegistrationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'تم إنهاء الدور.')
             ->assertJsonPath('registration.status', 'completed')
-            ->assertJsonPath('registration.status_label', 'تم');
+            ->assertJsonPath('registration.status_label', 'تم')
+            ->assertJsonPath('registration.people_ahead', 0);
 
         $registration->refresh();
 
         $this->assertSame(StudentRegistrationStatus::Completed, $registration->status);
         $this->assertNotNull($registration->completed_at);
         $this->assertSame($teller->id, $registration->completed_by);
+        $this->assertSame(0, $registration->people_ahead);
+    }
+
+    public function test_marking_a_registration_done_counts_people_still_waiting_ahead(): void
+    {
+        StudentRegistration::factory()->create([
+            'turn_number' => 1,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        StudentRegistration::factory()->create([
+            'turn_number' => 2,
+            'status' => StudentRegistrationStatus::Completed,
+        ]);
+        $registration = StudentRegistration::factory()->create([
+            'turn_number' => 3,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->postJson('/api/teller/student-registrations/'.$registration->id.'/complete')
+            ->assertOk()
+            ->assertJsonPath('registration.status_label', 'تم')
+            ->assertJsonPath('registration.people_ahead', 1);
+
+        $this->assertSame(1, $registration->fresh()->people_ahead);
     }
 
     public function test_marking_a_finished_registration_done_again_returns_422(): void
@@ -488,5 +678,100 @@ class StudentRegistrationTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(StudentRegistrationStatus::Waiting, $registration->fresh()->status);
+    }
+
+    public function test_group_number_zero_is_rejected(): void
+    {
+        $this->postJson('/api/public/student-registrations', $this->payload([
+            'group_number' => 0,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'group_number' => 'رقم المجموعة يجب أن يكون من 1 إلى 999.',
+            ]);
+
+        $this->assertDatabaseCount('student_registrations', 0);
+    }
+
+    public function test_public_lookup_by_academic_number_returns_the_turn(): void
+    {
+        StudentRegistration::factory()->create([
+            'full_name' => 'أحمد محمود علي',
+            'academic_number' => '2020123456',
+            'group_number' => 4,
+            'student_group' => 'A',
+            'turn_number' => 7,
+        ]);
+
+        $this->postJson('/api/public/student-registrations/lookup', [
+            'query' => '2020123456',
+        ])
+            ->assertOk()
+            ->assertJsonPath('registration.full_name', 'أحمد محمود علي')
+            ->assertJsonPath('registration.turn_number', 7)
+            ->assertJsonPath('registration.group_code', '4A')
+            ->assertJsonMissingPath('registration.national_id')
+            ->assertJsonMissingPath('registration.academic_number');
+    }
+
+    public function test_public_lookup_by_national_id_returns_the_turn(): void
+    {
+        StudentRegistration::factory()->create([
+            'full_name' => 'منى سعيد',
+            'national_id' => '29501011234567',
+            'turn_number' => 3,
+        ]);
+
+        $this->postJson('/api/public/student-registrations/lookup', [
+            'query' => '٢٩٥٠١٠١١٢٣٤٥٦٧',
+        ])
+            ->assertOk()
+            ->assertJsonPath('registration.full_name', 'منى سعيد')
+            ->assertJsonPath('registration.turn_number', 3);
+    }
+
+    public function test_public_lookup_for_unknown_number_returns_not_found_message(): void
+    {
+        $this->postJson('/api/public/student-registrations/lookup', [
+            'query' => '2020999000',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'query' => 'لا يوجد تسجيل بهذه البيانات.',
+            ]);
+    }
+
+    public function test_public_lookup_rejects_a_short_query(): void
+    {
+        $this->postJson('/api/public/student-registrations/lookup', [
+            'query' => '12',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'query' => 'اكتب الرقم الأكاديمي أو الرقم القومي بشكل صحيح.',
+            ]);
+    }
+
+    public function test_teller_search_returns_a_registered_student_and_turn(): void
+    {
+        StudentRegistration::factory()->create([
+            'full_name' => 'في الانتظار',
+            'academic_number' => '2020111111',
+            'turn_number' => 1,
+            'status' => StudentRegistrationStatus::Waiting,
+        ]);
+        StudentRegistration::factory()->create([
+            'full_name' => 'خلص الدور',
+            'academic_number' => '2020222222',
+            'turn_number' => 9,
+            'status' => StudentRegistrationStatus::Completed,
+        ]);
+        Sanctum::actingAs(User::factory()->teller()->create());
+
+        $this->getJson('/api/teller/student-registrations?search=2020222222')
+            ->assertOk()
+            ->assertJsonCount(1, 'registrations')
+            ->assertJsonPath('registrations.0.full_name', 'خلص الدور')
+            ->assertJsonPath('registrations.0.turn_number', 9);
     }
 }

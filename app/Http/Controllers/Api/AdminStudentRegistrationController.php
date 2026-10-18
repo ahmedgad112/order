@@ -41,6 +41,16 @@ class AdminStudentRegistrationController extends Controller
         ]);
     }
 
+    public function complete(Request $request, StudentRegistration $studentRegistration): JsonResponse
+    {
+        $studentRegistration = $studentRegistration->markCompletedBy($request->user()?->id);
+
+        return response()->json([
+            'message' => 'تم إنهاء الدور.',
+            'registration' => new StudentRegistrationResource($studentRegistration),
+        ]);
+    }
+
     public function destroy(StudentRegistration $studentRegistration): JsonResponse
     {
         $studentRegistration->delete();
@@ -135,7 +145,7 @@ class AdminStudentRegistrationController extends Controller
                     'national_id' => $registration->national_id,
                     'department' => $registration->department,
                     'section_number' => $registration->section_number,
-                    'student_group' => $registration->student_group?->value ?? '',
+                    'student_group' => $registration->groupCode(),
                     'turn_number' => $registration->turn_number,
                     'status' => $registration->status?->label() ?? '',
                     'created_at' => $registration->created_at?->timezone('Africa/Cairo')->format('Y-m-d H:i') ?? '',

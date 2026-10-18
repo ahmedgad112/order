@@ -25,6 +25,7 @@ class StudentRegistrationFactory extends Factory
             'national_id' => fake()->unique()->numerify('##############'),
             'department' => 'تكنولوجيا المعلومات',
             'section_number' => fake()->numberBetween(1, 20),
+            'group_number' => fake()->numberBetween(1, 20),
             'student_group' => StudentRegistrationGroup::GroupA,
             'service_date' => StudentRegistration::currentServiceDate(),
             'turn_number' => fake()->unique()->numberBetween(1, 900000),
