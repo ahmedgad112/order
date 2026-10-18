@@ -15,6 +15,7 @@ import {
     UserX,
     VolumeX,
 } from 'lucide-vue-next';
+import { axios } from '../bootstrap';
 import { useAuthStore } from '../stores/authStore';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
@@ -42,6 +43,8 @@ const callingId = ref(null);
 const restartingCalls = ref(false);
 const skippingId = ref(null);
 const recallingId = ref(null);
+const waitingRegistrations = ref([]);
+const completingRegistrationId = ref(null);
 const search = ref('');
 const searchBy = ref('all');
 const stepFilter = ref('all');
@@ -278,8 +281,33 @@ async function loadTickets(silent = false) {
     }
 }
 
+async function loadWaitingRegistrations() {
+    try {
+        const { data } = await axios.get('/teller/student-registrations');
+        waitingRegistrations.value = data.registrations ?? [];
+    } catch {
+        // Keep the last list when the refresh fails.
+    }
+}
+
+async function completeRegistration(registration) {
+    completingRegistrationId.value = registration.id;
+    actionError.value = '';
+
+    try {
+        await axios.post(`/teller/student-registrations/${registration.id}/complete`);
+        actionMessage.value = `تم إنهاء الدور ${registration.turn_number}.`;
+        await loadWaitingRegistrations();
+    } catch (error) {
+        actionError.value = error.response?.data?.errors?.registration?.[0]
+            ?? 'تعذر إنهاء الدور.';
+    } finally {
+        completingRegistrationId.value = null;
+    }
+}
+
 async function refresh() {
-    await loadTickets();
+    await Promise.all([loadTickets(), loadWaitingRegistrations()]);
 }
 
 function canMarkAbsent(ticket) {
@@ -651,6 +679,7 @@ onMounted(() => {
 
     stopAutoRefresh = queueStore.startAutoRefresh(async () => {
         await loadTickets(true);
+        await loadWaitingRegistrations();
     }, 5000);
 });
 
@@ -703,6 +732,54 @@ onUnmounted(() => {
                     <Hash class="h-5 w-5" />
                     دور بالنوع
                 </button>
+            </section>
+
+            <section class="rounded-3xl bg-white p-4 shadow-sm sm:p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900">أدوار تسجيل الطلاب</h2>
+                        <p class="text-sm text-slate-500">{{ waitingRegistrations.length }} في الانتظار</p>
+                    </div>
+                </div>
+                <p v-if="waitingRegistrations.length === 0" class="mt-4 text-sm text-slate-500">
+                    لا يوجد طلاب منتظرون من صفحة التسجيل.
+                </p>
+                <div v-else class="mt-4 grid gap-3 sm:grid-cols-2">
+                    <article
+                        v-for="registration in waitingRegistrations"
+                        :key="registration.id"
+                        class="rounded-2xl border border-slate-200 p-4"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-3xl font-black text-indigo-700">{{ registration.turn_number }}</p>
+                                <p class="mt-1 font-bold text-slate-900">{{ registration.full_name }}</p>
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                :disabled="completingRegistrationId === registration.id"
+                                @click="completeRegistration(registration)"
+                            >
+                                {{ completingRegistrationId === registration.id ? 'جاري...' : 'تم' }}
+                            </button>
+                        </div>
+                        <dl class="mt-3 grid gap-1 text-sm text-slate-600">
+                            <div class="flex justify-between gap-3">
+                                <dt>الرقم القومي</dt>
+                                <dd class="font-semibold tracking-wider">{{ registration.national_id }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt>القسم / السكشن</dt>
+                                <dd class="font-semibold">{{ registration.department }} — {{ registration.section_number }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt>المجموعة</dt>
+                                <dd class="font-bold text-slate-900">{{ registration.student_group }}</dd>
+                            </div>
+                        </dl>
+                    </article>
+                </div>
             </section>
 
             <section

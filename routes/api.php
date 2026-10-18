@@ -8,18 +8,23 @@ use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AdminRequestTypeController;
 use App\Http\Controllers\Api\AdminRoleController;
 use App\Http\Controllers\Api\AdminStepAnnouncementController;
+use App\Http\Controllers\Api\AdminStudentRegistrationController;
 use App\Http\Controllers\Api\AdminSystemController;
 use App\Http\Controllers\Api\AdminTicketController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PublicQueueController;
+use App\Http\Controllers\Api\PublicStudentRegistrationController;
 use App\Http\Controllers\Api\SpeechController;
 use App\Http\Controllers\Api\TellerQueueController;
+use App\Http\Controllers\Api\TellerStudentRegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('public')->group(function (): void {
     Route::get('/queue-status', [PublicQueueController::class, 'queueStatus']);
     Route::post('/tickets', [PublicQueueController::class, 'issueTicket'])
+        ->middleware('throttle:20,1');
+    Route::post('/student-registrations', [PublicStudentRegistrationController::class, 'store'])
         ->middleware('throttle:20,1');
     Route::post('/tickets/track', [PublicQueueController::class, 'trackTicket'])
         ->middleware('throttle:60,1');
@@ -65,6 +70,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/tickets/{ticket}/mark-file-delivered', [TellerQueueController::class, 'markFileDelivered']);
         Route::post('/tickets/services/{serviceSlug}/complete-bulk', [TellerQueueController::class, 'markServiceBulk']);
         Route::post('/tickets/{ticket}/services/{serviceSlug}/complete', [TellerQueueController::class, 'markService']);
+        Route::get('/student-registrations', [TellerStudentRegistrationController::class, 'index']);
+        Route::post('/student-registrations/{studentRegistration}/complete', [TellerStudentRegistrationController::class, 'complete']);
     });
 
     Route::put('/admin/tickets/{ticket}', [AdminTicketController::class, 'update'])
@@ -86,6 +93,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::prefix('admin')->middleware('permission:access_registrations')->group(function (): void {
         Route::get('/tickets', [AdminTicketController::class, 'index']);
         Route::post('/tickets/{ticket}/mark-entered', [AdminTicketController::class, 'markEntered']);
+        Route::get('/student-registrations', [AdminStudentRegistrationController::class, 'index']);
+        Route::get('/student-registrations/export', [AdminStudentRegistrationController::class, 'export']);
+        Route::delete('/student-registrations/{studentRegistration}', [AdminStudentRegistrationController::class, 'destroy']);
     });
 
     Route::prefix('admin')->middleware('permission:access_mic')->group(function (): void {

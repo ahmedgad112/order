@@ -29,6 +29,12 @@ const routes = [
         meta: { title: 'متابعة التذكرة' },
     },
     {
+        path: '/student-register',
+        name: 'student-register',
+        component: () => import('../views/StudentRegistrationView.vue'),
+        meta: { title: 'تسجيل بيانات الطالب' },
+    },
+    {
         path: '/t/:token',
         name: 'ticket-scan',
         component: () => import('../views/TicketScanView.vue'),
@@ -61,6 +67,12 @@ const routes = [
         name: 'admin-registrations',
         component: () => import('../views/AdminRegistrationsView.vue'),
         meta: { title: 'السجل والأرشيف', requiresAuth: true, permissions: ['access_registrations'] },
+    },
+    {
+        path: '/admin/student-registrations',
+        name: 'admin-student-registrations',
+        component: () => import('../views/AdminStudentRegistrationsView.vue'),
+        meta: { title: 'سجل الطلاب', requiresAuth: true, permissions: ['access_registrations'] },
     },
     {
         path: '/admin/users',
@@ -117,12 +129,13 @@ router.beforeEach(async (to) => {
 });
 
 const prefetchByRoute = {
-    'student-choice': ['track', 'login'],
+    'student-choice': ['track', 'student-register', 'login'],
     track: ['student-choice'],
     login: ['teller', 'admin'],
     teller: ['admin', 'admin-registrations'],
-    admin: ['teller', 'admin-registrations', 'admin-users', 'admin-permissions'],
-    'admin-registrations': ['admin', 'teller', 'admin-users'],
+    admin: ['teller', 'admin-registrations', 'admin-student-registrations', 'admin-users', 'admin-permissions'],
+    'admin-registrations': ['admin', 'admin-student-registrations', 'teller', 'admin-users'],
+    'admin-student-registrations': ['admin', 'admin-registrations'],
     'admin-users': ['admin', 'admin-registrations', 'admin-permissions'],
     'admin-permissions': ['admin', 'admin-users'],
 };

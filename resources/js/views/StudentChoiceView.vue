@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue';
 import { RouterLink } from 'vue-router';
-import { Lock, Search, UserRound } from 'lucide-vue-next';
+import { GraduationCap, Lock, Search, UserRound } from 'lucide-vue-next';
 import { useQueueStore } from '../stores/queueStore';
 import AppNavbar from '../components/AppNavbar.vue';
 
@@ -47,6 +47,20 @@ onUnmounted(() => {
             </div>
 
             <div class="rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-xl sm:p-8">
+                <h2 class="text-2xl font-bold text-slate-800 sm:text-3xl">تسجيل بياناتك</h2>
+                <p class="mt-3 text-sm text-slate-500 sm:text-base">
+                    اكتب اسمك ورقمك القومي والأكاديمي وقسمك وسكشنك ومجموعتك. هتاخد دور، وموظف الشباك يقدر يعلّمه تم.
+                </p>
+                <RouterLink
+                    to="/student-register"
+                    class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-base font-bold text-white hover:bg-emerald-700 sm:w-auto"
+                >
+                    <GraduationCap class="h-5 w-5" />
+                    سجّل بياناتك
+                </RouterLink>
+            </div>
+
+            <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-xl sm:mt-6 sm:p-8">
                 <h2 class="text-2xl font-bold text-slate-800 sm:text-3xl">التسجيل عند الموظف</h2>
                 <p class="mt-3 text-sm text-slate-500 sm:text-base">
                     إصدار الدور يتم من الموظف. توجه إلى شباك التسجيل لإدخال اسم الطالب ورقم الطلب ونوعه.

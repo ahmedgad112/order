@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, useSlots, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import {
     ClipboardList,
+    GraduationCap,
     KeyRound,
     LayoutDashboard,
     LogOut,
@@ -127,12 +128,20 @@ const navItems = computed(() => {
         }
 
         if (authStore.can('access_registrations')) {
-            items.push({
-                to: '/admin/registrations',
-                label: 'السجل والأرشيف',
-                icon: ClipboardList,
-                match: 'admin-registrations',
-            });
+            items.push(
+                {
+                    to: '/admin/registrations',
+                    label: 'السجل والأرشيف',
+                    icon: ClipboardList,
+                    match: 'admin-registrations',
+                },
+                {
+                    to: '/admin/student-registrations',
+                    label: 'سجل الطلاب',
+                    icon: GraduationCap,
+                    match: 'admin-student-registrations',
+                },
+            );
         }
 
         if (authStore.can('access_mic')) {
@@ -152,6 +161,7 @@ const navItems = computed(() => {
 
     const items = [
         { to: '/', label: 'الرئيسية', icon: Ticket, match: 'student-choice' },
+        { to: '/student-register', label: 'تسجيل البيانات', icon: GraduationCap, match: 'student-register' },
         { to: '/track', label: 'متابعة التذكرة', icon: Search, match: 'track' },
     ];
 
